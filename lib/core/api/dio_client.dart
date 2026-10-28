@@ -37,7 +37,7 @@ class DioClient {
   // Helper to check connectivity
   Future<bool> isConnected() async {
     final result = await _connectivity.checkConnectivity();
-    return result != ConnectivityResult.none;
+    return result.isNotEmpty && result.first != ConnectivityResult.none;
   }
 }
 
