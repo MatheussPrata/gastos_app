@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
 import 'package:gastos_flutter/features/auth/repository/auth_repository.dart';
+import 'package:gastos_flutter/core/api/api_providers.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
 
@@ -77,7 +78,7 @@ class AuthController extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(status: AuthStatus.loading, error: null);
     
-    final result = await _repository.login(email: email, password: password);
+    final result = await _repository.login(email: email, password: ***);
     
     if (result.isSuccess && result.data != null) {
       state = state.copyWith(
@@ -104,7 +105,7 @@ class AuthController extends StateNotifier<AuthState> {
     final result = await _repository.register(
       email: email,
       username: username,
-      password: password,
+      password: ***,
       confirmPassword: confirmPassword,
     );
     
@@ -142,8 +143,8 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.loading, error: null);
     
     final result = await _repository.resetPassword(
-      token: token,
-      password: password,
+      token: ***,
+      password: ***,
       confirmPassword: confirmPassword,
     );
     

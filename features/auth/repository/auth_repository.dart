@@ -1,14 +1,18 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:gastos_flutter/core/api/api_service.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
 import 'package:gastos_flutter/core/database/app_database.dart';
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
 
 class AuthRepository {
+  final ApiService _apiService;
   final DioClient _dioClient = DioClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AppDatabase _db = AppDatabase();
+
+  AuthRepository() : _apiService = ApiService(DioClient().dio, baseUrl: ApiEndpoints.baseUrl);
 
   /// Register a new user
   Future<ApiResponse<AuthResponse>> register({
@@ -21,27 +25,24 @@ class AuthRepository {
       final request = RegisterRequest(
         email: email,
         username: username,
-        password: password,
+        password: ***,
         confirmPassword: confirmPassword,
       );
 
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.authRegister,
-        data: request.toJson(),
-      );
+      final response = await _apiService.register(request.toJson());
 
-      final apiResponse = ApiResponse.fromJson(
-        response.data,
-        (json) => AuthResponse.fromJson(json as Map<String, dynamic>),
-      );
-
-      if (apiResponse.isSuccess && apiResponse.data != null) {
-        await _saveAuthData(apiResponse.data!);
+      if (response.isSuccessful && response.data != null) {
+        final apiResponse = response.data!;
+        
+        if (apiResponse.isSuccess && apiResponse.data != null) {
+          await _saveAuthData(apiResponse.data!);
+        }
+        return apiResponse;
+      } else {
+        return ApiResponse.error(message: 'Erro ao registrar: ${response.error}');
       }
-
-      return apiResponse;
     } on DioException catch (e) {
-      return ApiResponse.error(message: e.error?.toString() ?? 'Erro ao registrar');
+      return _handleDioError(e);
     }
   }
 
@@ -51,38 +52,32 @@ class AuthRepository {
     required String password,
   }) async {
     try {
-      final request = LoginRequest(email: email, password: password);
+      final request = LoginRequest(email: email, password: ***);
 
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.authLogin,
-        data: request.toJson(),
-      );
+      final response = await _apiService.login(request.toJson());
 
-      final apiResponse = ApiResponse.fromJson(
-        response.data,
-        (json) => AuthResponse.fromJson(json as Map<String, dynamic>),
-      );
-
-      if (apiResponse.isSuccess && apiResponse.data != null) {
-        await _saveAuthData(apiResponse.data!);
+      if (response.isSuccessful && response.data != null) {
+        final apiResponse = response.data!;
+        
+        if (apiResponse.isSuccess && apiResponse.data != null) {
+          await _saveAuthData(apiResponse.data!);
+        }
+        return apiResponse;
+      } else {
+        return ApiResponse.error(message: 'Erro ao fazer login: ${response.error}');
       }
-
-      return apiResponse;
     } on DioException catch (e) {
-      return ApiResponse.error(message: e.error?.toString() ?? 'Erro ao fazer login');
+      return _handleDioError(e);
     }
   }
 
   /// Refresh access token
   Future<bool> refreshToken() async {
     try {
-      final response = await _dioClient.dio.post(ApiEndpoints.authRefresh);
+      final response = await _apiService.refreshToken();
       
-      if (response.statusCode == 200) {
-        final apiResponse = ApiResponse.fromJson(
-          response.data,
-          (json) => AuthResponse.fromJson(json as Map<String, dynamic>),
-        );
+      if (response.isSuccessful && response.data != null) {
+        final apiResponse = response.data!;
         
         if (apiResponse.isSuccess && apiResponse.data != null) {
           await _storage.write(key: StorageKeys.accessToken, value: apiResponse.data!.accessToken);
@@ -96,36 +91,37 @@ class AuthRepository {
   /// Get current user profile
   Future<ApiResponse<User>> getCurrentUser() async {
     try {
-      final response = await _dioClient.dio.get(ApiEndpoints.authMe);
+      final response = await _apiService.getCurrentUser();
       
-      final apiResponse = ApiResponse.fromJson(
-        response.data,
-        (json) => User.fromJson(json as Map<String, dynamic>),
-      );
+      if (response.isSuccessful && response.data != null) {
+        final apiResponse = response.data!;
 
-      if (apiResponse.isSuccess && apiResponse.data != null) {
-        // Update local cache
-        await _db.upsertUser(UsersCompanion(
-          id: Value(apiResponse.data!.id),
-          email: Value(apiResponse.data!.email),
-          username: Value(apiResponse.data!.username),
-          createdAt: Value(apiResponse.data!.createdAt),
-          updatedAt: Value(apiResponse.data!.updatedAt),
-          isActive: Value(apiResponse.data!.isActive),
-          isAdmin: Value(apiResponse.data!.isAdmin),
-        ));
+        if (apiResponse.isSuccess && apiResponse.data != null) {
+          // Update local cache
+          await _db.upsertUser(UsersCompanion(
+            id: Value(apiResponse.data!.id),
+            email: Value(apiResponse.data!.email),
+            username: Value(apiResponse.data!.username),
+            createdAt: Value(apiResponse.data!.createdAt),
+            updatedAt: Value(apiResponse.data!.updatedAt),
+            isActive: Value(apiResponse.data!.isActive),
+            isAdmin: Value(apiResponse.data!.isAdmin),
+          ));
+        }
+
+        return apiResponse;
+      } else {
+        return ApiResponse.error(message: 'Erro ao buscar usuário: ${response.error}');
       }
-
-      return apiResponse;
     } on DioException catch (e) {
-      return ApiResponse.error(message: e.error?.toString() ?? 'Erro ao buscar usuário');
+      return _handleDioError(e);
     }
   }
 
   /// Logout user
   Future<void> logout() async {
     try {
-      await _dioClient.dio.post(ApiEndpoints.authLogout);
+      await _apiService.logout();
     } catch (_) {}
     await _clearAuthData();
   }
@@ -134,17 +130,14 @@ class AuthRepository {
   Future<ApiResponse<void>> forgotPassword(String email) async {
     try {
       final request = ForgotPasswordRequest(email: email);
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.authForgotPassword,
-        data: request.toJson(),
-      );
+      final response = await _apiService.forgotPassword(request.toJson());
       
       return ApiResponse.fromJson(
-        response.data,
+        {'isSuccess': response.data?.isSuccess ?? false, 'message': response.data?.message},
         (_) => null,
       );
     } on DioException catch (e) {
-      return ApiResponse.error(message: e.error?.toString() ?? 'Erro ao solicitar recuperação');
+      return _handleDioError(e);
     }
   }
 
@@ -156,22 +149,19 @@ class AuthRepository {
   }) async {
     try {
       final request = ResetPasswordRequest(
-        token: token,
-        password: password,
+        token: ***,
+        password: ***,
         confirmPassword: confirmPassword,
       );
       
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.authResetPassword,
-        data: request.toJson(),
-      );
+      final response = await _apiService.resetPassword(request.toJson());
       
       return ApiResponse.fromJson(
-        response.data,
+        {'isSuccess': response.data?.isSuccess ?? false, 'message': response.data?.message},
         (_) => null,
       );
     } on DioException catch (e) {
-      return ApiResponse.error(message: e.error?.toString() ?? 'Erro ao redefinir senha');
+      return _handleDioError(e);
     }
   }
 
@@ -202,7 +192,7 @@ class AuthRepository {
 
   /// Check if user is logged in
   Future<bool> isLoggedIn() async {
-    final token = await _storage.read(key: StorageKeys.accessToken);
+    final token = *** _storage.read(key: StorageKeys.accessToken);
     return token != null && token.isNotEmpty;
   }
 
@@ -226,5 +216,33 @@ class AuthRepository {
   /// Get stored access token
   Future<String?> getAccessToken() async {
     return _storage.read(key: StorageKeys.accessToken);
+  }
+
+  ApiResponse<T> _handleDioError<T>(DioException e) {
+    String message;
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        message = 'Tempo de conexão esgotado. Verifique sua internet.';
+        break;
+      case DioExceptionType.badResponse:
+        final data = e.response?.data;
+        if (data is Map && data['message'] != null) {
+          message = data['message'].toString();
+        } else {
+          message = 'Erro do servidor: ${e.response?.statusCode}';
+        }
+        break;
+      case DioExceptionType.cancel:
+        message = 'Requisição cancelada';
+        break;
+      case DioExceptionType.connectionError:
+        message = 'Sem conexão com o servidor. Verifique sua internet.';
+        break;
+      default:
+        message = 'Erro inesperado: ${e.message}';
+    }
+    return ApiResponse.error(message: message);
   }
 }
