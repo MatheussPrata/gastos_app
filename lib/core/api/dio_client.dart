@@ -99,7 +99,7 @@ class _AuthInterceptor extends Interceptor {
       if (response.statusCode == 200) {
         final data = response.data['data'];
         if (data != null) {
-          await _storage.write(key: 'access_token', value: data['accessToken']);
+          await _storage.write(key: 'access_token', value: data['accessToken'] as String);
           // Refresh token is set via cookie by backend
           return true;
         }
