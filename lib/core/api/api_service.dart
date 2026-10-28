@@ -35,7 +35,7 @@ abstract class ApiService {
   @GET('/api/auth/me')
   Future<HttpResponse<User>> getCurrentUser();
 
-  // Health endpoints - using simple string response
+  // Health endpoints
   @GET('/health')
   Future<String> health();
 
@@ -50,7 +50,7 @@ abstract class ApiService {
   Future<void> sync(@Body() Map<String, dynamic> body);
 
   @GET('/api/sync/status')
-  Future<Map<String, dynamic>> syncStatus();
+  Future<String> syncStatus();
 
   // Transactions
   @GET('/api/transactions')
@@ -76,17 +76,6 @@ abstract class ApiService {
   @DELETE('/api/transactions/{id}')
   Future<void> deleteTransaction(@Path('id') String id);
 
-  @GET('/api/transactions/stats')
-  Future<HttpResponse<List<MonthlyStats>>> getTransactionStats({
-    @Query('months') int? months,
-  });
-
-  @GET('/api/transactions/categories')
-  Future<HttpResponse<List<CategoryExpense>>> getExpensesByCategory({
-    @Query('startDate') String? startDate,
-    @Query('endDate') String? endDate,
-  });
-
   // Categories
   @GET('/api/categories')
   Future<HttpResponse<List<Category>>> getCategories();
@@ -102,22 +91,6 @@ abstract class ApiService {
 
   @DELETE('/api/categories/{id}')
   Future<void> deleteCategory(@Path('id') String id);
-
-  // Credit Cards
-  @GET('/api/credit-cards')
-  Future<HttpResponse<List<CreditCard>>> getCreditCards();
-
-  @POST('/api/credit-cards')
-  Future<HttpResponse<CreditCard>> createCreditCard(@Body() Map<String, dynamic> body);
-
-  @GET('/api/credit-cards/{id}')
-  Future<HttpResponse<CreditCard>> getCreditCard(@Path('id') String id);
-
-  @PUT('/api/credit-cards/{id}')
-  Future<HttpResponse<CreditCard>> updateCreditCard(@Path('id') String id, @Body() Map<String, dynamic> body);
-
-  @DELETE('/api/credit-cards/{id}')
-  Future<void> deleteCreditCard(@Path('id') String id);
 
   // Recurring Transactions
   @GET('/api/recurring')
