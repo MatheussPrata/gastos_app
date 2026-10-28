@@ -204,65 +204,6 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 1;
 
-  // Helper methods for common queries
-  
-  // Get all unsynced records for sync engine
-  Future<List<TransactionsData>> getUnsyncedTransactions() {
-    return (select(transactions)..where((t) => t.isSynced.equals(false))).get();
-  }
-
-  Future<List<RecurringTransactionsData>> getUnsyncedRecurring() {
-    return (select(recurringTransactions)..where((t) => t.isSynced.equals(false))).get();
-  }
-
-  Future<List<ShoppingItemsData>> getUnsyncedShopping() {
-    return (select(shoppingItems)..where((t) => t.isSynced.equals(false))).get();
-  }
-
-  Future<List<CategoriesData>> getUnsyncedCategories() {
-    return (select(categories)..where((t) => t.isSynced.equals(false))).get();
-  }
-
-  Future<List<CreditCardsData>> getUnsyncedCreditCards() {
-    return (select(creditCards)..where((t) => t.isSynced.equals(false))).get();
-  }
-
-  // Mark as synced after successful API call
-  Future<int> markTransactionSynced(String id) {
-    return (update(transactions)..where((t) => t.id.equals(id)))
-        .write(TransactionsCompanion(isSynced: const Value(true)));
-  }
-
-  Future<int> markRecurringSynced(String id) {
-    return (update(recurringTransactions)..where((t) => t.id.equals(id)))
-        .write(RecurringTransactionsCompanion(isSynced: const Value(true)));
-  }
-
-  Future<int> markShoppingSynced(String id) {
-    return (update(shoppingItems)..where((t) => t.id.equals(id)))
-        .write(ShoppingItemsCompanion(isSynced: const Value(true)));
-  }
-
-  Future<int> markCategorySynced(String id) {
-    return (update(categories)..where((t) => t.id.equals(id)))
-        .write(CategoriesCompanion(isSynced: const Value(true)));
-  }
-
-  Future<int> markCreditCardSynced(String id) {
-    return (update(creditCards)..where((t) => t.id.equals(id)))
-        .write(CreditCardsCompanion(isSynced: const Value(true)));
-  }
-
-  // Get current user
-  Future<UsersData?> getCurrentUser() {
-    return (select(users)..limit(1)).getSingleOrNull();
-  }
-
-  // Insert or update user
-  Future<void> upsertUser(UsersCompanion user) {
-    return into(users).insertOnConflictUpdate(user);
-  }
-
   // Clear all data (for logout)
   Future<void> clearAllData() {
     return transaction(() async {
