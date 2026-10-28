@@ -1,5 +1,6 @@
 import 'package:retrofit/retrofit.dart';
 import 'package:dio/dio.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
 import 'package:gastos_flutter/features/transactions/models/transaction_models.dart';
 import 'package:gastos_flutter/features/categories/models/category_models.dart';
@@ -8,6 +9,7 @@ import 'package:gastos_flutter/features/shopping/models/shopping_models.dart';
 import 'package:gastos_flutter/features/settings/models/settings_models.dart';
 
 part 'api_service.g.dart';
+part 'api_service.freezed.dart';
 
 @RestApi()
 abstract class ApiService {
