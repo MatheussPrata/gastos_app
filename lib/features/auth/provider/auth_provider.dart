@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
 import 'package:gastos_flutter/features/auth/repository/auth_repository.dart';
