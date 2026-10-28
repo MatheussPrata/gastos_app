@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_flutter/core/api/api_service.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
@@ -25,7 +26,7 @@ class AuthRepository {
       final request = RegisterRequest(
         email: email,
         username: username,
-        password: ***,
+        password: password,
         confirmPassword: confirmPassword,
       );
 
@@ -52,7 +53,7 @@ class AuthRepository {
     required String password,
   }) async {
     try {
-      final request = LoginRequest(email: email, password: ***);
+      final request = LoginRequest(email: email, password: password);
 
       final response = await _apiService.login(request.toJson());
 
@@ -149,8 +150,8 @@ class AuthRepository {
   }) async {
     try {
       final request = ResetPasswordRequest(
-        token: ***,
-        password: ***,
+        token: token,
+        password: password,
         confirmPassword: confirmPassword,
       );
       
@@ -192,7 +193,7 @@ class AuthRepository {
 
   /// Check if user is logged in
   Future<bool> isLoggedIn() async {
-    final token = *** _storage.read(key: StorageKeys.accessToken);
+    final token = await _storage.read(key: StorageKeys.accessToken);
     return token != null && token.isNotEmpty;
   }
 

@@ -78,7 +78,7 @@ class AuthController extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(status: AuthStatus.loading, error: null);
     
-    final result = await _repository.login(email: email, password: ***);
+    final result = await _repository.login(email: email, password: password);
     
     if (result.isSuccess && result.data != null) {
       state = state.copyWith(
@@ -105,7 +105,7 @@ class AuthController extends StateNotifier<AuthState> {
     final result = await _repository.register(
       email: email,
       username: username,
-      password: ***,
+      password: password,
       confirmPassword: confirmPassword,
     );
     
@@ -143,8 +143,8 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.loading, error: null);
     
     final result = await _repository.resetPassword(
-      token: ***,
-      password: ***,
+      token: token,
+      password: password,
       confirmPassword: confirmPassword,
     );
     
