@@ -1,0 +1,52 @@
+# Flutter/Dart/Pub
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.pub/
+build/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.gr.dart
+*.config.dart
+
+# Coverage
+coverage/
+*.lcov
+
+# Build outputs
+*.apk
+*.aab
+*.ipa
+*.dSYM/
+build/
+*.app/
+
+# Local properties
+local.properties
+
+# Keystore
+*.keystore
+*.jks
+
+# Environment
+.env
+*.env.local
+
+# Test
+test/*.json
+test/*.goldens.dart
