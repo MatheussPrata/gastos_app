@@ -24,33 +24,33 @@ abstract class ApiService {
   Future<HttpResponse<AuthResponse>> refreshToken();
 
   @POST('/api/auth/logout')
-  Future<HttpResponse<dynamic>> logout();
+  Future<void> logout();
 
   @POST('/api/auth/forgot-password')
-  Future<HttpResponse<dynamic>> forgotPassword(@Body() Map<String, dynamic> body);
+  Future<void> forgotPassword(@Body() Map<String, dynamic> body);
 
   @POST('/api/auth/reset-password')
-  Future<HttpResponse<dynamic>> resetPassword(@Body() Map<String, dynamic> body);
+  Future<void> resetPassword(@Body() Map<String, dynamic> body);
 
   @GET('/api/auth/me')
   Future<HttpResponse<User>> getCurrentUser();
 
-  // Health endpoints
+  // Health endpoints - using simple string response
   @GET('/health')
-  Future<HttpResponse<Map<String, dynamic>>> health();
+  Future<String> health();
 
   @GET('/ready')
-  Future<HttpResponse<Map<String, dynamic>>> ready();
+  Future<String> ready();
 
   @GET('/live')
-  Future<HttpResponse<Map<String, dynamic>>> live();
+  Future<String> live();
 
   // Sync endpoints
   @POST('/api/sync')
-  Future<HttpResponse<Map<String, dynamic>>> sync(@Body() Map<String, dynamic> body);
+  Future<void> sync(@Body() Map<String, dynamic> body);
 
   @GET('/api/sync/status')
-  Future<HttpResponse<Map<String, dynamic>>> syncStatus();
+  Future<Map<String, dynamic>> syncStatus();
 
   // Transactions
   @GET('/api/transactions')
@@ -74,7 +74,7 @@ abstract class ApiService {
   Future<HttpResponse<Transaction>> updateTransaction(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/transactions/{id}')
-  Future<HttpResponse<dynamic>> deleteTransaction(@Path('id') String id);
+  Future<void> deleteTransaction(@Path('id') String id);
 
   @GET('/api/transactions/stats')
   Future<HttpResponse<List<MonthlyStats>>> getTransactionStats({
@@ -101,7 +101,7 @@ abstract class ApiService {
   Future<HttpResponse<Category>> updateCategory(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/categories/{id}')
-  Future<HttpResponse<dynamic>> deleteCategory(@Path('id') String id);
+  Future<void> deleteCategory(@Path('id') String id);
 
   // Credit Cards
   @GET('/api/credit-cards')
@@ -117,7 +117,7 @@ abstract class ApiService {
   Future<HttpResponse<CreditCard>> updateCreditCard(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/credit-cards/{id}')
-  Future<HttpResponse<dynamic>> deleteCreditCard(@Path('id') String id);
+  Future<void> deleteCreditCard(@Path('id') String id);
 
   // Recurring Transactions
   @GET('/api/recurring')
@@ -133,7 +133,7 @@ abstract class ApiService {
   Future<HttpResponse<RecurringTransaction>> updateRecurring(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/recurring/{id}')
-  Future<HttpResponse<dynamic>> deleteRecurring(@Path('id') String id);
+  Future<void> deleteRecurring(@Path('id') String id);
 
   // Shopping Items
   @GET('/api/shopping')
@@ -149,7 +149,7 @@ abstract class ApiService {
   Future<HttpResponse<ShoppingItem>> updateShoppingItem(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/shopping/{id}')
-  Future<HttpResponse<dynamic>> deleteShoppingItem(@Path('id') String id);
+  Future<void> deleteShoppingItem(@Path('id') String id);
 
   // Settings
   @GET('/api/settings')
@@ -160,5 +160,5 @@ abstract class ApiService {
 
   // Backup
   @POST('/api/backup')
-  Future<HttpResponse<Map<String, dynamic>>> triggerBackup();
+  Future<void> triggerBackup();
 }
