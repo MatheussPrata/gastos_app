@@ -111,3 +111,10 @@ class ApiResponse<T> with _$ApiResponse {
   T? get data => this is _ApiSuccess<T> ? (this as _ApiSuccess<T>).data : null;
   String? get message => this is _ApiError<T> ? (this as _ApiError<T>).message : null;
 }
+
+@freezed
+class EmptyResponse with _$EmptyResponse {
+  const factory EmptyResponse() = _EmptyResponse;
+
+  factory EmptyResponse.fromJson(Map<String, dynamic> json) => _$EmptyResponseFromJson(json);
+}

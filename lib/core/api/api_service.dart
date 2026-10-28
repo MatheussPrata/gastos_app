@@ -1,6 +1,11 @@
 import 'package:retrofit/retrofit.dart';
 import 'package:dio/dio.dart';
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
+import 'package:gastos_flutter/features/transactions/models/transaction_models.dart';
+import 'package:gastos_flutter/features/categories/models/category_models.dart';
+import 'package:gastos_flutter/features/recurring/models/recurring_models.dart';
+import 'package:gastos_flutter/features/shopping/models/shopping_models.dart';
+import 'package:gastos_flutter/features/settings/models/settings_models.dart';
 
 part 'api_service.g.dart';
 
@@ -19,13 +24,13 @@ abstract class ApiService {
   Future<HttpResponse<ApiResponse<AuthResponse>>> refreshToken();
 
   @POST('/api/auth/logout')
-  Future<HttpResponse<ApiResponse<void>>> logout();
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> logout();
 
   @POST('/api/auth/forgot-password')
-  Future<HttpResponse<ApiResponse<void>>> forgotPassword(@Body() Map<String, dynamic> body);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> forgotPassword(@Body() Map<String, dynamic> body);
 
   @POST('/api/auth/reset-password')
-  Future<HttpResponse<ApiResponse<void>>> resetPassword(@Body() Map<String, dynamic> body);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> resetPassword(@Body() Map<String, dynamic> body);
 
   @GET('/api/auth/me')
   Future<HttpResponse<ApiResponse<User>>> getCurrentUser();
@@ -69,7 +74,7 @@ abstract class ApiService {
   Future<HttpResponse<ApiResponse<Transaction>>> updateTransaction(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/transactions/{id}')
-  Future<HttpResponse<ApiResponse<void>>> deleteTransaction(@Path('id') String id);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> deleteTransaction(@Path('id') String id);
 
   @GET('/api/transactions/stats')
   Future<HttpResponse<ApiResponse<List<MonthlyStats>>>> getTransactionStats({
@@ -96,7 +101,7 @@ abstract class ApiService {
   Future<HttpResponse<ApiResponse<Category>>> updateCategory(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/categories/{id}')
-  Future<HttpResponse<ApiResponse<void>>> deleteCategory(@Path('id') String id);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> deleteCategory(@Path('id') String id);
 
   // Credit Cards
   @GET('/api/credit-cards')
@@ -112,7 +117,7 @@ abstract class ApiService {
   Future<HttpResponse<ApiResponse<CreditCard>>> updateCreditCard(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/credit-cards/{id}')
-  Future<HttpResponse<ApiResponse<void>>> deleteCreditCard(@Path('id') String id);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> deleteCreditCard(@Path('id') String id);
 
   // Recurring Transactions
   @GET('/api/recurring')
@@ -128,7 +133,7 @@ abstract class ApiService {
   Future<HttpResponse<ApiResponse<RecurringTransaction>>> updateRecurring(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/recurring/{id}')
-  Future<HttpResponse<ApiResponse<void>>> deleteRecurring(@Path('id') String id);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> deleteRecurring(@Path('id') String id);
 
   // Shopping Items
   @GET('/api/shopping')
@@ -144,7 +149,7 @@ abstract class ApiService {
   Future<HttpResponse<ApiResponse<ShoppingItem>>> updateShoppingItem(@Path('id') String id, @Body() Map<String, dynamic> body);
 
   @DELETE('/api/shopping/{id}')
-  Future<HttpResponse<ApiResponse<void>>> deleteShoppingItem(@Path('id') String id);
+  Future<HttpResponse<ApiResponse<EmptyResponse>>> deleteShoppingItem(@Path('id') String id);
 
   // Settings
   @GET('/api/settings')
