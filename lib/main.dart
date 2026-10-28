@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/api/api_providers.dart';
-import 'core/api/dio_client.dart';
-import 'core/api/endpoints.dart';
-import 'core/database/app_database.dart';
-import 'core/router/app_router.dart';
-import 'core/theme/app_theme.dart';
-import 'features/auth/provider/auth_provider.dart';
+import 'package:gastos_flutter/core/api/api_providers.dart';
+import 'package:gastos_flutter/core/api/dio_client.dart';
+import 'package:gastos_flutter/core/api/endpoints.dart';
+import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/router/app_router.dart';
+import 'package:gastos_flutter/core/theme/app_theme.dart';
+import 'package:gastos_flutter/features/auth/provider/auth_provider.dart';
 
 /// App entry point
 void main() async {
