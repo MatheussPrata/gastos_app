@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_flutter/core/api/api_service.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
 
 class AuthRepository {
@@ -99,7 +99,7 @@ class AuthRepository {
 
         if (apiResponse.isSuccess && apiResponse.data != null) {
           // Update local cache
-          await _db.upsertUser(UsersCompanion(
+          await _db.upsertUser(db.UsersCompanion(
             id: Value(apiResponse.data!.id),
             email: Value(apiResponse.data!.email),
             username: Value(apiResponse.data!.username),
