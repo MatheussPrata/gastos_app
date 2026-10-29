@@ -2,12 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/categories/models/category_models.dart';
 
 class CategoriesRepository {
   final DioClient _dioClient = DioClient();
-  final AppDatabase _db = AppDatabase();
+  final db.db.AppDatabase _db = db.AppDatabase();
 
   /// Get all categories
   Future<List<Category>> getCategories({bool forceRefresh = false}) async {
@@ -47,7 +47,7 @@ class CategoriesRepository {
 
   /// Create category (offline-first)
   Future<Category> createCategory(Category category) async {
-    await _db.into(_db.categories).insert(CategoriesCompanion(
+    await _db.into(_db.categories).insert(db.CategoriesCompanion(
       id: Value(category.id),
       name: Value(category.name),
       color: Value(category.color),
@@ -64,7 +64,7 @@ class CategoriesRepository {
 
   /// Update category
   Future<Category> updateCategory(Category category) async {
-    await _db.update(_db.categories).replace(CategoriesCompanion(
+    await _db.update(_db.categories).replace(db.CategoriesCompanion(
       id: Value(category.id),
       name: Value(category.name),
       color: Value(category.color),
@@ -105,7 +105,7 @@ class CategoriesRepository {
     ];
 
     for (final cat in defaults) {
-      await _db.into(_db.categories).insert(CategoriesCompanion(
+      await _db.into(_db.categories).insert(db.CategoriesCompanion(
         id: Value(cat.id),
         name: Value(cat.name),
         color: Value(cat.color),
@@ -125,7 +125,7 @@ class CategoriesRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final cat = Category.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.categories).insertOnConflictUpdate(CategoriesCompanion(
+          await _db.into(_db.categories).insertOnConflictUpdate(db.CategoriesCompanion(
             id: Value(cat.id),
             name: Value(cat.name),
             color: Value(cat.color),

@@ -2,12 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/settings/models/settings_models.dart';
 
 class SettingsRepository {
   final DioClient _dioClient = DioClient();
-  final AppDatabase _db = AppDatabase();
+  final db.db.AppDatabase _db = db.AppDatabase();
 
   /// Get app settings
   Future<List<AppSettings>> getSettings() async {
@@ -23,7 +23,7 @@ class SettingsRepository {
 
   /// Save setting (offline-first)
   Future<void> saveSetting(String key, String value) async {
-    await _db.into(_db.appSettings).insertOnConflictUpdate(AppSettingsCompanion(
+    await _db.into(_db.appSettings).insertOnConflictUpdate(db.db.db.AppSettingsCompanion(
       key: Value(key),
       value: Value(value),
       isSynced: const Value(false),
@@ -49,7 +49,7 @@ class SettingsRepository {
 
   /// Create connection
   Future<Connection> createConnection(Connection connection) async {
-    await _db.into(_db.connections).insert(ConnectionsCompanion(
+    await _db.into(_db.connections).insert(db.ConnectionsCompanion(
       id: Value(connection.id),
       myUserId: Value(connection.myUserId),
       partnerUserId: Value(connection.partnerUserId),

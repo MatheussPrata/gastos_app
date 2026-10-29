@@ -2,12 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/recurring/models/recurring_models.dart';
 
 class RecurringRepository {
   final DioClient _dioClient = DioClient();
-  final AppDatabase _db = AppDatabase();
+  final db.db.AppDatabase _db = db.AppDatabase();
 
   Future<List<RecurringTransaction>> getRecurring({bool forceRefresh = false}) async {
     final localResults = await _db.select(_db.recurringTransactions).get();
@@ -39,7 +39,7 @@ class RecurringRepository {
   }
 
   Future<RecurringTransaction> createRecurring(RecurringTransaction recurring) async {
-    await _db.into(_db.recurringTransactions).insert(RecurringTransactionsCompanion(
+    await _db.into(_db.recurringTransactions).insert(Recurringdb.TransactionsCompanion(
       id: Value(recurring.id),
       userId: Value(recurring.userId),
       description: Value(recurring.description),
@@ -64,7 +64,7 @@ class RecurringRepository {
   }
 
   Future<RecurringTransaction> updateRecurring(RecurringTransaction recurring) async {
-    await _db.update(_db.recurringTransactions).replace(RecurringTransactionsCompanion(
+    await _db.update(_db.recurringTransactions).replace(Recurringdb.TransactionsCompanion(
       id: Value(recurring.id),
       userId: Value(recurring.userId),
       description: Value(recurring.description),
@@ -100,7 +100,7 @@ class RecurringRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final r = RecurringTransaction.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.recurringTransactions).insertOnConflictUpdate(RecurringTransactionsCompanion(
+          await _db.into(_db.recurringTransactions).insertOnConflictUpdate(Recurringdb.TransactionsCompanion(
             id: Value(r.id),
             userId: Value(r.userId),
             description: Value(r.description),

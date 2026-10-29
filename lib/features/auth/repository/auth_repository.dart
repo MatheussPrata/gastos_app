@@ -4,14 +4,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_flutter/core/api/api_service.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
 
 class AuthRepository {
   final ApiService _apiService;
   final DioClient _dioClient = DioClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  final AppDatabase _db = AppDatabase();
+  final db.db.AppDatabase _db = db.AppDatabase();
 
   AuthRepository() : _apiService = ApiService(DioClient().dio, baseUrl: ApiEndpoints.baseUrl);
 

@@ -2,12 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/transactions/models/transaction_models.dart';
 
 class TransactionsRepository {
   final DioClient _dioClient = DioClient();
-  final AppDatabase _db = AppDatabase();
+  final db.db.AppDatabase _db = db.AppDatabase();
 
   /// Get transactions with optional filters
   Future<List<Transaction>> getTransactions({
@@ -76,7 +76,7 @@ class TransactionsRepository {
   /// Create transaction (offline-first)
   Future<Transaction> createTransaction(Transaction transaction) async {
     // 1. Save to local DB first with isSynced = false
-    await _db.into(_db.transactions).insert(TransactionsCompanion(
+    await _db.into(_db.transactions).insert(db.TransactionsCompanion(
       id: Value(transaction.id),
       userId: Value(transaction.userId),
       amount: Value(transaction.amount),
@@ -106,7 +106,7 @@ class TransactionsRepository {
 
   /// Update transaction (offline-first)
   Future<Transaction> updateTransaction(Transaction transaction) async {
-    await _db.update(_db.transactions).replace(TransactionsCompanion(
+    await _db.update(_db.transactions).replace(db.TransactionsCompanion(
       id: Value(transaction.id),
       userId: Value(transaction.userId),
       amount: Value(transaction.amount),

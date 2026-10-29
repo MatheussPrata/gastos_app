@@ -2,12 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/shopping/models/shopping_models.dart';
 
 class ShoppingRepository {
   final DioClient _dioClient = DioClient();
-  final AppDatabase _db = AppDatabase();
+  final db.db.AppDatabase _db = db.AppDatabase();
 
   Future<List<ShoppingItem>> getShoppingItems({bool forceRefresh = false}) async {
     final localResults = await _db.select(_db.shoppingItems).get();
@@ -31,7 +31,7 @@ class ShoppingRepository {
   }
 
   Future<ShoppingItem> createShoppingItem(ShoppingItem item) async {
-    await _db.into(_db.shoppingItems).insert(ShoppingItemsCompanion(
+    await _db.into(_db.shoppingItems).insert(db.db.db.ShoppingItemsCompanion(
       id: Value(item.id),
       userId: Value(item.userId),
       name: Value(item.name),
@@ -48,7 +48,7 @@ class ShoppingRepository {
   }
 
   Future<ShoppingItem> updateShoppingItem(ShoppingItem item) async {
-    await _db.update(_db.shoppingItems).replace(ShoppingItemsCompanion(
+    await _db.update(_db.shoppingItems).replace(db.db.db.ShoppingItemsCompanion(
       id: Value(item.id),
       userId: Value(item.userId),
       name: Value(item.name),
@@ -76,7 +76,7 @@ class ShoppingRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final item = ShoppingItem.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.shoppingItems).insertOnConflictUpdate(ShoppingItemsCompanion(
+          await _db.into(_db.shoppingItems).insertOnConflictUpdate(db.db.db.ShoppingItemsCompanion(
             id: Value(item.id),
             userId: Value(item.userId),
             name: Value(item.name),

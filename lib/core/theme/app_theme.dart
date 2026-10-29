@@ -121,11 +121,12 @@ ThemeData get lightTheme {
       titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
       contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       showDragHandle: true,
+      backgroundColor: Colors.grey[850],
     ),
   );
 }
@@ -210,7 +211,7 @@ ThemeData get darkTheme {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       showDragHandle: true,
-      backgroundColor: Colors.grey.shade850,
+      backgroundColor: Colors.grey[850],
     ),
   );
 }
