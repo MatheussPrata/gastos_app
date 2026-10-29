@@ -4,10 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:gastos_flutter/core/api/api_providers.dart';
 import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
 import 'package:gastos_flutter/core/router/app_router.dart';
 import 'package:gastos_flutter/core/theme/app_theme.dart';
-import 'package:gastos_flutter/features/auth/provider/auth_provider.dart';
 
 /// App entry point
 void main() async {
