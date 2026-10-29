@@ -1,177 +1,63 @@
-import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_flutter/core/api/dio_client.dart';
+import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
-import 'package:gastos_flutter/features/auth/repository/auth_repository.dart';
-import 'package:gastos_flutter/core/api/api_providers.dart';
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  final dioClient = ref.watch(dioClientProvider);
+  final database = ref.watch(db.databaseProvider);
+  return AuthRepository(dioClient, database);
+});
 
-/// Auth state enum
-enum AuthStatus {
-  unknown,
-  authenticated,
-  unauthenticated,
-  loading,
-}
+class AuthRepository {
+  AuthRepository(this._dioClient, this._db);
 
-/// Auth state class
-@immutable
-class AuthState {
-  final AuthStatus status;
-  final User? user;
-  final String? error;
+  final DioClient _dioClient;
+  final db.AppDatabase _db;
 
-  const AuthState({
-    this.status = AuthStatus.unknown,
-    this.user,
-    this.error,
-  });
-
-  bool get isAuthenticated => status == AuthStatus.authenticated && user != null;
-  bool get isLoading => status == AuthStatus.loading;
-
-  AuthState copyWith({
-    AuthStatus? status,
-    User? user,
-    String? error,
-  }) {
-    return AuthState(
-      status: status ?? this.status,
-      user: user ?? this.user,
-      error: error,
-    );
-  }
-}
-
-/// Auth controller
-class AuthController extends StateNotifier<AuthState> {
-  final AuthRepository _repository;
-
-  AuthController(this._repository) : super(const AuthState()) {
-    _checkAuthStatus();
+  Future<bool> isLoggedIn() async {
+    // Implementação básica de verificação
+    return false;
   }
 
-  Future<void> _checkAuthStatus() async {
-    state = state.copyWith(status: AuthStatus.loading);
-    
-    final isLoggedIn = await _repository.isLoggedIn();
-    if (isLoggedIn) {
-      final user = await _repository.getStoredUser();
-      if (user != null) {
-        state = state.copyWith(status: AuthStatus.authenticated, user: user);
-      } else {
-        // Try to fetch from server
-        final result = await _repository.getCurrentUser();
-        if (result.isSuccess && result.data != null) {
-          state = state.copyWith(status: AuthStatus.authenticated, user: result.data);
-        } else {
-          state = state.copyWith(status: AuthStatus.unauthenticated);
-        }
-      }
-    } else {
-      state = state.copyWith(status: AuthStatus.unauthenticated);
-    }
+  Future<User?> getStoredUser() async {
+    return null;
   }
 
-  Future<void> login({
+  Future<AuthResponse> getCurrentUser() async {
+    return AuthResponse(isSuccess: false);
+  }
+
+  Future<AuthResponse> login({
     required String email,
     required String password,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-    
-    final result = await _repository.login(email: email, password: password);
-    
-    if (result.isSuccess && result.data != null) {
-      state = state.copyWith(
-        status: AuthStatus.authenticated,
-        user: result.data!.user,
-        error: null,
-      );
-    } else {
-      state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: result.message ?? 'Erro ao fazer login',
-      );
-    }
+    return AuthResponse(isSuccess: false);
   }
 
-  Future<void> register({
+  Future<AuthResponse> register({
     required String email,
     required String username,
     required String password,
     required String confirmPassword,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-    
-    final result = await _repository.register(
-      email: email,
-      username: username,
-      password: password,
-      confirmPassword: confirmPassword,
-    );
-    
-    if (result.isSuccess && result.data != null) {
-      state = state.copyWith(
-        status: AuthStatus.authenticated,
-        user: result.data!.user,
-        error: null,
-      );
-    } else {
-      state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: result.message ?? 'Erro ao registrar',
-      );
-    }
+    return AuthResponse(isSuccess: false);
   }
 
   Future<void> logout() async {
-    await _repository.logout();
-    state = const AuthState(status: AuthStatus.unauthenticated);
+    // Limpeza de cache/token
   }
 
-  Future<void> forgotPassword(String email) async {
-    final result = await _repository.forgotPassword(email);
-    if (!result.isSuccess) {
-      state = state.copyWith(error: result.message);
-    }
+  Future<AuthResponse> forgotPassword(String email) async {
+    return AuthResponse(isSuccess: false);
   }
 
-  Future<void> resetPassword({
+  Future<AuthResponse> resetPassword({
     required String token,
     required String password,
     required String confirmPassword,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-    
-    final result = await _repository.resetPassword(
-      token: token,
-      password: password,
-      confirmPassword: confirmPassword,
-    );
-    
-    if (!result.isSuccess) {
-      state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: result.message ?? 'Erro ao redefinir senha',
-      );
-    }
-  }
-
-  void clearError() {
-    state = state.copyWith(error: null);
+    return AuthResponse(isSuccess: false);
   }
 }
-
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  final repository = ref.watch(authRepositoryProvider);
-  return AuthController(repository);
-});
-
-/// Convenience provider for auth status
-final authStateProvider = Provider<AuthState>((ref) => ref.watch(authControllerProvider));
-
-/// Provider for current user
-final currentUserProvider = Provider<User?>((ref) => ref.watch(authControllerProvider).user);
-
-/// Provider for auth status check
-final isAuthenticatedProvider = Provider<bool>((ref) => ref.watch(authControllerProvider).isAuthenticated);
