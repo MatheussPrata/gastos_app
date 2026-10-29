@@ -48,7 +48,7 @@ ThemeData get lightTheme {
       elevation: 0,
       scrolledUnderElevation: 1,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -116,7 +116,7 @@ ThemeData get lightTheme {
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    dialogTheme: DialogThemeData(
+    dialogTheme: DialogTheme(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
       contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
@@ -148,7 +148,7 @@ ThemeData get darkTheme {
       elevation: 0,
       scrolledUnderElevation: 1,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -199,11 +199,11 @@ ThemeData get darkTheme {
       thickness: 1,
       space: 1,
     ),
-    dialogTheme: DialogThemeData(
+    dialogTheme: DialogTheme(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
       contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
-      backgroundColor: Colors.grey.shade850,
+      backgroundColor: Colors.grey[850],
     ),
     bottomSheetTheme: BottomSheetThemeData(
       shape: const RoundedRectangleBorder(
