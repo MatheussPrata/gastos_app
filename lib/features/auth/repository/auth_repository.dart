@@ -11,7 +11,7 @@ class AuthRepository {
   final ApiService _apiService;
   final DioClient _dioClient = DioClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  final db.db.AppDatabase _db = db.AppDatabase();
+  final db.db.AppDatabase _db = db.db.db.AppDatabase();
 
   AuthRepository() : _apiService = ApiService(DioClient().dio, baseUrl: ApiEndpoints.baseUrl);
 
