@@ -1,3 +1,4 @@
+include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
@@ -8,8 +9,6 @@ analyzer:
     avoid_print: warning
     prefer_const_constructors: warning
     prefer_final_fields: warning
-  plugins:
-    - custom_lint
 
 linter:
   rules:
