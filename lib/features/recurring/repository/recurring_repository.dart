@@ -39,7 +39,7 @@ class RecurringRepository {
   }
 
   Future<RecurringTransaction> createRecurring(RecurringTransaction recurring) async {
-    await _db.into(_db.recurringTransactions).insert(Recurringdb.db.db.db.TransactionsCompanion(
+    await _db.into(_db.recurringTransactions).insert(Recurringdb.TransactionsCompanion(
       id: Value(recurring.id),
       userId: Value(recurring.userId),
       description: Value(recurring.description),
@@ -64,7 +64,7 @@ class RecurringRepository {
   }
 
   Future<RecurringTransaction> updateRecurring(RecurringTransaction recurring) async {
-    await _db.update(_db.recurringTransactions).replace(Recurringdb.db.db.db.TransactionsCompanion(
+    await _db.update(_db.recurringTransactions).replace(Recurringdb.TransactionsCompanion(
       id: Value(recurring.id),
       userId: Value(recurring.userId),
       description: Value(recurring.description),
@@ -100,7 +100,7 @@ class RecurringRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final r = RecurringTransaction.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.recurringTransactions).insertOnConflictUpdate(Recurringdb.db.db.db.TransactionsCompanion(
+          await _db.into(_db.recurringTransactions).insertOnConflictUpdate(Recurringdb.TransactionsCompanion(
             id: Value(r.id),
             userId: Value(r.userId),
             description: Value(r.description),

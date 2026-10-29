@@ -47,7 +47,7 @@ class CategoriesRepository {
 
   /// Create category (offline-first)
   Future<Category> createCategory(Category category) async {
-    await _db.into(_db.categories).insert(db.db.db.db.CategoriesCompanion(
+    await _db.into(_db.categories).insert(db.CategoriesCompanion(
       id: Value(category.id),
       name: Value(category.name),
       color: Value(category.color),
@@ -64,7 +64,7 @@ class CategoriesRepository {
 
   /// Update category
   Future<Category> updateCategory(Category category) async {
-    await _db.update(_db.categories).replace(db.db.db.db.CategoriesCompanion(
+    await _db.update(_db.categories).replace(db.CategoriesCompanion(
       id: Value(category.id),
       name: Value(category.name),
       color: Value(category.color),
@@ -105,7 +105,7 @@ class CategoriesRepository {
     ];
 
     for (final cat in defaults) {
-      await _db.into(_db.categories).insert(db.db.db.db.CategoriesCompanion(
+      await _db.into(_db.categories).insert(db.CategoriesCompanion(
         id: Value(cat.id),
         name: Value(cat.name),
         color: Value(cat.color),
@@ -125,7 +125,7 @@ class CategoriesRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final cat = Category.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.categories).insertOnConflictUpdate(db.db.db.db.CategoriesCompanion(
+          await _db.into(_db.categories).insertOnConflictUpdate(db.CategoriesCompanion(
             id: Value(cat.id),
             name: Value(cat.name),
             color: Value(cat.color),

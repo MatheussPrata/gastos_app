@@ -23,7 +23,7 @@ class SettingsRepository {
 
   /// Save setting (offline-first)
   Future<void> saveSetting(String key, String value) async {
-    await _db.into(_db.appSettings).insertOnConflictUpdate(db.db.db.db.AppSettingsCompanion(
+    await _db.into(_db.appSettings).insertOnConflictUpdate(db.AppSettingsCompanion(
       key: Value(key),
       value: Value(value),
       isSynced: const Value(false),
@@ -49,7 +49,7 @@ class SettingsRepository {
 
   /// Create connection
   Future<Connection> createConnection(Connection connection) async {
-    await _db.into(_db.connections).insert(db.db.db.db.ConnectionsCompanion(
+    await _db.into(_db.connections).insert(db.ConnectionsCompanion(
       id: Value(connection.id),
       myUserId: Value(connection.myUserId),
       partnerUserId: Value(connection.partnerUserId),

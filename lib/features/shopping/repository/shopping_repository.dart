@@ -31,7 +31,7 @@ class ShoppingRepository {
   }
 
   Future<ShoppingItem> createShoppingItem(ShoppingItem item) async {
-    await _db.into(_db.shoppingItems).insert(db.db.db.db.db.db.db.db.db.db.db.db.ShoppingItemsCompanion(
+    await _db.into(_db.shoppingItems).insert(db.ShoppingItemsCompanion(
       id: Value(item.id),
       userId: Value(item.userId),
       name: Value(item.name),
@@ -48,7 +48,7 @@ class ShoppingRepository {
   }
 
   Future<ShoppingItem> updateShoppingItem(ShoppingItem item) async {
-    await _db.update(_db.shoppingItems).replace(db.db.db.db.db.db.db.db.db.db.db.db.ShoppingItemsCompanion(
+    await _db.update(_db.shoppingItems).replace(db.ShoppingItemsCompanion(
       id: Value(item.id),
       userId: Value(item.userId),
       name: Value(item.name),
@@ -76,7 +76,7 @@ class ShoppingRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final item = ShoppingItem.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.shoppingItems).insertOnConflictUpdate(db.db.db.db.db.db.db.db.db.db.db.db.ShoppingItemsCompanion(
+          await _db.into(_db.shoppingItems).insertOnConflictUpdate(db.ShoppingItemsCompanion(
             id: Value(item.id),
             userId: Value(item.userId),
             name: Value(item.name),

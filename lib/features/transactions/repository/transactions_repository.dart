@@ -76,7 +76,7 @@ class TransactionsRepository {
   /// Create transaction (offline-first)
   Future<Transaction> createTransaction(Transaction transaction) async {
     // 1. Save to local DB first with isSynced = false
-    await _db.into(_db.transactions).insert(db.db.db.db.TransactionsCompanion(
+    await _db.into(_db.transactions).insert(db.TransactionsCompanion(
       id: Value(transaction.id),
       userId: Value(transaction.userId),
       amount: Value(transaction.amount),
@@ -106,7 +106,7 @@ class TransactionsRepository {
 
   /// Update transaction (offline-first)
   Future<Transaction> updateTransaction(Transaction transaction) async {
-    await _db.update(_db.transactions).replace(db.db.db.db.TransactionsCompanion(
+    await _db.update(_db.transactions).replace(db.TransactionsCompanion(
       id: Value(transaction.id),
       userId: Value(transaction.userId),
       amount: Value(transaction.amount),
