@@ -2,15 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_app/core/api/api_service.dart';
-import 'package:gastos_app/core/api/dio_client.dart';
-import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/auth/models/auth_models.dart';
-import 'package:retrofit/retrofit.dart';
 
 class AuthRepository {
   final ApiService _apiService;
-  final DioClient _dioClient = DioClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final db.AppDatabase _db;
 
@@ -26,25 +22,15 @@ class AuthRepository {
     required String confirmPassword,
   }) async {
     try {
-      final request = RegisterRequest(
+      final authResponse = await _apiService.register(
         email: email,
         username: username,
         password: password,
         confirmPassword: confirmPassword,
       );
-
-      final response = await _apiService.register(request.toJson());
-
-      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
-        final apiResponse = response.data!;
-        
-        if (apiResponse.isSuccess && apiResponse.data != null) {
-          await _saveAuthData(apiResponse.data!);
-        }
-        return apiResponse;
-      } else {
-        return ApiResponse.error(message: 'Erro ao registrar: ${response.response.statusMessage ?? "Erro desconhecido"}');
-      }
+      
+      await _saveAuthData(authResponse);
+      return ApiResponse.success(data: authResponse);
     } on DioException catch (e) {
       return _handleDioError(e);
     }
@@ -56,20 +42,10 @@ class AuthRepository {
     required String password,
   }) async {
     try {
-      final request = LoginRequest(email: email, password: password);
-
-      final response = await _apiService.login(request.toJson());
-
-      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
-        final apiResponse = response.data!;
-        
-        if (apiResponse.isSuccess && apiResponse.data != null) {
-          await _saveAuthData(apiResponse.data!);
-        }
-        return apiResponse;
-      } else {
-        return ApiResponse.error(message: 'Erro ao fazer login: ${response.response.statusMessage ?? "Erro desconhecido"}');
-      }
+      final authResponse = await _apiService.login(email, password);
+      
+      await _saveAuthData(authResponse);
+      return ApiResponse.success(data: authResponse);
     } on DioException catch (e) {
       return _handleDioError(e);
     }
@@ -78,16 +54,8 @@ class AuthRepository {
   /// Refresh access token
   Future<bool> refreshToken() async {
     try {
-      final response = await _apiService.refreshToken();
-      
-      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
-        final apiResponse = response.data!;
-        
-        if (apiResponse.isSuccess && apiResponse.data != null) {
-          await _storage.write(key: StorageKeys.accessToken, value: apiResponse.data!.accessToken);
-          return true;
-        }
-      }
+      await _apiService.refreshToken();
+      return true;
     } catch (_) {}
     return false;
   }
@@ -95,28 +63,20 @@ class AuthRepository {
   /// Get current user profile
   Future<ApiResponse<User>> getCurrentUser() async {
     try {
-      final response = await _apiService.getCurrentUser();
-      
-      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
-        final apiResponse = response.data!;
+      final user = await _apiService.getCurrentUser();
 
-        if (apiResponse.isSuccess && apiResponse.data != null) {
-          // Update local cache
-          await _db.upsertUser(db.UsersCompanion(
-            id: Value(apiResponse.data!.id),
-            email: Value(apiResponse.data!.email),
-            username: Value(apiResponse.data!.username),
-            createdAt: Value(apiResponse.data!.createdAt),
-            updatedAt: Value(apiResponse.data!.updatedAt),
-            isActive: Value(apiResponse.data!.isActive),
-            isAdmin: Value(apiResponse.data!.isAdmin),
-          ));
-        }
+      // Update local cache
+      await _db.upsertUser(db.UsersCompanion(
+        id: Value(user.id),
+        email: Value(user.email),
+        username: Value(user.username),
+        createdAt: Value(user.createdAt),
+        updatedAt: Value(user.updatedAt),
+        isActive: Value(user.isActive),
+        isAdmin: Value(user.isAdmin),
+      ));
 
-        return apiResponse;
-      } else {
-        return ApiResponse.error(message: 'Erro ao buscar usuário: ${response.response.statusMessage ?? "Erro desconhecido"}');
-      }
+      return ApiResponse.success(data: user);
     } on DioException catch (e) {
       return _handleDioError(e);
     }
@@ -133,13 +93,8 @@ class AuthRepository {
   /// Forgot password
   Future<ApiResponse<void>> forgotPassword(String email) async {
     try {
-      final request = ForgotPasswordRequest(email: email);
-      final response = await _apiService.forgotPassword(request.toJson());
-      
-      return ApiResponse.fromJson(
-        {'isSuccess': response.data?.isSuccess ?? false, 'message': response.data?.message},
-        (_) => null,
-      );
+      await _apiService.forgotPassword(email);
+      return ApiResponse.success(data: null);
     } on DioException catch (e) {
       return _handleDioError(e);
     }
@@ -152,18 +107,12 @@ class AuthRepository {
     required String confirmPassword,
   }) async {
     try {
-      final request = ResetPasswordRequest(
+      await _apiService.resetPassword(
         token: token,
         password: password,
         confirmPassword: confirmPassword,
       );
-      
-      final response = await _apiService.resetPassword(request.toJson());
-      
-      return ApiResponse.fromJson(
-        {'isSuccess': response.data?.isSuccess ?? false, 'message': response.data?.message},
-        (_) => null,
-      );
+      return ApiResponse.success(data: null);
     } on DioException catch (e) {
       return _handleDioError(e);
     }
