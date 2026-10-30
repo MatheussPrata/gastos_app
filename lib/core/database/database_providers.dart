@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/core/database/app_database.dart';
+import 'package:gastos_app/core/database/app_database.dart';
 
 /// AppDatabase provider
 final databaseProvider = Provider<AppDatabase>((ref) {

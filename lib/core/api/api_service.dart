@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:gastos_flutter/features/auth/models/auth_models.dart';
+import 'package:gastos_app/features/auth/models/auth_models.dart';
 
 class ApiService {
   final Dio _dio;

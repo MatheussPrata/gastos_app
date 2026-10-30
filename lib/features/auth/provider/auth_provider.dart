@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/core/api/api_providers.dart';
-import 'package:gastos_flutter/core/database/database_providers.dart';
-import 'package:gastos_flutter/features/auth/models/auth_models.dart';
-import 'package:gastos_flutter/features/auth/repository/auth_repository.dart';
+import 'package:gastos_app/core/api/api_providers.dart';
+import 'package:gastos_app/core/database/database_providers.dart';
+import 'package:gastos_app/features/auth/models/auth_models.dart';
+import 'package:gastos_app/features/auth/repository/auth_repository.dart';
 
 /// Auth repository provider
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
