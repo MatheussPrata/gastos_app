@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_app/core/api/api_service.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/auth/models/auth_models.dart';
 
