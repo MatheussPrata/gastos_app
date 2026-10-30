@@ -7,13 +7,14 @@ class DioClient {
   factory DioClient() => _instance;
   DioClient._internal();
 
-  late final Dio dio;
+  Dio? _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final Connectivity _connectivity = Connectivity();
 
+  Dio get dio => _dio ??= Dio();
+
   void init({String baseUrl = 'http://10.0.2.2:8082'}) {
-    
-    dio = Dio(BaseOptions(
+    _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
@@ -24,8 +25,7 @@ class DioClient {
       },
     ));
 
-    // Add interceptors
-    dio.interceptors.addAll([
+    _dio!.interceptors.addAll([
       _AuthInterceptor(_storage),
       _LoggingInterceptor(),
       _ErrorInterceptor(),
