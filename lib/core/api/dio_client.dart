@@ -8,12 +8,10 @@ class DioClient {
   DioClient._internal();
 
   late final Dio dio;
-  late final FlutterSecureStorage _storage;
-  late final Connectivity _connectivity;
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final Connectivity _connectivity = Connectivity();
 
   void init({String baseUrl = 'http://10.0.2.2:8082'}) {
-    _storage = const FlutterSecureStorage();
-    _connectivity = Connectivity();
     
     dio = Dio(BaseOptions(
       baseUrl: baseUrl,
