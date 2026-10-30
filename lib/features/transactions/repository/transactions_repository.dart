@@ -1,13 +1,23 @@
-import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
-import 'package:gastos_flutter/core/api/dio_client.dart';
-import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart' as db;
-import 'package:gastos_flutter/features/transactions/models/transaction_models.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/core/api/dio_client.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/features/transactions/models/transaction_models.dart';
+
+final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) {
+  return TransactionsRepository();
+});
 
 class TransactionsRepository {
-  final DioClient _dioClient = DioClient();
-  final db.AppDatabase _db = db.AppDatabase();
+  final DioClient _dioClient;
+  final db.AppDatabase _db;
+
+  TransactionsRepository({
+    DioClient? dioClient,
+    db.AppDatabase? database,
+  })  : _dioClient = dioClient ?? DioClient(),
+        _db = database ?? db.AppDatabase();
 
   /// Get transactions with optional filters
   Future<List<Transaction>> getTransactions({
@@ -19,10 +29,8 @@ class TransactionsRepository {
     int limit = 50,
     int offset = 0,
   }) async {
-    // Try local first for offline support
     final localQuery = _db.select(_db.transactions);
-    
-    // Apply filters
+
     if (startDate != null) {
       localQuery.where((t) => t.date.isBiggerOrEqualValue(startDate));
     }
@@ -38,14 +46,13 @@ class TransactionsRepository {
     if (isExpense != null) {
       localQuery.where((t) => t.isExpense.equals(isExpense));
     }
-    
+
     localQuery
       ..orderBy([(t) => OrderingTerm.desc(t.date)])
       ..limit(limit, offset: offset);
-    
+
     final localResults = await localQuery.get();
-    
-    // Convert to domain models
+
     final transactions = localResults.map((t) => Transaction(
       id: t.id,
       userId: t.userId,
@@ -66,16 +73,14 @@ class TransactionsRepository {
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     )).toList();
-    
-    // Try to sync with server in background
+
     _syncWithServer();
-    
+
     return transactions;
   }
 
   /// Create transaction (offline-first)
   Future<Transaction> createTransaction(Transaction transaction) async {
-    // 1. Save to local DB first with isSynced = false
     await _db.into(_db.transactions).insert(db.TransactionsCompanion(
       id: Value(transaction.id),
       userId: Value(transaction.userId),
@@ -98,9 +103,7 @@ class TransactionsRepository {
       isSynced: const Value(false),
     ));
 
-    // 2. Try to sync with server
     _syncTransaction(transaction);
-
     return transaction;
   }
 
@@ -134,13 +137,12 @@ class TransactionsRepository {
 
   /// Delete transaction (offline-first)
   Future<void> deleteTransaction(String id) async {
-    await _db.delete(_db.transactions).where((t) => t.id.equals(id)).go();
+    await (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
     _deleteFromServer(id);
   }
 
   /// Get monthly stats
   Future<List<MonthlyStats>> getMonthlyStats({int months = 12}) async {
-    // Implementation would query local DB with grouping by month
     return [];
   }
 
@@ -149,41 +151,43 @@ class TransactionsRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    // Implementation would query local DB with grouping by category
     return [];
   }
 
   /// Sync unsynced transactions to server
   Future<void> _syncWithServer() async {
-    final unsynced = await _db.getUnsyncedTransactions();
-    for (final t in unsynced) {
-      _syncTransaction(Transaction(
-        id: t.id,
-        userId: t.userId,
-        amount: t.amount,
-        description: t.description,
-        date: t.date,
-        categoryId: t.categoryId,
-        subcategoryId: t.subcategoryId,
-        creditCardId: t.creditCardId,
-        isExpense: t.isExpense,
-        isInstallment: t.isInstallment,
-        installmentNumber: t.installmentNumber,
-        totalInstallments: t.totalInstallments,
-        installmentGroupId: t.installmentGroupId,
-        notes: t.notes,
-        ownerId: t.ownerId,
-        partnerSynced: t.partnerSynced,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-      ));
-    }
+    try {
+      final unsynced = await (_db.select(_db.transactions)
+        ..where((t) => t.isSynced.equals(false))).get();
+
+      for (final t in unsynced) {
+        _syncTransaction(Transaction(
+          id: t.id,
+          userId: t.userId,
+          amount: t.amount,
+          description: t.description,
+          date: t.date,
+          categoryId: t.categoryId,
+          subcategoryId: t.subcategoryId,
+          creditCardId: t.creditCardId,
+          isExpense: t.isExpense,
+          isInstallment: t.isInstallment,
+          installmentNumber: t.installmentNumber,
+          totalInstallments: t.totalInstallments,
+          installmentGroupId: t.installmentGroupId,
+          notes: t.notes,
+          ownerId: t.ownerId,
+          partnerSynced: t.partnerSynced,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+        ));
+      }
+    } catch (_) {}
   }
 
   Future<void> _syncTransaction(Transaction transaction) async {
     try {
-      final dio = DioClient().dio;
-      final response = await dio.post(
+      final response = await _dioClient.dio.post(
         ApiEndpoints.transactions,
         data: {
           'id': transaction.id,
@@ -207,19 +211,16 @@ class TransactionsRepository {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        await _db.markTransactionSynced(transaction.id);
+        await (_db.update(_db.transactions)..where((t) => t.id.equals(transaction.id))).write(
+          const db.TransactionsCompanion(isSynced: Value(true)),
+        );
       }
-    } catch (_) {
-      // Keep isSynced = false for retry later
-    }
+    } catch (_) {}
   }
 
   Future<void> _deleteFromServer(String id) async {
     try {
-      final dio = DioClient().dio;
-      await dio.delete('${ApiEndpoints.transactionsById}$id');
-    } catch (_) {
-      // Handle offline delete later
-    }
+      await _dioClient.dio.delete('${ApiEndpoints.transactionsById}$id');
+    } catch (_) {}
   }
 }

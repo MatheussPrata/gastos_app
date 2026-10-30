@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/core/api/api_providers.dart';
+import 'package:gastos_app/core/api/dio_client.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/router/app_router.dart';
+import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:go_router/go_router.dart';
-import 'package:gastos_flutter/core/api/api_providers.dart';
-import 'package:gastos_flutter/core/api/dio_client.dart';
-import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/router/app_router.dart';
-import 'package:gastos_flutter/core/theme/app_theme.dart';
 
 /// App entry point
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Dio client
   DioClient().init(baseUrl: ApiEndpoints.baseUrl);
-  
+
   // Initialize database (optional - can be lazy)
   // AppDatabase(); // Singleton, will initialize on first access
-  
+
   runApp(const ProviderScope(child: GastosApp()));
 }
 
@@ -28,7 +28,7 @@ class GastosApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
-    
+
     return MaterialApp.router(
       title: 'Gastos',
       debugShowCheckedModeBanner: false,
@@ -37,11 +37,12 @@ class GastosApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
-        // Add global media query scaling if needed
+        final textScaler = MediaQuery.textScalerOf(context).clamp(
+          minScaleFactor: 0.8,
+          maxScaleFactor: 1.2,
+        );
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(MediaQuery.of(context).textScaleFactor.clamp(0.8, 1.2)),
-          ),
+          data: MediaQuery.of(context).copyWith(textScaler: textScaler),
           child: child!,
         );
       },

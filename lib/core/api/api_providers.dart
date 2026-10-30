@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/core/api/api_service.dart';
-import 'package:gastos_flutter/core/api/dio_client.dart';
-import 'package:gastos_flutter/core/api/endpoints.dart';
+import 'package:gastos_app/core/api/api_service.dart';
+import 'package:gastos_app/core/api/dio_client.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
 
 /// Dio client provider (singleton)
 final dioClientProvider = Provider<DioClient>((ref) {

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/features/categories/models/category_models.dart';
-import 'package:gastos_flutter/features/categories/repository/categories_repository.dart';
+import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/categories/repository/categories_repository.dart';
 
 final categoriesRepositoryProvider = Provider<CategoriesRepository>((ref) => CategoriesRepository());
 

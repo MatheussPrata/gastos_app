@@ -50,3 +50,5 @@ local.properties
 # Test
 test/*.json
 test/*.goldens.dart
+# Widget Preview related
+.widget_preview/

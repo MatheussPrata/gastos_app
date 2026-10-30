@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/features/shopping/models/shopping_models.dart';
-import 'package:gastos_flutter/features/shopping/repository/shopping_repository.dart';
+import 'package:gastos_app/features/shopping/models/shopping_models.dart';
+import 'package:gastos_app/features/shopping/repository/shopping_repository.dart';
 
 final shoppingRepositoryProvider = Provider<ShoppingRepository>((ref) => ShoppingRepository());
 

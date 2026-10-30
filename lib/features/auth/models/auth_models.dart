@@ -26,7 +26,8 @@ class AuthResponse with _$AuthResponse {
     required User user,
   }) = _AuthResponse;
 
-  factory AuthResponse.fromJson(Map<String, dynamic> json) => _$AuthResponseFromJson(json);
+  factory AuthResponse.fromJson(Map<String, dynamic> json) =>
+      _$AuthResponseFromJson(json);
 }
 
 @freezed
@@ -36,9 +37,8 @@ class LoginRequest with _$LoginRequest {
     required String password,
   }) = _LoginRequest;
 
-  factory LoginRequest.fromJson(Map<String, dynamic> json) => _$LoginRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$LoginRequestToJson(this);
+  factory LoginRequest.fromJson(Map<String, dynamic> json) =>
+      _$LoginRequestFromJson(json);
 }
 
 @freezed
@@ -50,9 +50,8 @@ class RegisterRequest with _$RegisterRequest {
     required String confirmPassword,
   }) = _RegisterRequest;
 
-  factory RegisterRequest.fromJson(Map<String, dynamic> json) => _$RegisterRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$RegisterRequestToJson(this);
+  factory RegisterRequest.fromJson(Map<String, dynamic> json) =>
+      _$RegisterRequestFromJson(json);
 }
 
 @freezed
@@ -61,9 +60,8 @@ class ForgotPasswordRequest with _$ForgotPasswordRequest {
     required String email,
   }) = _ForgotPasswordRequest;
 
-  factory ForgotPasswordRequest.fromJson(Map<String, dynamic> json) => _$ForgotPasswordRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ForgotPasswordRequestToJson(this);
+  factory ForgotPasswordRequest.fromJson(Map<String, dynamic> json) =>
+      _$ForgotPasswordRequestFromJson(json);
 }
 
 @freezed
@@ -74,13 +72,12 @@ class ResetPasswordRequest with _$ResetPasswordRequest {
     required String confirmPassword,
   }) = _ResetPasswordRequest;
 
-  factory ResetPasswordRequest.fromJson(Map<String, dynamic> json) => _$ResetPasswordRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ResetPasswordRequestToJson(this);
+  factory ResetPasswordRequest.fromJson(Map<String, dynamic> json) =>
+      _$ResetPasswordRequestFromJson(json);
 }
 
 @freezed
-class ApiResponse<T> with _$ApiResponse {
+class ApiResponse<T> with _$ApiResponse<T> {
   const factory ApiResponse.success({
     required T data,
     String? message,
@@ -93,7 +90,10 @@ class ApiResponse<T> with _$ApiResponse {
 
   const ApiResponse._();
 
-  factory ApiResponse.fromJson(Map<String, dynamic> json, T Function(Object?) fromJsonT) {
+  factory ApiResponse.fromJson(
+    Map<String, dynamic> json,
+    T Function(Object?) fromJsonT,
+  ) {
     if (json['isSuccess'] == true) {
       return ApiResponse.success(
         data: fromJsonT(json['data']),
@@ -109,12 +109,14 @@ class ApiResponse<T> with _$ApiResponse {
 
   bool get isSuccess => this is _ApiSuccess<T>;
   T? get data => this is _ApiSuccess<T> ? (this as _ApiSuccess<T>).data : null;
-  String? get message => this is _ApiError<T> ? (this as _ApiError<T>).message : null;
+  String? get message =>
+      this is _ApiError<T> ? (this as _ApiError<T>).message : null;
 }
 
 @freezed
 class EmptyResponse with _$EmptyResponse {
   const factory EmptyResponse() = _EmptyResponse;
 
-  factory EmptyResponse.fromJson(Map<String, dynamic> json) => _$EmptyResponseFromJson(json);
+  factory EmptyResponse.fromJson(Map<String, dynamic> json) =>
+      _$EmptyResponseFromJson(json);
 }
