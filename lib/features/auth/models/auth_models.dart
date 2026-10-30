@@ -37,8 +37,6 @@ class LoginRequest with _$LoginRequest {
   }) = _LoginRequest;
 
   factory LoginRequest.fromJson(Map<String, dynamic> json) => _$LoginRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$LoginRequestToJson(this);
 }
 
 @freezed
@@ -51,8 +49,6 @@ class RegisterRequest with _$RegisterRequest {
   }) = _RegisterRequest;
 
   factory RegisterRequest.fromJson(Map<String, dynamic> json) => _$RegisterRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$RegisterRequestToJson(this);
 }
 
 @freezed
@@ -62,8 +58,6 @@ class ForgotPasswordRequest with _$ForgotPasswordRequest {
   }) = _ForgotPasswordRequest;
 
   factory ForgotPasswordRequest.fromJson(Map<String, dynamic> json) => _$ForgotPasswordRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ForgotPasswordRequestToJson(this);
 }
 
 @freezed
@@ -75,8 +69,6 @@ class ResetPasswordRequest with _$ResetPasswordRequest {
   }) = _ResetPasswordRequest;
 
   factory ResetPasswordRequest.fromJson(Map<String, dynamic> json) => _$ResetPasswordRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ResetPasswordRequestToJson(this);
 }
 
 @freezed

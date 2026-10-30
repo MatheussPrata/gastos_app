@@ -1,63 +1,170 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/core/api/dio_client.dart';
-import 'package:gastos_flutter/core/database/app_database.dart' as db;
+import 'package:gastos_flutter/core/api/api_providers.dart';
+import 'package:gastos_flutter/core/database/database_providers.dart';
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
+import 'package:gastos_flutter/features/auth/repository/auth_repository.dart';
 
+/// Auth repository provider
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final dioClient = ref.watch(dioClientProvider);
-  final database = ref.watch(db.databaseProvider);
-  return AuthRepository(dioClient, database);
+  final apiService = ref.watch(apiServiceProvider);
+  final database = ref.watch(databaseProvider);
+  return AuthRepository(apiService: apiService, database: database);
 });
 
-class AuthRepository {
-  AuthRepository(this._dioClient, this._db);
+/// Auth state
+class AuthState {
+  final bool isAuthenticated;
+  final User? user;
+  final String? accessToken;
+  final bool isLoading;
+  final String? error;
 
-  final DioClient _dioClient;
-  final db.AppDatabase _db;
+  const AuthState({
+    this.isAuthenticated = false,
+    this.user,
+    this.accessToken,
+    this.isLoading = false,
+    this.error,
+  });
 
-  Future<bool> isLoggedIn() async {
-    // Implementação básica de verificação
-    return false;
+  AuthState copyWith({
+    bool? isAuthenticated,
+    User? user,
+    String? accessToken,
+    bool? isLoading,
+    String? error,
+  }) {
+    return AuthState(
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      user: user ?? this.user,
+      accessToken: accessToken ?? this.accessToken,
+      isLoading: isLoading ?? this.isLoading,
+      error: error ?? this.error,
+    );
+  }
+}
+
+/// Auth state notifier
+class AuthController extends StateNotifier<AuthState> {
+  final AuthRepository _repository;
+
+  AuthController(this._repository) : super(const AuthState()) {
+    _checkAuthStatus();
   }
 
-  Future<User?> getStoredUser() async {
-    return null;
+  Future<void> _checkAuthStatus() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final isLoggedIn = await _repository.isLoggedIn();
+      if (isLoggedIn) {
+        final user = await _repository.getStoredUser();
+        final token = await _repository.getAccessToken();
+        state = state.copyWith(
+          isAuthenticated: true,
+          user: user,
+          accessToken: token,
+          isLoading: false,
+        );
+      } else {
+        state = state.copyWith(isLoading: false);
+      }
+    } catch (_) {
+      state = state.copyWith(isLoading: false);
+    }
   }
 
-  Future<AuthResponse> getCurrentUser() async {
-    return AuthResponse(isSuccess: false);
-  }
-
-  Future<AuthResponse> login({
+  Future<ApiResponse<AuthResponse>> login({
     required String email,
     required String password,
   }) async {
-    return AuthResponse(isSuccess: false);
+    state = state.copyWith(isLoading: true, error: null);
+    final result = await _repository.login(email: email, password: password);
+    
+    if (result.isSuccess && result.data != null) {
+      final user = await _repository.getStoredUser();
+      final token = await _repository.getAccessToken();
+      state = state.copyWith(
+        isAuthenticated: true,
+        user: user,
+        accessToken: token,
+        isLoading: false,
+        error: null,
+      );
+    } else {
+      state = state.copyWith(isLoading: false, error: result.message);
+    }
+    return result;
   }
 
-  Future<AuthResponse> register({
+  Future<ApiResponse<AuthResponse>> register({
     required String email,
     required String username,
     required String password,
     required String confirmPassword,
   }) async {
-    return AuthResponse(isSuccess: false);
+    state = state.copyWith(isLoading: true, error: null);
+    final result = await _repository.register(
+      email: email,
+      username: username,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+    
+    if (result.isSuccess && result.data != null) {
+      final user = await _repository.getStoredUser();
+      final token = await _repository.getAccessToken();
+      state = state.copyWith(
+        isAuthenticated: true,
+        user: user,
+        accessToken: token,
+        isLoading: false,
+        error: null,
+      );
+    } else {
+      state = state.copyWith(isLoading: false, error: result.message);
+    }
+    return result;
   }
 
   Future<void> logout() async {
-    // Limpeza de cache/token
+    await _repository.logout();
+    state = const AuthState();
   }
 
-  Future<AuthResponse> forgotPassword(String email) async {
-    return AuthResponse(isSuccess: false);
+  Future<ApiResponse<void>> forgotPassword(String email) async {
+    return _repository.forgotPassword(email);
   }
 
-  Future<AuthResponse> resetPassword({
+  Future<ApiResponse<void>> resetPassword({
     required String token,
     required String password,
     required String confirmPassword,
   }) async {
-    return AuthResponse(isSuccess: false);
+    return _repository.resetPassword(
+      token: token,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+  }
+
+  Future<void> refreshUser() async {
+    final user = await _repository.getStoredUser();
+    final token = await _repository.getAccessToken();
+    state = state.copyWith(user: user, accessToken: token);
+  }
+
+  void clearError() {
+    state = state.copyWith(error: null);
   }
 }
+
+/// Auth controller provider
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
+  final repository = ref.watch(authRepositoryProvider);
+  return AuthController(repository);
+});
+
+/// Auth state provider (for router)
+final authStateProvider = Provider<AuthState>((ref) {
+  return ref.watch(authControllerProvider);
+});

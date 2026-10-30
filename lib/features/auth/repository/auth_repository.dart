@@ -6,14 +6,17 @@ import 'package:gastos_flutter/core/api/dio_client.dart';
 import 'package:gastos_flutter/core/api/endpoints.dart';
 import 'package:gastos_flutter/core/database/app_database.dart' as db;
 import 'package:gastos_flutter/features/auth/models/auth_models.dart';
+import 'package:retrofit/retrofit.dart';
 
 class AuthRepository {
   final ApiService _apiService;
   final DioClient _dioClient = DioClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  final db.AppDatabase _db = db.AppDatabase();
+  final db.AppDatabase _db;
 
-  AuthRepository() : _apiService = ApiService(DioClient().dio, baseUrl: ApiEndpoints.baseUrl);
+  AuthRepository({required ApiService apiService, required db.AppDatabase database})
+      : _apiService = apiService,
+        _db = database;
 
   /// Register a new user
   Future<ApiResponse<AuthResponse>> register({
@@ -32,7 +35,7 @@ class AuthRepository {
 
       final response = await _apiService.register(request.toJson());
 
-      if (response.isSuccessful && response.data != null) {
+      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
         final apiResponse = response.data!;
         
         if (apiResponse.isSuccess && apiResponse.data != null) {
@@ -40,7 +43,7 @@ class AuthRepository {
         }
         return apiResponse;
       } else {
-        return ApiResponse.error(message: 'Erro ao registrar: ${response.error}');
+        return ApiResponse.error(message: 'Erro ao registrar: ${response.response.statusMessage ?? "Erro desconhecido"}');
       }
     } on DioException catch (e) {
       return _handleDioError(e);
@@ -57,7 +60,7 @@ class AuthRepository {
 
       final response = await _apiService.login(request.toJson());
 
-      if (response.isSuccessful && response.data != null) {
+      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
         final apiResponse = response.data!;
         
         if (apiResponse.isSuccess && apiResponse.data != null) {
@@ -65,7 +68,7 @@ class AuthRepository {
         }
         return apiResponse;
       } else {
-        return ApiResponse.error(message: 'Erro ao fazer login: ${response.error}');
+        return ApiResponse.error(message: 'Erro ao fazer login: ${response.response.statusMessage ?? "Erro desconhecido"}');
       }
     } on DioException catch (e) {
       return _handleDioError(e);
@@ -77,7 +80,7 @@ class AuthRepository {
     try {
       final response = await _apiService.refreshToken();
       
-      if (response.isSuccessful && response.data != null) {
+      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
         final apiResponse = response.data!;
         
         if (apiResponse.isSuccess && apiResponse.data != null) {
@@ -94,7 +97,7 @@ class AuthRepository {
     try {
       final response = await _apiService.getCurrentUser();
       
-      if (response.isSuccessful && response.data != null) {
+      if (response.response.statusCode != null && response.response.statusCode! >= 200 && response.response.statusCode! < 300 && response.data != null) {
         final apiResponse = response.data!;
 
         if (apiResponse.isSuccess && apiResponse.data != null) {
@@ -112,7 +115,7 @@ class AuthRepository {
 
         return apiResponse;
       } else {
-        return ApiResponse.error(message: 'Erro ao buscar usuário: ${response.error}');
+        return ApiResponse.error(message: 'Erro ao buscar usuário: ${response.response.statusMessage ?? "Erro desconhecido"}');
       }
     } on DioException catch (e) {
       return _handleDioError(e);
@@ -174,7 +177,7 @@ class AuthRepository {
     await _storage.write(key: StorageKeys.username, value: auth.user.username);
     
     // Save user to local DB
-    await _db.upsertUser(UsersCompanion(
+    await _db.upsertUser(db.UsersCompanion(
       id: Value(auth.user.id),
       email: Value(auth.user.email),
       username: Value(auth.user.username),

@@ -133,9 +133,8 @@ class TransactionsRepository {
   }
 
   /// Delete transaction (offline-first)
-  Future<void> deleteTransaction(String id) async {
-    await _db.delete(_db.transactions).where((t) => t.id.equals(id)).go();
-    _deleteFromServer(id);
+  Future<int> deleteTransaction(String id) async {
+    return await _db.executor.runDelete('DELETE FROM transactions WHERE id = ?', [id]);
   }
 
   /// Get monthly stats

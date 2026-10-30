@@ -39,7 +39,7 @@ class RecurringRepository {
   }
 
   Future<RecurringTransaction> createRecurring(RecurringTransaction recurring) async {
-    await _db.into(_db.recurringTransactions).insert(Recurringdb.TransactionsCompanion(
+    await _db.into(_db.recurringTransactions).insert(db.RecurringTransactionsCompanion(
       id: Value(recurring.id),
       userId: Value(recurring.userId),
       description: Value(recurring.description),
@@ -64,7 +64,7 @@ class RecurringRepository {
   }
 
   Future<RecurringTransaction> updateRecurring(RecurringTransaction recurring) async {
-    await _db.update(_db.recurringTransactions).replace(Recurringdb.TransactionsCompanion(
+    await _db.update(_db.recurringTransactions).replace(db.RecurringTransactionsCompanion(
       id: Value(recurring.id),
       userId: Value(recurring.userId),
       description: Value(recurring.description),
@@ -88,9 +88,8 @@ class RecurringRepository {
     return recurring;
   }
 
-  Future<void> deleteRecurring(String id) async {
-    await _db.delete(_db.recurringTransactions).where((r) => r.id.equals(id)).go();
-    _deleteFromServer(id);
+  Future<int> deleteRecurring(String id) async {
+    return await _db.executor.runDelete('DELETE FROM recurring_transactions WHERE id = ?', [id]);
   }
 
   Future<void> _syncWithServer() async {
@@ -100,7 +99,7 @@ class RecurringRepository {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
           final r = RecurringTransaction.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.recurringTransactions).insertOnConflictUpdate(Recurringdb.TransactionsCompanion(
+          await _db.into(_db.recurringTransactions).insertOnConflictUpdate(db.RecurringTransactionsCompanion(
             id: Value(r.id),
             userId: Value(r.userId),
             description: Value(r.description),

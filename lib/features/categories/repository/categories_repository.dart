@@ -80,9 +80,8 @@ class CategoriesRepository {
   }
 
   /// Delete category
-  Future<void> deleteCategory(String id) async {
-    await _db.delete(_db.categories).where((c) => c.id.equals(id)).go();
-    _deleteFromServer(id);
+  Future<int> deleteCategory(String id) async {
+    return await _db.executor.runDelete('DELETE FROM categories WHERE id = ?', [id]);
   }
 
   /// Seed default categories if empty

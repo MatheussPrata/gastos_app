@@ -64,9 +64,8 @@ class ShoppingRepository {
     return item;
   }
 
-  Future<void> deleteShoppingItem(String id) async {
-    await _db.delete(_db.shoppingItems).where((s) => s.id.equals(id)).go();
-    _deleteFromServer(id);
+  Future<int> deleteShoppingItem(String id) async {
+    return await _db.executor.runDelete('DELETE FROM shopping_items WHERE id = ?', [id]);
   }
 
   Future<void> _syncWithServer() async {
