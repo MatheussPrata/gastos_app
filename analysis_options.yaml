@@ -3,6 +3,8 @@ analyzer:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
     - "**/*.gr.dart"
+    - build/**
+    - android/**
   errors:
     avoid_print: warning
     prefer_const_constructors: warning

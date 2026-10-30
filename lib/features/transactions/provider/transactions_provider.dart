@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/features/transactions/models/transaction_models.dart';
-import 'package:gastos_flutter/features/transactions/repository/transactions_repository.dart';
+import 'package:gastos_app/features/transactions/models/transaction_models.dart';
+import 'package:gastos_app/features/transactions/repository/transactions_repository.dart';
 
 final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) => TransactionsRepository());
 

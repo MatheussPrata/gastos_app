@@ -16,6 +16,7 @@ import '../../features/recurring/ui/pages/recurring_form_page.dart';
 import '../../features/shopping/ui/pages/shopping_page.dart';
 import '../../features/shopping/ui/pages/shopping_form_page.dart';
 import '../../features/settings/ui/pages/settings_page.dart';
+import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 
 /// Route names for type-safe navigation
 class RouteNames {

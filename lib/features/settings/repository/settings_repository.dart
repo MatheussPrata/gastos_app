@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
-import 'package:gastos_flutter/core/api/dio_client.dart';
-import 'package:gastos_flutter/core/api/endpoints.dart';
-import 'package:gastos_flutter/core/database/app_database.dart' as db;
-import 'package:gastos_flutter/features/settings/models/settings_models.dart';
+import 'package:gastos_app/core/api/dio_client.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/features/settings/models/settings_models.dart';
 
 class SettingsRepository {
   final DioClient _dioClient = DioClient();

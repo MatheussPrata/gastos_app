@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_flutter/features/recurring/models/recurring_models.dart';
-import 'package:gastos_flutter/features/recurring/repository/recurring_repository.dart';
+import 'package:gastos_app/features/recurring/models/recurring_models.dart';
+import 'package:gastos_app/features/recurring/repository/recurring_repository.dart';
 
 final recurringRepositoryProvider = Provider<RecurringRepository>((ref) => RecurringRepository());
 

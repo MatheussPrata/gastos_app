@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:gastos_flutter/core/router/app_router.dart';
-import 'package:gastos_flutter/core/theme/app_theme.dart';
+import 'package:gastos_app/core/router/app_router.dart';
+import 'package:gastos_app/core/theme/app_theme.dart';
 
 class ShoppingFormPage extends ConsumerWidget {
   final String? itemId;
