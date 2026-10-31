@@ -10,7 +10,8 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
+    final authState = ref.watch(authStateProvider);
+    final user = authState.user;
     final themeMode = ref.watch(themeModeProvider);
     
     return Scaffold(

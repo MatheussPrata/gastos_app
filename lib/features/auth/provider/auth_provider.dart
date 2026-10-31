@@ -1,43 +1,50 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/core/api/api_providers.dart';
+import 'package:gastos_app/core/database/database_providers.dart';
 import 'package:gastos_app/features/auth/models/auth_models.dart';
 import 'package:gastos_app/features/auth/repository/auth_repository.dart';
 
-enum AuthStatus {
-  unknown,
-  authenticated,
-  unauthenticated,
-  loading,
-}
+/// Auth repository provider
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  final apiService = ref.watch(apiServiceProvider);
+  final database = ref.watch(databaseProvider);
+  return AuthRepository(apiService: apiService, database: database);
+});
 
-@immutable
+/// Auth state
 class AuthState {
-  final AuthStatus status;
+  final bool isAuthenticated;
   final User? user;
+  final String? accessToken;
+  final bool isLoading;
   final String? error;
 
   const AuthState({
-    this.status = AuthStatus.unknown,
+    this.isAuthenticated = false,
     this.user,
+    this.accessToken,
+    this.isLoading = false,
     this.error,
   });
 
-  bool get isAuthenticated => status == AuthStatus.authenticated && user != null;
-  bool get isLoading => status == AuthStatus.loading;
-
   AuthState copyWith({
-    AuthStatus? status,
+    bool? isAuthenticated,
     User? user,
+    String? accessToken,
+    bool? isLoading,
     String? error,
   }) {
     return AuthState(
-      status: status ?? this.status,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       user: user ?? this.user,
-      error: error,
+      accessToken: accessToken ?? this.accessToken,
+      isLoading: isLoading ?? this.isLoading,
+      error: error ?? this.error,
     );
   }
 }
 
+/// Auth state notifier
 class AuthController extends StateNotifier<AuthState> {
   final AuthRepository _repository;
 
@@ -46,119 +53,134 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> _checkAuthStatus() async {
-    state = state.copyWith(status: AuthStatus.loading);
-
-    final isLoggedIn = await _repository.isLoggedIn();
-    if (isLoggedIn) {
-      final user = await _repository.getStoredUser();
-      if (user != null) {
-        state = state.copyWith(status: AuthStatus.authenticated, user: user);
+    state = state.copyWith(isLoading: true);
+    try {
+      final isLoggedIn = await _repository.isLoggedIn();
+      if (isLoggedIn) {
+        final user = await _repository.getStoredUser();
+        final token = await _repository.getAccessToken();
+        state = state.copyWith(
+          isAuthenticated: true,
+          user: user,
+          accessToken: token,
+          isLoading: false,
+        );
       } else {
-        final result = await _repository.getCurrentUser();
-        if (result.isSuccess && result.data != null) {
-          state = state.copyWith(status: AuthStatus.authenticated, user: result.data);
-        } else {
-          state = state.copyWith(status: AuthStatus.unauthenticated);
-        }
+        state = state.copyWith(isLoading: false);
       }
-    } else {
-      state = state.copyWith(status: AuthStatus.unauthenticated);
+    } catch (_) {
+      state = state.copyWith(isLoading: false);
     }
   }
 
-  Future<void> login({
+  Future<ApiResponse<AuthResponse>> login({
     required String email,
     required String password,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-
-    try {
-      final result = await _repository.login(email: email, password: password);
-      if (result.isSuccess && result.data != null) {
-        state = state.copyWith(
-          status: AuthStatus.authenticated,
-          user: result.data!.user,
-          error: null,
-        );
-      } else {
-        state = state.copyWith(
-          status: AuthStatus.unauthenticated,
-          error: result.message ?? 'Erro ao fazer login',
-        );
-      }
-    } catch (e) {
+    state = state.copyWith(isLoading: true, error: null);
+    final result = await _repository.login(email: email, password: password);
+    
+    if (result.isSuccess && result.data != null) {
+      final user = await _repository.getStoredUser();
+      final token = await _repository.getAccessToken();
       state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: e.toString(),
+        isAuthenticated: true,
+        user: user,
+        accessToken: token,
+        isLoading: false,
+        error: null,
       );
+    } else {
+      state = state.copyWith(isLoading: false, error: result.message);
     }
+    return result;
   }
 
-  Future<void> register({
+  Future<ApiResponse<AuthResponse>> register({
     required String email,
     required String username,
     required String password,
     required String confirmPassword,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-
-    try {
-      final result = await _repository.register(
-        email: email,
-        username: username,
-        password: password,
-        confirmPassword: confirmPassword,
-      );
-      if (result.isSuccess && result.data != null) {
-        state = state.copyWith(
-          status: AuthStatus.authenticated,
-          user: result.data!.user,
-          error: null,
-        );
-      } else {
-        state = state.copyWith(
-          status: AuthStatus.unauthenticated,
-          error: result.message ?? 'Erro ao registrar',
-        );
-      }
-    } catch (e) {
+    state = state.copyWith(isLoading: true, error: null);
+    final result = await _repository.register(
+      email: email,
+      username: username,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+    
+    if (result.isSuccess && result.data != null) {
+      final user = await _repository.getStoredUser();
+      final token = await _repository.getAccessToken();
       state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: e.toString(),
+        isAuthenticated: true,
+        user: user,
+        accessToken: token,
+        isLoading: false,
+        error: null,
       );
+    } else {
+      state = state.copyWith(isLoading: false, error: result.message);
     }
+    return result;
   }
 
   Future<void> logout() async {
     await _repository.logout();
-    state = const AuthState(status: AuthStatus.unauthenticated);
+    state = const AuthState();
   }
 
-  Future<void> forgotPassword(String email) async {
-    try {
-      await _repository.forgotPassword(email);
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
+  Future<ApiResponse<void>> forgotPassword(String email) async {
+    return _repository.forgotPassword(email);
   }
 
-  Future<void> resetPassword({
+  Future<ApiResponse<void>> resetPassword({
     required String token,
     required String password,
     required String confirmPassword,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
+    return _repository.resetPassword(
+      token: token,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+  }
 
+  Future<void> refreshUser() async {
+    final user = await _repository.getStoredUser();
+    final token = await _repository.getAccessToken();
+    state = state.copyWith(user: user, accessToken: token);
+  }
+
+  Future<void> enterAsGuest() async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      await _repository.resetPassword(
-        token: token,
-        password: password,
-        confirmPassword: confirmPassword,
+      final guestId = 'guest_${DateTime.now().millisecondsSinceEpoch}';
+      final guestUser = User(
+        id: guestId,
+        email: 'guest@local',
+        username: 'Convidado',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isActive: true,
+        isAdmin: false,
+      );
+      
+      // Save guest user to local DB only
+      await _repository.saveGuestUser(guestUser);
+      
+      state = state.copyWith(
+        isAuthenticated: true,
+        user: guestUser,
+        accessToken: 'guest_token',
+        isLoading: false,
+        error: null,
       );
     } catch (e) {
       state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: e.toString(),
+        isLoading: false,
+        error: 'Erro ao entrar como convidado: $e',
       );
     }
   }
@@ -168,11 +190,13 @@ class AuthController extends StateNotifier<AuthState> {
   }
 }
 
+/// Auth controller provider
 final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
   final repository = ref.watch(authRepositoryProvider);
   return AuthController(repository);
 });
 
-final authStateProvider = Provider<AuthState>((ref) => ref.watch(authControllerProvider));
-final currentUserProvider = Provider<User?>((ref) => ref.watch(authControllerProvider).user);
-final isAuthenticatedProvider = Provider<bool>((ref) => ref.watch(authControllerProvider).isAuthenticated);
+/// Auth state provider (for router)
+final authStateProvider = Provider<AuthState>((ref) {
+  return ref.watch(authControllerProvider);
+});

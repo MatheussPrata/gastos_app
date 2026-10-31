@@ -1,27 +1,17 @@
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/shopping/models/shopping_models.dart';
 
-final shoppingRepositoryProvider = Provider<ShoppingRepository>((ref) {
-  return ShoppingRepository();
-});
-
 class ShoppingRepository {
-  final DioClient _dioClient;
-  final db.AppDatabase _db;
-
-  ShoppingRepository({
-    DioClient? dioClient,
-    db.AppDatabase? database,
-  })  : _dioClient = dioClient ?? DioClient(),
-        _db = database ?? db.AppDatabase();
+  final DioClient _dioClient = DioClient();
+  final db.AppDatabase _db = db.AppDatabase();
 
   Future<List<ShoppingItem>> getShoppingItems({bool forceRefresh = false}) async {
     final localResults = await _db.select(_db.shoppingItems).get();
-
+    
     final items = localResults.map((s) => ShoppingItem(
       id: s.id,
       userId: s.userId,
@@ -36,7 +26,7 @@ class ShoppingRepository {
     if (forceRefresh || items.isEmpty) {
       _syncWithServer();
     }
-
+    
     return items;
   }
 
@@ -74,14 +64,13 @@ class ShoppingRepository {
     return item;
   }
 
-  Future<void> deleteShoppingItem(String id) async {
-    await (_db.delete(_db.shoppingItems)..where((s) => s.id.equals(id))).go();
-    _deleteFromServer(id);
+  Future<int> deleteShoppingItem(String id) async {
+    return await _db.executor.runDelete('DELETE FROM shopping_items WHERE id = ?', [id]);
   }
 
   Future<void> _syncWithServer() async {
     try {
-      final response = await _dioClient.dio.get(ApiEndpoints.shopping);
+      final response = await DioClient().dio.get(ApiEndpoints.shopping);
       if (response.statusCode == 200) {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
@@ -104,19 +93,17 @@ class ShoppingRepository {
 
   Future<void> _syncItem(ShoppingItem item) async {
     try {
-      await _dioClient.dio.post(
+      await DioClient().dio.post(
         ApiEndpoints.shopping,
         data: item.toJson(),
       );
-      await (_db.update(_db.shoppingItems)..where((s) => s.id.equals(item.id))).write(
-        const db.ShoppingItemsCompanion(isSynced: Value(true)),
-      );
+      await _db.markShoppingSynced(item.id);
     } catch (_) {}
   }
 
   Future<void> _deleteFromServer(String id) async {
     try {
-      await _dioClient.dio.delete('${ApiEndpoints.shoppingById}$id');
+      await DioClient().dio.delete('${ApiEndpoints.shoppingById}$id');
     } catch (_) {}
   }
 }

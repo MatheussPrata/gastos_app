@@ -204,6 +204,47 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 1;
 
+  // Upsert user (insert or update)
+  Future<void> upsertUser(UsersCompanion user) {
+    return into(users).insertOnConflictUpdate(user);
+  }
+
+  // Get current user from local DB
+  Future<User?> getCurrentUser() {
+    return (select(users)..limit(1)).getSingleOrNull();
+  }
+
+  // Get unsynced transactions
+  Future<List<Transaction>> getUnsyncedTransactions() {
+    return (select(transactions)
+          ..where((t) => t.isSynced.equals(false)))
+        .get();
+  }
+
+  // Mark transaction as synced
+  Future<void> markTransactionSynced(String id) {
+    return (update(transactions)..where((t) => t.id.equals(id)))
+        .write(TransactionsCompanion(isSynced: const Value(true)));
+  }
+
+  // Mark category as synced
+  Future<void> markCategorySynced(String id) {
+    return (update(categories)..where((c) => c.id.equals(id)))
+        .write(CategoriesCompanion(isSynced: const Value(true)));
+  }
+
+  // Mark recurring transaction as synced
+  Future<void> markRecurringSynced(String id) {
+    return (update(recurringTransactions)..where((r) => r.id.equals(id)))
+        .write(RecurringTransactionsCompanion(isSynced: const Value(true)));
+  }
+
+  // Mark shopping item as synced
+  Future<void> markShoppingSynced(String id) {
+    return (update(shoppingItems)..where((s) => s.id.equals(id)))
+        .write(ShoppingItemsCompanion(isSynced: const Value(true)));
+  }
+
   // Clear all data (for logout)
   Future<void> clearAllData() {
     return transaction(() async {

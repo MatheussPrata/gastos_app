@@ -1,28 +1,19 @@
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/categories/models/category_models.dart';
 
-final categoriesRepositoryProvider = Provider<CategoriesRepository>((ref) {
-  return CategoriesRepository();
-});
-
 class CategoriesRepository {
-  final DioClient _dioClient;
-  final db.AppDatabase _db;
-
-  CategoriesRepository({
-    DioClient? dioClient,
-    db.AppDatabase? database,
-  })  : _dioClient = dioClient ?? DioClient(),
-        _db = database ?? db.AppDatabase();
+  final DioClient _dioClient = DioClient();
+  final db.AppDatabase _db = db.AppDatabase();
 
   /// Get all categories
   Future<List<Category>> getCategories({bool forceRefresh = false}) async {
+    // Try local first
     final localResults = await _db.select(_db.categories).get();
-
+    
     final categories = localResults.map((c) => Category(
       id: c.id,
       name: c.name,
@@ -33,10 +24,11 @@ class CategoriesRepository {
       sortOrder: c.sortOrder,
     )).toList();
 
+    // Try to sync with server in background
     if (forceRefresh || categories.isEmpty) {
       _syncWithServer();
     }
-
+    
     return categories;
   }
 
@@ -44,7 +36,7 @@ class CategoriesRepository {
   Future<List<Subcategory>> getSubcategories(String categoryId) async {
     final localResults = await (_db.select(_db.subcategories)
       ..where((s) => s.categoryId.equals(categoryId))).get();
-
+    
     return localResults.map((s) => Subcategory(
       id: s.id,
       categoryId: s.categoryId,
@@ -88,9 +80,8 @@ class CategoriesRepository {
   }
 
   /// Delete category
-  Future<void> deleteCategory(String id) async {
-    await (_db.delete(_db.categories)..where((c) => c.id.equals(id))).go();
-    _deleteFromServer(id);
+  Future<int> deleteCategory(String id) async {
+    return await _db.executor.runDelete('DELETE FROM categories WHERE id = ?', [id]);
   }
 
   /// Seed default categories if empty
@@ -121,14 +112,14 @@ class CategoriesRepository {
         isDefault: Value(cat.isDefault),
         isExpenseDefault: Value(cat.isExpenseDefault),
         sortOrder: Value(cat.sortOrder),
-        isSynced: const Value(true),
+        isSynced: const Value(true), // Local defaults are already "synced"
       ));
     }
   }
 
   Future<void> _syncWithServer() async {
     try {
-      final response = await _dioClient.dio.get(ApiEndpoints.categories);
+      final response = await DioClient().dio.get(ApiEndpoints.categories);
       if (response.statusCode == 200) {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
@@ -150,19 +141,17 @@ class CategoriesRepository {
 
   Future<void> _syncCategory(Category category) async {
     try {
-      await _dioClient.dio.post(
+      await DioClient().dio.post(
         ApiEndpoints.categories,
         data: category.toJson(),
       );
-      await (_db.update(_db.categories)..where((c) => c.id.equals(category.id))).write(
-        const db.CategoriesCompanion(isSynced: Value(true)),
-      );
+      await _db.markCategorySynced(category.id);
     } catch (_) {}
   }
 
   Future<void> _deleteFromServer(String id) async {
     try {
-      await _dioClient.dio.delete('${ApiEndpoints.categoriesById}$id');
+      await DioClient().dio.delete('${ApiEndpoints.categoriesById}$id');
     } catch (_) {}
   }
 }
