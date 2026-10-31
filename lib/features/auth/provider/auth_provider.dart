@@ -153,6 +153,38 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(user: user, accessToken: token);
   }
 
+  Future<void> enterAsGuest() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final guestId = 'guest_${DateTime.now().millisecondsSinceEpoch}';
+      final guestUser = User(
+        id: guestId,
+        email: 'guest@local',
+        username: 'Convidado',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isActive: true,
+        isAdmin: false,
+      );
+      
+      // Save guest user to local DB only
+      await _repository.saveGuestUser(guestUser);
+      
+      state = state.copyWith(
+        isAuthenticated: true,
+        user: guestUser,
+        accessToken: 'guest_token',
+        isLoading: false,
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Erro ao entrar como convidado: $e',
+      );
+    }
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
   }

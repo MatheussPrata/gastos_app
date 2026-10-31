@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:uuid/uuid.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -35,6 +36,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      
+      if (ref.read(authControllerProvider).isAuthenticated) {
+        context.go('/');
+      }
+    }
+  }
+
+  Future<void> _enterAsGuest() async {
+    setState(() => _isLoading = true);
+    
+    await ref.read(authControllerProvider.notifier).enterAsGuest();
     
     if (mounted) {
       setState(() => _isLoading = false);
@@ -190,6 +205,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         child: const Text('Cadastre-se'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Guest mode button
+                  OutlinedButton.icon(
+                    onPressed: _isLoading || authState.isLoading ? null : _enterAsGuest,
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Entrar direto (Convidado)'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(color: AppColors.primary),
+                    ),
                   ),
                 ],
               ),

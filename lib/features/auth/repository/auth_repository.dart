@@ -172,6 +172,25 @@ class AuthRepository {
     return _storage.read(key: StorageKeys.accessToken);
   }
 
+  /// Save guest user (offline only)
+  Future<void> saveGuestUser(User user) async {
+    await _db.upsertUser(db.UsersCompanion(
+      id: Value(user.id),
+      email: Value(user.email),
+      username: Value(user.username),
+      createdAt: Value(user.createdAt),
+      updatedAt: Value(user.updatedAt),
+      isActive: Value(user.isActive),
+      isAdmin: Value(user.isAdmin),
+    ));
+    
+    // Save guest token to secure storage
+    await _storage.write(key: StorageKeys.accessToken, value: 'guest_token');
+    await _storage.write(key: StorageKeys.userId, value: user.id);
+    await _storage.write(key: StorageKeys.userEmail, value: user.email);
+    await _storage.write(key: StorageKeys.username, value: user.username);
+  }
+
   ApiResponse<T> _handleDioError<T>(DioException e) {
     String message;
     switch (e.type) {
