@@ -5,7 +5,7 @@ class ApiService {
   final Dio _dio;
   final String _baseUrl;
 
-  ApiService(this._dio, {String baseUrl = 'http://10.0.2.2:8082'}) : _baseUrl = baseUrl;
+  ApiService(this._dio, {String baseUrl = 'http://172.245.138.54:8082'}) : _baseUrl = baseUrl;
 
   String get _url => _baseUrl;
 
