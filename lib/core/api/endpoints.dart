@@ -1,6 +1,6 @@
 /// API Endpoints constants
 class ApiEndpoints {
-  static const String baseUrl = 'http://10.0.2.2:8082';
+  static const String baseUrl = 'https://pratadev.duckdns.org/api';
   
   // Auth endpoints
   static const String authRegister = '/api/auth/register';
