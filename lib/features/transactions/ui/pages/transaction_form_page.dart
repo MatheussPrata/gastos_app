@@ -137,8 +137,9 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           right: 16,
           top: 16,
         ),
-        child: Form(
-          key: formKey,
+        child: SingleChildScrollView(
+          child: Form(
+            key: formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -262,6 +263,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
               const SizedBox(height: 16),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -443,7 +445,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                             decoration: InputDecoration(
                               labelText: 'Categoria',
                               hintText: 'Selecione uma categoria',
-                              prefixIcon: const Icon(Icons.category_outlined),
+                              prefixIcon: _selectedCategory != null ? Icon(_getIconData(_selectedCategory!.icon), color: Color(_selectedCategory!.color)) : const Icon(Icons.category_outlined),
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.add_circle_outline),
                                 onPressed: _showAddCategoryModal,
