@@ -50,14 +50,21 @@ class AuthController extends StateNotifier<AuthState> {
 
     final isLoggedIn = await _repository.isLoggedIn();
     if (isLoggedIn) {
+      final isGuest = await _repository.isGuestMode();
       final user = await _repository.getStoredUser();
       if (user != null) {
         state = state.copyWith(status: AuthStatus.authenticated, user: user);
       } else {
-        final result = await _repository.getCurrentUser();
-        if (result.isSuccess && result.data != null) {
-          state = state.copyWith(status: AuthStatus.authenticated, user: result.data);
+        // For non-guest users, try to fetch from server
+        if (!isGuest) {
+          final result = await _repository.getCurrentUser();
+          if (result.isSuccess && result.data != null) {
+            state = state.copyWith(status: AuthStatus.authenticated, user: result.data);
+          } else {
+            state = state.copyWith(status: AuthStatus.unauthenticated);
+          }
         } else {
+          // Guest user but no stored data - clear session
           state = state.copyWith(status: AuthStatus.unauthenticated);
         }
       }

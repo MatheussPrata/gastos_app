@@ -62,17 +62,48 @@ class AuthRepository {
     }
   }
 
+  /// Creates a local guest session WITHOUT any network call.
+  /// Use for offline/guest mode - data stays local only.
   Future<ApiResponse<AuthResponse>> guestLogin() async {
     try {
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.authGuest,
+      // Generate a local guest user ID
+      final guestUserId = 'guest_${DateTime.now().millisecondsSinceEpoch}';
+      final guestEmail = 'guest_$guestUserId@local';
+      final guestUsername = 'Convidado_${guestUserId.substring(guestUserId.length - 4)}';
+
+      // Create a mock AuthResponse for local session
+      final authResponse = AuthResponse(
+        accessToken: 'guest_token_$guestUserId',
+        refreshToken: 'guest_refresh_$guestUserId',
+        user: User(
+          id: guestUserId,
+          email: guestEmail,
+          username: guestUsername,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
       );
-      return _handleAuthResponse(response);
-    } on DioException catch (e) {
-      return ApiResponse.error(message: _formatDioError(e));
+
+      // Persist locally only - NO network call
+      await _persistGuestSession(authResponse);
+
+      return ApiResponse.success(
+        data: authResponse,
+        message: 'Modo convidado ativado (offline)',
+      );
     } catch (e) {
       return ApiResponse.error(message: 'Erro inesperado: $e');
     }
+  }
+
+  Future<void> _persistGuestSession(AuthResponse authResponse) async {
+    await _storage.write(key: StorageKeys.accessToken, value: authResponse.accessToken);
+    await _storage.write(key: StorageKeys.refreshToken, value: authResponse.refreshToken);
+    await _storage.write(key: StorageKeys.userId, value: authResponse.user.id);
+    await _storage.write(key: StorageKeys.userEmail, value: authResponse.user.email);
+    await _storage.write(key: StorageKeys.username, value: authResponse.user.username);
+    // Mark as guest mode
+    await _storage.write(key: StorageKeys.isGuestMode, value: 'true');
   }
 
   Future<ApiResponse<AuthResponse>> _handleAuthResponse(Response response) async {
@@ -124,12 +155,15 @@ class AuthRepository {
 
   Future<void> logout() async {
     try {
-      final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
-      final headers = <String, dynamic>{
-        if (refreshToken != null && refreshToken.isNotEmpty)
-          'Cookie': 'refresh_token=$refreshToken',
-      };
-      await _dioClient.dio.post(ApiEndpoints.authLogout, options: Options(headers: headers));
+      final isGuest = await isGuestMode();
+      if (!isGuest) {
+        final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
+        final headers = <String, dynamic>{
+          if (refreshToken != null && refreshToken.isNotEmpty)
+            'Cookie': 'refresh_token=$refreshToken',
+        };
+        await _dioClient.dio.post(ApiEndpoints.authLogout, options: Options(headers: headers));
+      }
     } catch (_) {
       // Best effort: always clear the local session even if the network call fails.
     }
@@ -173,4 +207,11 @@ class AuthRepository {
   Future<String?> getAccessToken() async {
     return _storage.read(key: StorageKeys.accessToken);
   }
+
+  /// Check if current session is in guest/offline mode
+  Future<bool> isGuestMode() async {
+    final guestMode = await _storage.read(key: StorageKeys.isGuestMode);
+    return guestMode == 'true';
+  }
+}
 }

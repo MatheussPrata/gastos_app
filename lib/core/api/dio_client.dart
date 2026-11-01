@@ -80,7 +80,8 @@ class DioClient {
   Future<bool> refreshToken() async {
     try {
       final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
-      if (refreshToken == null || refreshToken.isEmpty) return false;
+      // Skip refresh for guest tokens (local-only)
+      if (refreshToken == null || refreshToken.isEmpty || refreshToken.startsWith('guest_refresh_')) return false;
 
       final response = await dio.post(
         ApiEndpoints.authRefresh,
@@ -121,7 +122,8 @@ class _AuthInterceptor extends Interceptor {
     final isPublic = _publicPaths.any((path) => options.path.contains(path));
     if (!isPublic) {
       final accessToken = await _client._storage.read(key: StorageKeys.accessToken);
-      if (accessToken != null && accessToken.isNotEmpty) {
+      // Skip adding Authorization header for guest tokens (local-only)
+      if (accessToken != null && accessToken.isNotEmpty && !accessToken.startsWith('guest_token_')) {
         options.headers['Authorization'] = 'Bearer $accessToken';
       }
     }

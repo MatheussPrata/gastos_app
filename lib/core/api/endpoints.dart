@@ -5,7 +5,6 @@ class ApiEndpoints {
   // Auth endpoints
   static const String authRegister = '/auth/register';
   static const String authLogin = '/auth/login';
-  static const String authGuest = '/auth/guest';
   static const String authRefresh = '/auth/refresh';
   static const String authLogout = '/auth/logout';
   static const String authForgotPassword = '/auth/forgot-password';
@@ -61,4 +60,5 @@ class StorageKeys {
   static const String currency = 'currency';
   static const String firstLaunch = 'first_launch';
   static const String biometricEnabled = 'biometric_enabled';
+  static const String isGuestMode = 'is_guest_mode';
 }
