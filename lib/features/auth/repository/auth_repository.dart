@@ -62,6 +62,19 @@ class AuthRepository {
     }
   }
 
+  Future<ApiResponse<AuthResponse>> guestLogin() async {
+    try {
+      final response = await _dioClient.dio.post(
+        ApiEndpoints.authGuest,
+      );
+      return _handleAuthResponse(response);
+    } on DioException catch (e) {
+      return ApiResponse.error(message: _formatDioError(e));
+    } catch (e) {
+      return ApiResponse.error(message: 'Erro inesperado: $e');
+    }
+  }
+
   Future<ApiResponse<AuthResponse>> _handleAuthResponse(Response response) async {
     final body = response.data;
     if (body is Map<String, dynamic> && body['data'] is Map<String, dynamic>) {

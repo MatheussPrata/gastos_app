@@ -2,13 +2,14 @@
 class ApiEndpoints {
   static const String baseUrl = 'https://pratadev.duckdns.org/api';
   
-  // Auth endpoints (relative to baseUrl, which already ends in /api)
+  // Auth endpoints
   static const String authRegister = '/auth/register';
   static const String authLogin = '/auth/login';
+  static const String authGuest = '/auth/guest';
   static const String authRefresh = '/auth/refresh';
   static const String authLogout = '/auth/logout';
   static const String authForgotPassword = '/auth/forgot-password';
-  static const String authResetPassword = '/auth/reset-password';
+  static const String authResetPassword = '/auth/auth/reset-password';
   static const String authMe = '/auth/me';
   
   // Health endpoints

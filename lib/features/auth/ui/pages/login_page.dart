@@ -45,6 +45,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  Future<void> _guestLogin() async {
+    setState(() => _isLoading = true);
+    
+    await ref.read(authControllerProvider.notifier).guestLogin();
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      
+      if (ref.read(authControllerProvider).isAuthenticated) {
+        context.go('/');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -172,6 +193,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                           )
                         : const Text('Entrar'),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Guest login button
+                  OutlinedButton.icon(
+                    onPressed: _isLoading || authState.isLoading ? null : _guestLogin,
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Entrar sem conta'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   
