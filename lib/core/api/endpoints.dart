@@ -1,6 +1,7 @@
 /// API Endpoints constants
 class ApiEndpoints {
-  static const String baseUrl = 'http://10.0.2.2:8082';
+  // Use server public IP for device/emulator testing
+  static const String baseUrl = 'http://172.245.138.54:8082';
   
   // Auth endpoints
   static const String authRegister = '/api/auth/register';

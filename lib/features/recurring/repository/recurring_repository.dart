@@ -1,27 +1,17 @@
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 
-final recurringRepositoryProvider = Provider<RecurringRepository>((ref) {
-  return RecurringRepository();
-});
-
 class RecurringRepository {
-  final DioClient _dioClient;
-  final db.AppDatabase _db;
-
-  RecurringRepository({
-    DioClient? dioClient,
-    db.AppDatabase? database,
-  })  : _dioClient = dioClient ?? DioClient(),
-        _db = database ?? db.AppDatabase();
+  final DioClient _dioClient = DioClient();
+  final db.AppDatabase _db = db.AppDatabase();
 
   Future<List<RecurringTransaction>> getRecurring({bool forceRefresh = false}) async {
     final localResults = await _db.select(_db.recurringTransactions).get();
-
+    
     final recurring = localResults.map((r) => RecurringTransaction(
       id: r.id,
       userId: r.userId,
@@ -44,7 +34,7 @@ class RecurringRepository {
     if (forceRefresh || recurring.isEmpty) {
       _syncWithServer();
     }
-
+    
     return recurring;
   }
 
@@ -98,14 +88,13 @@ class RecurringRepository {
     return recurring;
   }
 
-  Future<void> deleteRecurring(String id) async {
-    await (_db.delete(_db.recurringTransactions)..where((r) => r.id.equals(id))).go();
-    _deleteFromServer(id);
+  Future<int> deleteRecurring(String id) async {
+    return await _db.executor.runDelete('DELETE FROM recurring_transactions WHERE id = ?', [id]);
   }
 
   Future<void> _syncWithServer() async {
     try {
-      final response = await _dioClient.dio.get(ApiEndpoints.recurring);
+      final response = await DioClient().dio.get(ApiEndpoints.recurring);
       if (response.statusCode == 200) {
         final data = response.data['data'] as List? ?? [];
         for (final json in data) {
@@ -136,19 +125,17 @@ class RecurringRepository {
 
   Future<void> _syncRecurring(RecurringTransaction recurring) async {
     try {
-      await _dioClient.dio.post(
+      await DioClient().dio.post(
         ApiEndpoints.recurring,
         data: recurring.toJson(),
       );
-      await (_db.update(_db.recurringTransactions)..where((r) => r.id.equals(recurring.id))).write(
-        const db.RecurringTransactionsCompanion(isSynced: Value(true)),
-      );
+      await _db.markRecurringSynced(recurring.id);
     } catch (_) {}
   }
 
   Future<void> _deleteFromServer(String id) async {
     try {
-      await _dioClient.dio.delete('${ApiEndpoints.recurringById}$id');
+      await DioClient().dio.delete('${ApiEndpoints.recurringById}$id');
     } catch (_) {}
   }
 }

@@ -10,13 +10,13 @@ class AppColors {
   static const Color secondaryVariant = Color(0xFF2E7D32);
   static const Color tertiary = Color(0xFF6750A4);     // Purple
   static const Color tertiaryVariant = Color(0xFF4F378B);
-
+  
   // Semantic colors
   static const Color income = Color(0xFF43A047);       // Green for income
   static const Color expense = Color(0xFFE53935);      // Red for expense
   static const Color warning = Color(0xFFFFB300);      // Amber for warnings
   static const Color info = Color(0xFF1E88E5);         // Blue for info
-
+  
   // Category colors (matching Kotlin app)
   static const List<Color> categoryColors = [
     Color(0xFFFF6B6B), // Alimentação
@@ -64,13 +64,13 @@ ThemeData get lightTheme {
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.grey.shade300),
       ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.primary, width: 2),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
-      errorBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.expense),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.expense),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
@@ -105,34 +105,28 @@ ThemeData get lightTheme {
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
     ),
-    dividerTheme: DividerThemeData(
-      color: Colors.grey.shade300,
+    dividerTheme: const DividerThemeData(
+      color: Color(0xFFE0E0E0),
       thickness: 1,
       space: 1,
     ),
-    listTileTheme: const ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-      ),
+    listTileTheme: ListTileThemeData(
+      contentPadding: EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    dialogTheme: const DialogTheme(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(20)),
-      ),
+    dialogTheme: DialogTheme(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
       contentTextStyle: TextStyle(fontSize: 16, color: Colors.black87),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Color(0xFF343434),
     ),
   );
 }
@@ -171,13 +165,13 @@ ThemeData get darkTheme {
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.grey.shade700),
       ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.primary, width: 2),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
-      errorBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.expense),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.expense),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
@@ -189,59 +183,35 @@ ThemeData get darkTheme {
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: const BorderSide(color: AppColors.primary),
-        foregroundColor: AppColors.primary,
-      ),
-    ),
-    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       type: BottomNavigationBarType.fixed,
       selectedItemColor: AppColors.primary,
-      unselectedItemColor: Colors.grey.shade400,
+      unselectedItemColor: Color(0xFFBDBDBD),
       elevation: 8,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: Color(0xFF212121),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
     ),
-    dividerTheme: DividerThemeData(
-      color: Colors.grey.shade700,
+    dividerTheme: const DividerThemeData(
+      color: Color(0xFF616161),
       thickness: 1,
       space: 1,
     ),
-    listTileTheme: const ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-      ),
-    ),
     dialogTheme: DialogTheme(
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(20)),
-      ),
-      titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
-      contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
-      backgroundColor: Colors.grey[850],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+      contentTextStyle: TextStyle(fontSize: 16, color: Colors.white70),
+      backgroundColor: Color(0xFF343434),
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       showDragHandle: true,
-      backgroundColor: Colors.grey[850],
+      backgroundColor: Color(0xFF343434),
     ),
   );
 }
