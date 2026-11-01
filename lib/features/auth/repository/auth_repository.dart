@@ -39,7 +39,7 @@ class AuthRepository {
       );
       return _handleAuthResponse(response);
     } on DioException catch (e) {
-      return ApiResponse.error(message: _errorMessage(e));
+      return ApiResponse.error(message: _formatDioError(e));
     } catch (e) {
       return ApiResponse.error(message: 'Erro inesperado: $e');
     }
@@ -56,7 +56,7 @@ class AuthRepository {
       );
       return _handleAuthResponse(response);
     } on DioException catch (e) {
-      return ApiResponse.error(message: _errorMessage(e));
+      return ApiResponse.error(message: _formatDioError(e));
     } catch (e) {
       return ApiResponse.error(message: 'Erro inesperado: $e');
     }
@@ -83,12 +83,20 @@ class AuthRepository {
     await _storage.write(key: StorageKeys.username, value: authResponse.user.username);
   }
 
-  String _errorMessage(DioException e) {
-    final data = e.response?.data;
-    if (data is Map<String, dynamic> && data['message'] != null) {
-      return data['message'].toString();
+  String _formatDioError(DioException e) {
+    final buffer = StringBuffer();
+    buffer.writeln('DioException: ${e.type.name}');
+    if (e.response != null) {
+      buffer.writeln('Status: ${e.response?.statusCode}');
+      buffer.writeln('Response: ${e.response?.data}');
     }
-    return 'Erro de conexão. Verifique sua internet.';
+    if (e.message != null && e.message!.isNotEmpty) {
+      buffer.writeln('Message: ${e.message}');
+    }
+    if (e.error != null) {
+      buffer.writeln('Error: ${e.error}');
+    }
+    return buffer.toString();
   }
 
   Future<bool> refreshToken() => _dioClient.refreshToken();
