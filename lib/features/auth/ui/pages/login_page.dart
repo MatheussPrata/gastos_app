@@ -60,13 +60,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     

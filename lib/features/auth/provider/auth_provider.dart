@@ -119,34 +119,6 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-
-    try {
-      final result = await _repository.login(email: email, password: password);
-      if (result.isSuccess && result.data != null) {
-        state = state.copyWith(
-          status: AuthStatus.authenticated,
-          user: result.data!.user,
-          error: null,
-        );
-      } else {
-        state = state.copyWith(
-          status: AuthStatus.unauthenticated,
-          error: result.message ?? 'Erro ao fazer login',
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        error: e.toString(),
-      );
-    }
-  }
-
   Future<void> register({
     required String email,
     required String username,
