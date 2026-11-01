@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -16,6 +17,36 @@ class DioClient {
     _storage = const FlutterSecureStorage();
     _connectivity = Connectivity();
     
+    dio = Dio(BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 15),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    ));
+
+    // Configure HTTP client adapter for SSL certificate handling
+    (dio.httpClientAdapter as DefaultHttpClientAdapter).onHttpClientCreate = (client) {
+      // Accept certificates for DuckDNS domain (pratadev.duckdns.org)
+      // In production, use proper certificate pinning or valid certificates
+      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        // Allow DuckDNS domain and localhost for development
+        return host == 'pratadev.duckdns.org' || 
+               host == 'localhost' || 
+               host == '10.0.2.2' || 
+               host == '127.0.0.1';
+      };
+      
+      // Increase timeouts
+      client.connectionTimeout = const Duration(seconds: 15);
+      client.idleTimeout = const Duration(seconds: 15);
+      
+      return client;
+    };
+
     dio = Dio(BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
@@ -85,7 +116,6 @@ class _AuthInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final isPublic = _publicPaths.any((path) => options.path.contains(path));
-    
     if (!isPublic) {
       final accessToken = await _client._storage.read(key: StorageKeys.accessToken);
       if (accessToken != null && accessToken.isNotEmpty) {
@@ -163,7 +193,12 @@ class _ErrorInterceptor extends Interceptor {
         message = 'Requisição cancelada';
         break;
       case DioExceptionType.connectionError:
-        message = 'Sem conexão com o servidor. Verifique sua internet.';
+        // Check if it's an SSL handshake error
+        if (err.error is HandshakeException) {
+          message = 'Erro de certificado SSL. Verifique se o certificado do servidor é válido.';
+        } else {
+          message = 'Sem conexão com o servidor. Verifique sua internet.';
+        }
         break;
       default:
         message = 'Erro inesperado: ${err.message}';
