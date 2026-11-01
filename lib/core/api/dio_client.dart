@@ -11,7 +11,7 @@ class DioClient {
   late final FlutterSecureStorage _storage;
   late final Connectivity _connectivity;
 
-  void init({String baseUrl = 'http://10.0.2.2:8082'}) {
+  void init({String baseUrl = 'https://pratadev.duckdns.org/api'}) {
     _storage = const FlutterSecureStorage();
     _connectivity = Connectivity();
     
