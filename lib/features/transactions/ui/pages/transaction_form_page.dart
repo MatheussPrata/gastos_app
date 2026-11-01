@@ -390,6 +390,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                                 return Colors.grey.shade600;
                               }),
                           ),
+                        ),
                           const SizedBox(height: 24),
 
                           // Valor
