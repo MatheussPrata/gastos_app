@@ -40,11 +40,22 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      - name: Build APK (debug)
-        run: flutter build apk --debug
+      - name: Restaurar Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.jks
+
+      - name: Build APK (release assinado)
+        run: |
+          flutter build apk --release \
+            --build-name="1.0.${{ github.run_number }}" \
+            --build-number="${{ github.run_number }}"
+        env:
+          KEYSTORE_PATH: "release.jks"
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
