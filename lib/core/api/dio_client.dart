@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
 
 class DioClient {
   static final DioClient _instance = DioClient._internal();
@@ -28,7 +29,7 @@ class DioClient {
 
     // Add interceptors
     dio.interceptors.addAll([
-      _AuthInterceptor(_storage),
+      _AuthInterceptor(this),
       _LoggingInterceptor(),
       _ErrorInterceptor(),
     ]);
@@ -39,20 +40,54 @@ class DioClient {
     final result = await _connectivity.checkConnectivity();
     return result.isNotEmpty && result.first != ConnectivityResult.none;
   }
+
+  // Refresh the access token using the stored refresh token (sent as a cookie,
+  // as the backend expects). Updates both tokens on success.
+  Future<bool> refreshToken() async {
+    try {
+      final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
+      if (refreshToken == null || refreshToken.isEmpty) return false;
+
+      final response = await dio.post(
+        ApiEndpoints.authRefresh,
+        options: Options(headers: {'Cookie': 'refresh_token=$refreshToken'}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data?['data'];
+        if (data is Map<String, dynamic>) {
+          final accessToken = data['accessToken'] as String?;
+          final newRefreshToken = data['refreshToken'] as String?;
+          if (accessToken != null && accessToken.isNotEmpty) {
+            await _storage.write(key: StorageKeys.accessToken, value: accessToken);
+            if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
+              await _storage.write(key: StorageKeys.refreshToken, value: newRefreshToken);
+            }
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
 }
 
 class _AuthInterceptor extends Interceptor {
-  final FlutterSecureStorage _storage;
-  _AuthInterceptor(this._storage);
+  final DioClient _client;
+  _AuthInterceptor(this._client);
+
+  static const _publicPaths = [
+    '/health', '/ready', '/live',
+    '/auth/login', '/auth/register', '/auth/refresh',
+    '/auth/forgot-password', '/auth/reset-password',
+  ];
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    // Skip auth for public endpoints
-    final publicPaths = ['/health', '/ready', '/live', '/api/auth/login', '/api/auth/register', '/api/auth/refresh', '/api/auth/forgot-password', '/api/auth/reset-password'];
-    final isPublic = publicPaths.any((path) => options.path.contains(path));
+    final isPublic = _publicPaths.any((path) => options.path.contains(path));
     
     if (!isPublic) {
-      final accessToken = await _storage.read(key: 'access_token');
+      final accessToken = await _client._storage.read(key: StorageKeys.accessToken);
       if (accessToken != null && accessToken.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $accessToken';
       }
@@ -62,12 +97,10 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401 && err.requestOptions.path != '/api/auth/refresh') {
-      // Try to refresh token
-      final refreshed = await _refreshToken();
+    if (err.response?.statusCode == 401 && !err.requestOptions.path.contains('/auth/refresh')) {
+      final refreshed = await _client.refreshToken();
       if (refreshed) {
-        // Retry original request
-        final accessToken = await _storage.read(key: 'access_token');
+        final accessToken = await _client._storage.read(key: StorageKeys.accessToken);
         err.requestOptions.headers['Authorization'] = 'Bearer $accessToken';
         try {
           final response = await Dio().fetch(err.requestOptions);
@@ -78,35 +111,11 @@ class _AuthInterceptor extends Interceptor {
           return;
         }
       }
-      // If refresh failed, clear storage and redirect to login
-      await _storage.deleteAll();
-      // Navigation will be handled by the app router
+      await _client._storage.deleteAll();
     }
     handler.next(err);
   }
 
-  Future<bool> _refreshToken() async {
-    try {
-      final refreshToken = await _storage.read(key: 'refresh_token');
-      if (refreshToken == null) return false;
-
-      final dio = Dio();
-      final response = await dio.post(
-        'http://10.0.2.2:8082/api/auth/refresh',
-        options: Options(headers: {'Cookie': 'refresh_token=$refreshToken'}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data['data'];
-        if (data != null) {
-          await _storage.write(key: 'access_token', value: data['accessToken'] as String);
-          // Refresh token is set via cookie by backend
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
-  }
 }
 
 class _LoggingInterceptor extends Interceptor {

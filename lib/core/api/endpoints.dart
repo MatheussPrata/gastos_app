@@ -2,14 +2,14 @@
 class ApiEndpoints {
   static const String baseUrl = 'https://pratadev.duckdns.org/api';
   
-  // Auth endpoints
-  static const String authRegister = '/api/auth/register';
-  static const String authLogin = '/api/auth/login';
-  static const String authRefresh = '/api/auth/refresh';
-  static const String authLogout = '/api/auth/logout';
-  static const String authForgotPassword = '/api/auth/forgot-password';
-  static const String authResetPassword = '/api/auth/reset-password';
-  static const String authMe = '/api/auth/me';
+  // Auth endpoints (relative to baseUrl, which already ends in /api)
+  static const String authRegister = '/auth/register';
+  static const String authLogin = '/auth/login';
+  static const String authRefresh = '/auth/refresh';
+  static const String authLogout = '/auth/logout';
+  static const String authForgotPassword = '/auth/forgot-password';
+  static const String authResetPassword = '/auth/reset-password';
+  static const String authMe = '/auth/me';
   
   // Health endpoints
   static const String health = '/health';
@@ -17,8 +17,8 @@ class ApiEndpoints {
   static const String live = '/live';
   
   // Sync endpoints
-  static const String sync = '/api/sync';
-  static const String syncStatus = '/api/sync/status';
+  static const String sync = '/sync';
+  static const String syncStatus = '/sync/status';
   
   // Transactions
   static const String transactions = '/api/transactions';

@@ -1,15 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/features/auth/models/auth_models.dart';
-
-abstract class StorageKeys {
-  static const String accessToken = 'access_token';
-  static const String refreshToken = 'refresh_token';
-  static const String userId = 'user_id';
-  static const String userEmail = 'user_email';
-  static const String username = 'username';
-}
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(dioClient: DioClient());
@@ -33,20 +27,71 @@ class AuthRepository {
     required String password,
     required String confirmPassword,
   }) async {
-    return const ApiResponse.error(message: 'Registo pendente de configuração da API');
+    try {
+      final response = await _dioClient.dio.post(
+        ApiEndpoints.authRegister,
+        data: {
+          'email': email,
+          'username': username,
+          'password': password,
+          'confirmPassword': confirmPassword,
+        },
+      );
+      return _handleAuthResponse(response);
+    } on DioException catch (e) {
+      return ApiResponse.error(message: _errorMessage(e));
+    } catch (e) {
+      return ApiResponse.error(message: 'Erro inesperado: $e');
+    }
   }
 
   Future<ApiResponse<AuthResponse>> login({
     required String email,
     required String password,
   }) async {
-    return const ApiResponse.error(message: 'Login pendente de configuração da API');
+    try {
+      final response = await _dioClient.dio.post(
+        ApiEndpoints.authLogin,
+        data: {'email': email, 'password': password},
+      );
+      return _handleAuthResponse(response);
+    } on DioException catch (e) {
+      return ApiResponse.error(message: _errorMessage(e));
+    } catch (e) {
+      return ApiResponse.error(message: 'Erro inesperado: $e');
+    }
   }
 
-  Future<bool> refreshToken() async {
-    final token = await _storage.read(key: StorageKeys.refreshToken);
-    return token != null && token.isNotEmpty;
+  Future<ApiResponse<AuthResponse>> _handleAuthResponse(Response response) async {
+    final body = response.data;
+    if (body is Map<String, dynamic> && body['data'] is Map<String, dynamic>) {
+      final authResponse = AuthResponse.fromJson(body['data'] as Map<String, dynamic>);
+      await _persistSession(authResponse);
+      return ApiResponse.success(
+        data: authResponse,
+        message: body['message'] as String?,
+      );
+    }
+    return const ApiResponse.error(message: 'Resposta inválida do servidor');
   }
+
+  Future<void> _persistSession(AuthResponse authResponse) async {
+    await _storage.write(key: StorageKeys.accessToken, value: authResponse.accessToken);
+    await _storage.write(key: StorageKeys.refreshToken, value: authResponse.refreshToken);
+    await _storage.write(key: StorageKeys.userId, value: authResponse.user.id);
+    await _storage.write(key: StorageKeys.userEmail, value: authResponse.user.email);
+    await _storage.write(key: StorageKeys.username, value: authResponse.user.username);
+  }
+
+  String _errorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic> && data['message'] != null) {
+      return data['message'].toString();
+    }
+    return 'Erro de conexão. Verifique sua internet.';
+  }
+
+  Future<bool> refreshToken() => _dioClient.refreshToken();
 
   Future<ApiResponse<User>> getCurrentUser() async {
     final user = await getStoredUser();
@@ -57,6 +102,16 @@ class AuthRepository {
   }
 
   Future<void> logout() async {
+    try {
+      final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
+      final headers = <String, dynamic>{
+        if (refreshToken != null && refreshToken.isNotEmpty)
+          'Cookie': 'refresh_token=$refreshToken',
+      };
+      await _dioClient.dio.post(ApiEndpoints.authLogout, options: Options(headers: headers));
+    } catch (_) {
+      // Best effort: always clear the local session even if the network call fails.
+    }
     await _storage.deleteAll();
   }
 
