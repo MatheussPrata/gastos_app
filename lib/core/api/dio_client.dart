@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
@@ -29,8 +30,9 @@ class DioClient {
     ));
 
     // Configure HTTP client adapter for SSL certificate handling
-    (dio.httpClientAdapter as DefaultHttpClientAdapter).onHttpClientCreate = (client) {
-      // Accept certificates for DuckDNS domain (pratadev.duckdns.org)
+    (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      final client = HttpClient();
+      // Allow certificates for DuckDNS domain (pratadev.duckdns.org)
       // In production, use proper certificate pinning or valid certificates
       client.badCertificateCallback = (X509Certificate cert, String host, int port) {
         // Allow DuckDNS domain and localhost for development
