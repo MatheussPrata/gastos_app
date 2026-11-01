@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
-import 'package:gastos_app/features/categories/models/category_models.dart';
-import 'package:gastos_app/features/categories/repository/categories_repository.dart';
+import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/categories/models/category_models.dart' as cat_models;
+import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
-import 'package:gastos_app/features/transactions/repository/transactions_repository.dart';
+import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
@@ -31,11 +31,10 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   final _descriptionFocusNode = FocusNode();
 
   bool _isExpense = true;
-  Category? _selectedCategory;
+  cat_models.Category? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
-  bool _isLoading = false;
   bool _isSaving = false;
-  List<Category> _categories = [];
+  List<cat_models.Category> _categories = [];
   bool _isLoadingCategories = true;
 
   @override
@@ -58,9 +57,9 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   void _formatValue() {
     final text = _valueController.text;
     final digitsOnly = text.replaceAll(RegExp(r'[^\d]'), '');
-    
+
     if (digitsOnly.isEmpty) {
-      _valueController.value = TextEditingValue(
+      _valueController.value = const TextEditingValue(
         text: '',
         selection: TextSelection.collapsed(offset: 0),
       );
@@ -123,8 +122,10 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
   void _showAddCategoryModal() {
     final nameController = TextEditingController();
-    int selectedColor = AppColors.categoryColors.first;
+    int selectedColor = AppColors.categoryColors.first.value;
     String selectedIcon = 'category';
+
+    final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -136,134 +137,135 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           right: 16,
           top: 16,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Nova Categoria',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Nova Categoria',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nome da categoria',
-                hintText: 'Ex: Alimentação, Transporte, Lazer',
-                prefixIcon: Icon(Icons.category_outlined),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nome da categoria',
+                  hintText: 'Ex: Alimentação, Transporte, Lazer',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                textCapitalization: TextCapitalization.words,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Informe o nome da categoria';
+                  }
+                  return null;
+                },
               ),
-              textCapitalization: TextCapitalization.words,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe o nome da categoria';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            Text('Cor', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: AppColors.categoryColors.map((color) {
-                final isSelected = color == selectedColor;
-                return GestureDetector(
-                  onTap: () => setState(() => selectedColor = color),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Color(color),
-                      shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: Colors.white, width: 3)
-                          : null,
-                      boxShadow: isSelected
-                          ? [BoxShadow(color: Color(color).withOpacity(0.5), blurRadius: 8, spreadRadius: 2)]
+              const SizedBox(height: 16),
+              Text('Cor', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: AppColors.categoryColors.map((color) {
+                  final isSelected = color.value == selectedColor;
+                  return GestureDetector(
+                    onTap: () => setState(() => selectedColor = color.value),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Color(color.value),
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                        boxShadow: isSelected
+                            ? [BoxShadow(color: Color(color.value).withOpacity(0.5), blurRadius: 8, spreadRadius: 2)]
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white, size: 24)
                           : null,
                     ),
-                    child: isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 24)
-                        : null,
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            Text('Ícone', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                'category', 'restaurant', 'directions_bus', 'shopping_cart',
-                'movie', 'local_hospital', 'school', 'receipt',
-                'payments', 'work', 'trending_up', 'pets',
-                'fitness_center', 'flight', 'hotel', 'games',
-              ].map((iconName) {
-                final isSelected = iconName == selectedIcon;
-                final iconData = _getIconData(iconName);
-                return GestureDetector(
-                  onTap: () => setState(() => selectedIcon = iconName),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                      border: isSelected
-                          ? Border.all(color: AppColors.primary, width: 2)
-                          : null,
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('Ícone', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  'category', 'restaurant', 'directions_bus', 'shopping_cart',
+                  'movie', 'local_hospital', 'school', 'receipt',
+                  'payments', 'work', 'trending_up', 'pets',
+                  'fitness_center', 'flight', 'hotel', 'games',
+                ].map((iconName) {
+                  final isSelected = iconName == selectedIcon;
+                  final iconData = _getIconData(iconName);
+                  return GestureDetector(
+                    onTap: () => setState(() => selectedIcon = iconName),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: isSelected
+                            ? Border.all(color: AppColors.primary, width: 2)
+                            : null,
+                      ),
+                      child: Icon(
+                        iconData,
+                        color: isSelected ? AppColors.primary : Colors.grey.shade600,
+                        size: 24,
+                      ),
                     ),
-                    child: Icon(
-                      iconData,
-                      color: isSelected ? AppColors.primary : Colors.grey.shade600,
-                      size: 24,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () async {
-                if (!_formKey.currentState!.validate()) return;
-                
-                final repository = ref.read(categoriesRepositoryProvider);
-                final newCategory = Category(
-                  id: const Uuid().v4(),
-                  name: nameController.text.trim(),
-                  color: selectedColor,
-                  icon: selectedIcon,
-                  isDefault: false,
-                  isExpenseDefault: _isExpense,
-                  sortOrder: _categories.length,
-                );
-                
-                await repository.createCategory(newCategory);
-                if (mounted) {
-                  Navigator.pop(context);
-                  await _loadCategories();
-                  setState(() => _selectedCategory = _categories.firstWhere(
-                    (c) => c.id == newCategory.id,
-                    orElse: () => _categories.first,
-                  ));
-                }
-              },
-              child: const Text('Criar Categoria'),
-            ),
-            const SizedBox(height: 16),
-          ],
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+
+                  final repository = ref.read(categoriesRepositoryProvider);
+                  final newCategory = cat_models.Category(
+                    id: const Uuid().v4(),
+                    name: nameController.text.trim(),
+                    color: selectedColor,
+                    icon: selectedIcon,
+                    isDefault: false,
+                    isExpenseDefault: _isExpense,
+                    sortOrder: _categories.length,
+                  );
+
+                  await repository.createCategory(newCategory);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    await _loadCategories();
+                    setState(() => _selectedCategory = _categories.firstWhere(
+                      (c) => c.id == newCategory.id,
+                      orElse: () => _categories.first,
+                    ));
+                  }
+                },
+                child: const Text('Criar Categoria'),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
   }
-
-  final _formKey = GlobalKey<FormState>();
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -334,7 +336,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isExpense ? 'Nova Despesa' : 'Nova Receita'),
@@ -386,7 +389,6 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                                 }
                                 return Colors.grey.shade600;
                               }),
-                            ),
                           ),
                           const SizedBox(height: 24),
 
@@ -435,7 +437,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                           // Categoria
                           Text('Categoria', style: Theme.of(context).textTheme.labelLarge),
                           const SizedBox(height: 8),
-                          DropdownButtonFormField<Category?>
+                          DropdownButtonFormField<cat_models.Category?>(
                             value: _selectedCategory,
                             decoration: InputDecoration(
                               labelText: 'Categoria',
@@ -447,8 +449,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                                 tooltip: 'Nova categoria',
                               ),
                             ),
-                            items: _categories.map<DropdownMenuItem<Category?>>((category) {
-                              return DropdownMenuItem<Category?>
+                            items: _categories.map<DropdownMenuItem<cat_models.Category?>>((category) {
+                              return DropdownMenuItem<cat_models.Category?>(
                                 value: category,
                                 child: Row(
                                   children: [
