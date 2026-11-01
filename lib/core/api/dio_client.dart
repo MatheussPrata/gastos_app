@@ -13,6 +13,7 @@ class DioClient {
   late final Dio dio;
   late final FlutterSecureStorage _storage;
   late final Connectivity _connectivity;
+  bool _sslConfigured = false;
 
   void init({String baseUrl = 'https://pratadev.duckdns.org/api'}) {
     _storage = const FlutterSecureStorage();
@@ -29,34 +30,12 @@ class DioClient {
       },
     ));
 
-    // Configure HTTP client adapter for SSL certificate handling
-    (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient();
-      // Allow certificates for DuckDNS domain (pratadev.duckdns.org)
-      // In production, use proper certificate pinning or valid certificates
-      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-        // Allow DuckDNS domain and localhost for development
-        return host == 'pratadev.duckdns.org' || 
-               host == 'localhost' || 
-               host == '10.0.2.2' || 
-               host == '127.0.0.1';
-      };
-      
-      // Increase timeouts
-      client.connectionTimeout = const Duration(seconds: 15);
-      client.idleTimeout = const Duration(seconds: 15);
-      
-      return client;
-    };
-
-    dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
-      sendTimeout: const Duration(seconds: 15),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+    // Configure HTTP client adapter for SSL certificate handling - LAZY
+    // Only configure when first request is made, to avoid blocking startup
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        _configureSSLIfNeeded();
+        handler.next(options);
       },
     ));
 
@@ -66,6 +45,28 @@ class DioClient {
       _LoggingInterceptor(),
       _ErrorInterceptor(),
     ]);
+  }
+
+  void _configureSSLIfNeeded() {
+    if (_sslConfigured) return;
+    try {
+      (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+          return host == 'pratadev.duckdns.org' || 
+                 host == 'localhost' || 
+                 host == '10.0.2.2' || 
+                 host == '127.0.0.1';
+        };
+        client.connectionTimeout = const Duration(seconds: 15);
+        client.idleTimeout = const Duration(seconds: 15);
+        return client;
+      };
+      _sslConfigured = true;
+    } catch (e) {
+      print('Warning: Could not configure SSL certificate handling: $e');
+      _sslConfigured = true; // Don't retry on failure
+    }
   }
 
   // Helper to check connectivity
