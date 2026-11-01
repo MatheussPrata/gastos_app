@@ -214,4 +214,3 @@ class AuthRepository {
     return guestMode == 'true';
   }
 }
-}
