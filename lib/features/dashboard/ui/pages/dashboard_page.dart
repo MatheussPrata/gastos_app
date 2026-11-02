@@ -122,8 +122,18 @@ class DashboardPage extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _summaryItem('Entradas', income, AppColors.income),
-                    _summaryItem('Saídas', expense, AppColors.expense),
+                    _summaryItem(
+                      'Entradas',
+                      income,
+                      AppColors.income,
+                      Icons.arrow_upward,
+                    ),
+                    _summaryItem(
+                      'Saídas',
+                      expense,
+                      AppColors.expense,
+                      Icons.arrow_downward,
+                    ),
                   ],
                 ),
                 const Divider(height: 28),
@@ -153,10 +163,25 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _summaryItem(String label, double value, Color color) {
+  Widget _summaryItem(
+    String label,
+    double value,
+    Color color,
+    IconData icon,
+  ) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ],
+        ),
         const SizedBox(height: 4),
         Text(
           CurrencyFormatter.format(value),

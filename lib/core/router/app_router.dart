@@ -9,6 +9,7 @@ import '../../features/auth/ui/pages/reset_password_page.dart';
 import '../../features/dashboard/ui/pages/dashboard_page.dart';
 import '../../features/transactions/ui/pages/transactions_page.dart';
 import '../../features/transactions/ui/pages/transaction_form_page.dart';
+import '../../features/categories/models/category_models.dart';
 import '../../features/categories/ui/pages/categories_page.dart';
 import '../../features/categories/ui/pages/category_form_page.dart';
 import '../../features/recurring/ui/pages/recurring_page.dart';
@@ -16,7 +17,6 @@ import '../../features/recurring/ui/pages/recurring_form_page.dart';
 import '../../features/shopping/ui/pages/shopping_page.dart';
 import '../../features/shopping/ui/pages/shopping_form_page.dart';
 import '../../features/settings/ui/pages/settings_page.dart';
-import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 
 /// Route names for type-safe navigation
 class RouteNames {
@@ -107,9 +107,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'form',
             builder: (context, state) {
               final extra = state.extra as Map<String, dynamic>?;
+              final typeName = extra?['type'] as String?;
+              final initialType = typeName == CategoryType.income.name
+                  ? CategoryType.income
+                  : typeName == CategoryType.expense.name
+                      ? CategoryType.expense
+                      : null;
               return CategoryFormPage(
                 categoryId: extra?['id'] as String?,
                 isEditing: extra?['isEditing'] ?? false,
+                initialType: initialType,
               );
             },
           ),

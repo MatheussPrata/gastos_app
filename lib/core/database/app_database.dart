@@ -24,13 +24,17 @@ class Users extends Table {
 class Categories extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
-  IntColumn get color => integer()();
-  TextColumn get icon => text()();
+  TextColumn get type => text().withDefault(const Constant('expense'))();
+  IntColumn get color => integer().withDefault(const Constant(0xFFB8B8B8))();
+  TextColumn get icon => text().withDefault(const Constant('category'))();
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
+  // Kept for backwards compatibility with older databases/API payloads.
   BoolColumn get isExpenseDefault => boolean().withDefault(const Constant(true))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -203,7 +207,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -213,6 +217,16 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(transactions, transactions.paymentMethod);
+      }
+      if (from < 3) {
+        await m.addColumn(categories, categories.type);
+        await m.addColumn(categories, categories.createdAt);
+        await m.addColumn(categories, categories.updatedAt);
+        // Older versions used isExpenseDefault to store the category type.
+        await customStatement(
+          "UPDATE categories SET type = CASE "
+          "WHEN is_expense_default = 0 THEN 'income' ELSE 'expense' END",
+        );
       }
     },
   );

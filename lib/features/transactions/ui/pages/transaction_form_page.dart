@@ -6,19 +6,10 @@ import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/categories/ui/category_icons.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
-
-const List<int> _newCategoryColors = [
-  0xFFFF6B6B,
-  0xFF4ECDC4,
-  0xFFFFB347,
-  0xFF6BCB77,
-  0xFFFF8E8E,
-  0xFFA8E6CF,
-  0xFFB8B8B8,
-];
 
 class TransactionFormPage extends ConsumerStatefulWidget {
   final String? transactionId;
@@ -31,7 +22,8 @@ class TransactionFormPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<TransactionFormPage> createState() => _TransactionFormPageState();
+  ConsumerState<TransactionFormPage> createState() =>
+      _TransactionFormPageState();
 }
 
 class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
@@ -66,7 +58,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
   Future<void> _loadTransaction() async {
     final repository = ref.read(transactionsRepositoryProvider);
-    final transaction = await repository.getTransactionById(widget.transactionId!);
+    final transaction =
+        await repository.getTransactionById(widget.transactionId!);
     if (transaction == null || !mounted) return;
 
     setState(() {
@@ -101,18 +94,34 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     final now = DateTime.now();
     final repository = ref.read(transactionsRepositoryProvider);
 
+    // Guard against a category from the opposite type being persisted.
+    final expectedType =
+        _isExpense ? CategoryType.expense : CategoryType.income;
+    final categories =
+        ref.read(categoriesListProvider).valueOrNull ?? const <Category>[];
+    Category? selectedCategory;
+    for (final category in categories) {
+      if (category.id == _categoryId) {
+        selectedCategory = category;
+        break;
+      }
+    }
+    final categoryId =
+        selectedCategory?.type == expectedType ? selectedCategory!.id : null;
+
     setState(() => _isSaving = true);
 
     try {
       if (widget.isEditing && widget.transactionId != null) {
-        final existing = await repository.getTransactionById(widget.transactionId!);
+        final existing =
+            await repository.getTransactionById(widget.transactionId!);
         if (existing == null) throw Exception('Transação não encontrada');
 
         await repository.updateTransaction(existing.copyWith(
           description: _descriptionController.text.trim(),
           amount: amount,
           date: _date,
-          categoryId: _categoryId,
+          categoryId: categoryId,
           paymentMethod: _paymentMethod,
           isExpense: _isExpense,
           isInstallment: isInstallment,
@@ -128,7 +137,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           amount: amount,
           description: _descriptionController.text.trim(),
           date: _date,
-          categoryId: _categoryId,
+          categoryId: categoryId,
           paymentMethod: _paymentMethod,
           isExpense: _isExpense,
           isInstallment: isInstallment,
@@ -162,64 +171,6 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     );
     if (picked != null) {
       setState(() => _date = picked);
-    }
-  }
-
-  Future<void> _showNewCategoryDialog() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Nova Categoria'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(labelText: 'Nome da categoria'),
-            onSubmitted: (value) => Navigator.pop(ctx, value.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('Salvar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (name == null || name.isEmpty || !mounted) return;
-
-    final categories = ref.read(categoriesListProvider).value ?? const <Category>[];
-    final existingIndex =
-        categories.indexWhere((c) => c.name.toLowerCase() == name.toLowerCase());
-
-    if (existingIndex >= 0) {
-      setState(() => _categoryId = categories[existingIndex].id);
-      return;
-    }
-
-    final color = _newCategoryColors[categories.length % _newCategoryColors.length];
-    final category = Category(
-      id: const Uuid().v4(),
-      name: name,
-      color: color,
-      icon: 'category',
-      isDefault: false,
-      isExpenseDefault: _isExpense,
-      sortOrder: categories.length,
-    );
-
-    try {
-      await ref.read(categoriesListProvider.notifier).createCategory(category);
-      if (mounted) setState(() => _categoryId = category.id);
-    } catch (e) {
-      if (mounted) _showError('Erro ao salvar categoria: $e');
     }
   }
 
@@ -273,7 +224,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _paymentMethod,
-              decoration: const InputDecoration(labelText: 'Método de Pagamento'),
+              decoration:
+                  const InputDecoration(labelText: 'Método de Pagamento'),
               items: [
                 for (final method in PaymentMethods.all)
                   DropdownMenuItem(value: method, child: Text(method)),
@@ -320,7 +272,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         ButtonSegment(
           value: true,
           icon: Icon(Icons.arrow_downward, color: AppColors.expense),
-          label: Text('Gasto'),
+          label: Text('Saída'),
         ),
         ButtonSegment(
           value: false,
@@ -330,8 +282,11 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       ],
       selected: {_isExpense},
       onSelectionChanged: (selection) {
+        final newIsExpense = selection.first;
         setState(() {
-          _isExpense = selection.first;
+          // Categories are type-specific: clear the selection when switching.
+          if (_isExpense != newIsExpense) _categoryId = null;
+          _isExpense = newIsExpense;
           if (!_isExpense) _isInstallment = false;
         });
       },
@@ -357,28 +312,61 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         onChanged: (_) {},
       ),
       data: (categories) {
-        return DropdownButtonFormField<String>(
-          value: _categoryId,
-          decoration: const InputDecoration(labelText: 'Categoria'),
-          hint: const Text('Selecione a categoria'),
-          items: [
-            for (final category in categories)
-              DropdownMenuItem(
-                value: category.id,
-                child: Text(category.name),
+        final type = _isExpense ? CategoryType.expense : CategoryType.income;
+        final filtered = categories
+            .where((category) => category.type == type)
+            .toList(growable: false);
+        final hasSelected =
+            filtered.any((category) => category.id == _categoryId);
+        final selected = hasSelected ? _categoryId : null;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<String>(
+              value: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Categoria'),
+              hint: Text(
+                filtered.isEmpty
+                    ? 'Nenhuma categoria cadastrada'
+                    : 'Selecione a categoria',
               ),
-            const DropdownMenuItem(
-              value: '__new__',
-              child: Text('+ Nova Categoria'),
+              items: [
+                for (final category in filtered)
+                  DropdownMenuItem(
+                    value: category.id,
+                    child: Row(
+                      children: [
+                        Icon(
+                          CategoryIcons.resolve(category.icon),
+                          size: 20,
+                          color: Color(category.color),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            category.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              onChanged: filtered.isEmpty
+                  ? null
+                  : (value) => setState(() => _categoryId = value),
             ),
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 4),
+                child: Text(
+                  'Cadastre categorias em Configurações > Gerenciar Categorias.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
           ],
-          onChanged: (value) {
-            if (value == '__new__') {
-              _showNewCategoryDialog();
-            } else {
-              setState(() => _categoryId = value);
-            }
-          },
         );
       },
     );
@@ -404,8 +392,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       children: [
         CheckboxListTile(
           value: _isInstallment,
-          onChanged: (value) =>
-              setState(() => _isInstallment = value ?? false),
+          onChanged: (value) => setState(() => _isInstallment = value ?? false),
           title: const Text('Parcelado'),
           subtitle: const Text('Dividir em parcelas mensais'),
           contentPadding: EdgeInsets.zero,
@@ -419,8 +406,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
               for (var i = 2; i <= 36; i++)
                 DropdownMenuItem(value: i, child: Text('${i}x')),
             ],
-            onChanged: (value) =>
-                setState(() => _installments = value ?? 2),
+            onChanged: (value) => setState(() => _installments = value ?? 2),
           ),
       ],
     );
