@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../features/auth/provider/auth_provider.dart';
-import '../../features/auth/ui/pages/login_page.dart';
-import '../../features/auth/ui/pages/register_page.dart';
-import '../../features/auth/ui/pages/forgot_password_page.dart';
-import '../../features/auth/ui/pages/reset_password_page.dart';
-import '../../features/dashboard/ui/pages/dashboard_page.dart';
-import '../../features/transactions/ui/pages/transactions_page.dart';
-import '../../features/transactions/ui/pages/transaction_form_page.dart';
-import '../../features/categories/ui/pages/categories_page.dart';
-import '../../features/categories/ui/pages/category_form_page.dart';
-import '../../features/recurring/ui/pages/recurring_page.dart';
-import '../../features/recurring/ui/pages/recurring_form_page.dart';
-import '../../features/shopping/ui/pages/shopping_page.dart';
-import '../../features/shopping/ui/pages/shopping_form_page.dart';
-import '../../features/settings/ui/pages/settings_page.dart';
+import 'package:go_router/go_router.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/auth/ui/pages/forgot_password_page.dart';
+import 'package:gastos_app/features/auth/ui/pages/login_page.dart';
+import 'package:gastos_app/features/auth/ui/pages/register_page.dart';
+import 'package:gastos_app/features/auth/ui/pages/reset_password_page.dart';
+import 'package:gastos_app/features/categories/ui/pages/categories_page.dart';
+import 'package:gastos_app/features/categories/ui/pages/category_form_page.dart';
+import 'package:gastos_app/features/navigation/ui/pages/main_shell_page.dart';
+import 'package:gastos_app/features/recurring/ui/pages/recurring_form_page.dart';
+import 'package:gastos_app/features/recurring/ui/pages/recurring_page.dart';
+import 'package:gastos_app/features/shopping/ui/pages/shopping_form_page.dart';
+import 'package:gastos_app/features/transactions/ui/pages/transaction_form_page.dart';
+import 'package:gastos_app/features/transactions/ui/pages/transactions_page.dart';
 
 /// Route names for type-safe navigation
 class RouteNames {
@@ -31,32 +28,32 @@ class RouteNames {
   static const String categoryForm = '/categories/form';
   static const String recurring = '/recurring';
   static const String recurringForm = '/recurring/form';
-  static const String shopping = '/shopping';
   static const String shoppingForm = '/shopping/form';
-  static const String settings = '/settings';
 }
 
 /// GoRouter provider with auth state listening
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
-  
+
   return GoRouter(
     initialLocation: RouteNames.dashboard,
     redirect: (context, state) {
       final isLoggedIn = authState.isAuthenticated;
-      final isAuthRoute = state.matchedLocation == RouteNames.login || 
-                          state.matchedLocation == RouteNames.register;
-      
+      final isAuthRoute = state.matchedLocation == RouteNames.login ||
+          state.matchedLocation == RouteNames.register ||
+          state.matchedLocation == RouteNames.forgotPassword ||
+          state.matchedLocation == RouteNames.resetPassword;
+
       // If not logged in and trying to access protected route -> redirect to login
       if (!isLoggedIn && !isAuthRoute) {
         return RouteNames.login;
       }
-      
+
       // If logged in and on auth route -> redirect to dashboard
       if (isLoggedIn && isAuthRoute) {
         return RouteNames.dashboard;
       }
-      
+
       return null;
     },
     routes: [
@@ -77,12 +74,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.resetPassword,
         builder: (context, state) => const ResetPasswordPage(),
       ),
-      
+
       // Protected routes (require auth)
+      // The main shell owns the four primary tabs and the bottom navigation.
       GoRoute(
         path: RouteNames.dashboard,
-        builder: (context, state) => const DashboardPage(),
+        builder: (context, state) => const MainShellPage(),
       ),
+
+      // Secondary screens are pushed on top of the shell so the tab state and
+      // scroll positions are preserved when the user comes back.
       GoRoute(
         path: RouteNames.transactions,
         builder: (context, state) => const TransactionsPage(),
@@ -93,7 +94,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final extra = state.extra as Map<String, dynamic>?;
               return TransactionFormPage(
                 transactionId: extra?['id'] as String?,
-                isEditing: extra?['isEditing'] ?? false,
+                isEditing: extra?['isEditing'] as bool? ?? false,
               );
             },
           ),
@@ -109,7 +110,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final extra = state.extra as Map<String, dynamic>?;
               return CategoryFormPage(
                 categoryId: extra?['id'] as String?,
-                isEditing: extra?['isEditing'] ?? false,
+                isEditing: extra?['isEditing'] as bool? ?? false,
               );
             },
           ),
@@ -125,31 +126,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final extra = state.extra as Map<String, dynamic>?;
               return RecurringFormPage(
                 recurringId: extra?['id'] as String?,
-                isEditing: extra?['isEditing'] ?? false,
+                isEditing: extra?['isEditing'] as bool? ?? false,
               );
             },
           ),
         ],
       ),
+
+      // Shopping lives inside the main shell; only its form is a separate
+      // route pushed on top of the current tab.
       GoRoute(
-        path: RouteNames.shopping,
-        builder: (context, state) => const ShoppingPage(),
-        routes: [
-          GoRoute(
-            path: 'form',
-            builder: (context, state) {
-              final extra = state.extra as Map<String, dynamic>?;
-              return ShoppingFormPage(
-                itemId: extra?['id'] as String?,
-                isEditing: extra?['isEditing'] ?? false,
-              );
-            },
-          ),
-        ],
-      ),
-      GoRoute(
-        path: RouteNames.settings,
-        builder: (context, state) => const SettingsPage(),
+        path: RouteNames.shoppingForm,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return ShoppingFormPage(
+            itemId: extra?['id'] as String?,
+            isEditing: extra?['isEditing'] as bool? ?? false,
+          );
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
@@ -159,7 +153,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           children: [
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            Text('Página não encontrada'),
+            const Text('Página não encontrada'),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => context.go(RouteNames.dashboard),
