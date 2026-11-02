@@ -14,7 +14,20 @@ class TransactionsPage extends ConsumerWidget {
     final transactionsAsync = ref.watch(transactionsListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Transações')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Voltar ao início',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(RouteNames.dashboard);
+            }
+          },
+        ),
+        title: const Text('Transações'),
+      ),
       body: transactionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erro ao carregar: $e')),
@@ -29,7 +42,7 @@ class TransactionsPage extends ConsumerWidget {
               final transaction = transactions[index];
               return TransactionTile(
                 transaction: transaction,
-                onTap: () => context.go(
+                onTap: () => context.push(
                   RouteNames.transactionForm,
                   extra: {'id': transaction.id, 'isEditing': true},
                 ),
@@ -41,7 +54,7 @@ class TransactionsPage extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () =>
-            context.go(RouteNames.transactionForm, extra: {'isEditing': false}),
+            context.push(RouteNames.transactionForm, extra: {'isEditing': false}),
         child: const Icon(Icons.add),
       ),
     );
