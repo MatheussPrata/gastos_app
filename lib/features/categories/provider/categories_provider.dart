@@ -16,6 +16,7 @@ class CategoriesListNotifier extends StateNotifier<AsyncValue<List<Category>>> {
     state = const AsyncValue.loading();
     
     try {
+      await _repository.seedDefaultCategories();
       final categories = await _repository.getCategories(forceRefresh: forceRefresh);
       state = AsyncValue.data(categories);
     } catch (e, stack) {

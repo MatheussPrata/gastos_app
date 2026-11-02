@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 /// Currency formatter for Brazilian Real
@@ -111,5 +112,53 @@ class FormHelper {
 
   static String formatForInput(double value) {
     return value.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  /// Formats a double as Brazilian currency ("R$ 1.200,00").
+  static String formatBRL(double value) => CurrencyFormatter.format(value);
+
+  /// Parses a Brazilian currency string back to a double (cents-based).
+  static double parseBRL(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return 0.0;
+    return int.parse(digits) / 100;
+  }
+}
+
+/// Formats typed digits into Brazilian currency as the user types
+/// (e.g. "123456" becomes "R$ 1.234,56").
+class BRLTextInputFormatter extends TextInputFormatter {
+  static final NumberFormat _format = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: '',
+    decimalDigits: 2,
+  );
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final cents = int.tryParse(digits) ?? 0;
+    final formatted = _format.format(cents / 100).trim();
+    final text = 'R\$ $formatted';
+
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 }

@@ -101,15 +101,11 @@ class CategoriesRepository {
     final defaults = [
       Category(id: '1', name: 'Alimentação', color: 0xFFFF6B6B, icon: 'restaurant', isDefault: true, isExpenseDefault: true, sortOrder: 0),
       Category(id: '2', name: 'Transporte', color: 0xFF4ECDC4, icon: 'directions_bus', isDefault: true, isExpenseDefault: true, sortOrder: 1),
-      Category(id: '3', name: 'Compras', color: 0xFFFFD93D, icon: 'shopping_cart', isDefault: true, isExpenseDefault: true, sortOrder: 2),
+      Category(id: '3', name: 'Moradia', color: 0xFFFFB347, icon: 'home', isDefault: true, isExpenseDefault: true, sortOrder: 2),
       Category(id: '4', name: 'Lazer', color: 0xFF6BCB77, icon: 'movie', isDefault: true, isExpenseDefault: true, sortOrder: 3),
       Category(id: '5', name: 'Saúde', color: 0xFFFF8E8E, icon: 'local_hospital', isDefault: true, isExpenseDefault: true, sortOrder: 4),
-      Category(id: '6', name: 'Educação', color: 0xFFA8E6CF, icon: 'school', isDefault: true, isExpenseDefault: true, sortOrder: 5),
-      Category(id: '7', name: 'Contas', color: 0xFFFFB347, icon: 'receipt', isDefault: true, isExpenseDefault: true, sortOrder: 6),
-      Category(id: '8', name: 'Outros', color: 0xFFB8B8B8, icon: 'category', isDefault: true, isExpenseDefault: true, sortOrder: 7),
-      Category(id: '9', name: 'Salário', color: 0xFF43A047, icon: 'payments', isDefault: true, isExpenseDefault: false, sortOrder: 0),
-      Category(id: '10', name: 'Freelance', color: 0xFF2E7D32, icon: 'work', isDefault: true, isExpenseDefault: false, sortOrder: 1),
-      Category(id: '11', name: 'Investimentos', color: 0xFF1B5E20, icon: 'trending_up', isDefault: true, isExpenseDefault: false, sortOrder: 2),
+      Category(id: '6', name: 'Salário', color: 0xFF43A047, icon: 'payments', isDefault: true, isExpenseDefault: false, sortOrder: 0),
+      Category(id: '7', name: 'Outros', color: 0xFFB8B8B8, icon: 'category', isDefault: true, isExpenseDefault: true, sortOrder: 5),
     ];
 
     for (final cat in defaults) {

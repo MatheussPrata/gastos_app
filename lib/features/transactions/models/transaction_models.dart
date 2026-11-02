@@ -14,6 +14,7 @@ class Transaction with _$Transaction {
     String? categoryId,
     String? subcategoryId,
     String? creditCardId,
+    @Default('') String paymentMethod,
     @Default(true) bool isExpense,
     @Default(false) bool isInstallment,
     @Default(1) int installmentNumber,
@@ -22,6 +23,7 @@ class Transaction with _$Transaction {
     String? notes,
     String? ownerId,
     @Default(false) bool partnerSynced,
+    @Default(false) bool isSynced,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _Transaction;
@@ -100,6 +102,17 @@ class ShoppingItem with _$ShoppingItem {
   }) = _ShoppingItem;
 
   factory ShoppingItem.fromJson(Map<String, dynamic> json) => _$ShoppingItemFromJson(json);
+}
+
+/// Available payment methods for a transaction
+class PaymentMethods {
+  static const List<String> all = [
+    'Dinheiro',
+    'Cartão de Crédito',
+    'Cartão de Débito',
+    'PIX',
+    'Boleto',
+  ];
 }
 
 @freezed

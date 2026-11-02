@@ -20,10 +20,10 @@ class ApiEndpoints {
   static const String sync = '/sync';
   static const String syncStatus = '/sync/status';
   
-  // Transactions
-  static const String transactions = '/api/transactions';
-  static const String transactionsById = '/api/transactions/'; // + id
-  static const String transactionsStats = '/api/transactions/stats';
+  // Transactions (baseUrl already includes /api)
+  static const String transactions = '/transactions';
+  static const String transactionsById = '/transactions/'; // + id
+  static const String transactionsStats = '/transactions/stats';
   
   // Categories
   static const String categories = '/api/categories';

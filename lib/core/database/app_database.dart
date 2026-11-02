@@ -75,6 +75,7 @@ class Transactions extends Table {
   TextColumn get categoryId => text().nullable()();
   TextColumn get subcategoryId => text().nullable()();
   TextColumn get creditCardId => text().nullable()();
+  TextColumn get paymentMethod => text().withDefault(const Constant(''))();
   BoolColumn get isExpense => boolean().withDefault(const Constant(true))();
   BoolColumn get isInstallment => boolean().withDefault(const Constant(false))();
   IntColumn get installmentNumber => integer().withDefault(const Constant(1))();
@@ -202,7 +203,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) async {
+      await m.createAll();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(transactions, transactions.paymentMethod);
+      }
+    },
+  );
 
   // Clear all data (for logout)
   Future<void> clearAllData() {
