@@ -73,6 +73,23 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Categories section
+          const Text(
+            'Categorias',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.category_outlined),
+              title: const Text('Gerenciar Categorias'),
+              subtitle: const Text('Criar, editar e excluir categorias'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(RouteNames.categories),
+            ),
+          ),
+          const SizedBox(height: 16),
           
           // Data section
           const Text('Dados', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),

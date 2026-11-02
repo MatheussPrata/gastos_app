@@ -26,8 +26,8 @@ class ApiEndpoints {
   static const String transactionsStats = '/transactions/stats';
   
   // Categories
-  static const String categories = '/api/categories';
-  static const String categoriesById = '/api/categories/'; // + id
+  static const String categories = '/categories';
+  static const String categoriesById = '/categories/'; // + id
   
   // Credit Cards
   static const String creditCards = '/api/credit-cards';
