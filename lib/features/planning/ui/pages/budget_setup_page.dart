@@ -119,7 +119,11 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Configurar orçamento'),
+        title: Text(
+          widget.plan.scope == BudgetScope.couple
+              ? 'Orçamento do casal'
+              : 'Orçamento individual',
+        ),
         actions: [
           IconButton(
             tooltip: 'Alertas de limite',
@@ -261,8 +265,11 @@ class _ActualIncomePreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final month = ref.watch(selectedPlanMonthProvider);
+    final scope = ref.watch(selectedBudgetScopeProvider);
     final incomeAsync = ref.watch(
-      actualIncomeForMonthProvider(DateTime(month.year, month.month)),
+      actualIncomeForMonthProvider(
+        (month: DateTime(month.year, month.month), scope: scope),
+      ),
     );
 
     return Container(

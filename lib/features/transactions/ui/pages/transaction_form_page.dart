@@ -14,6 +14,7 @@ import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/planning/services/notification_service.dart';
+import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category, RecurringTransaction;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
@@ -186,23 +187,30 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         ..invalidate(monthPlanningProvider)
         ..invalidate(planningProgressProvider)
         ..invalidate(planningAlertsProvider)
-        ..invalidate(unreadAlertsProvider);
-      container
-          .read(planningRepositoryProvider)
-          .checkAndCreateAlertsInBackground(
-            month: _date,
-            onAlerts: (alerts) {
-              for (final alert in alerts) {
-                unawaited(
-                  NotificationService.instance.showBudgetAlert(alert),
-                );
-              }
-              container
-                ..invalidate(planningAlertsProvider)
-                ..invalidate(unreadAlertsProvider)
-                ..invalidate(planningProgressProvider);
-            },
-          );
+        ..invalidate(unreadAlertsProvider)
+        ..invalidate(monthlyIncomeProvider)
+        ..invalidate(incomeAttributionProvider)
+        ..invalidate(monthSpentTotalProvider);
+      for (final scope in BudgetScope.values) {
+        container
+            .read(planningRepositoryProvider)
+            .checkAndCreateAlertsInBackground(
+              month: _date,
+              scope: scope,
+              onAlerts: (alerts) {
+                for (final alert in alerts) {
+                  unawaited(
+                    NotificationService.instance.showBudgetAlert(alert),
+                  );
+                }
+                container
+                  ..invalidate(planningAlertsProvider)
+                  ..invalidate(unreadAlertsProvider)
+                  ..invalidate(planningProgressProvider)
+                  ..invalidate(monthSpentTotalProvider);
+              },
+            );
+      }
 
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

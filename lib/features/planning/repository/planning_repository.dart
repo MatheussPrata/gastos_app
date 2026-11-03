@@ -42,6 +42,10 @@ class PlanningRepository {
       id: row.id,
       userId: row.userId,
       month: row.month,
+      scope: BudgetScope.values.firstWhere(
+        (scope) => scope.name == row.scope,
+        orElse: () => BudgetScope.individual,
+      ),
       incomeMode: IncomeMode.values.firstWhere(
         (mode) => mode.name == row.incomeMode,
         orElse: () => IncomeMode.manual,
@@ -62,6 +66,7 @@ class PlanningRepository {
       id: Value(plan.id),
       userId: Value(plan.userId),
       month: Value(_normalizeMonth(plan.month)),
+      scope: Value(plan.scope.name),
       incomeMode: Value(plan.incomeMode.name),
       manualIncome: Value(plan.manualIncome),
       monthlyBudget: Value(plan.monthlyBudget),
@@ -81,6 +86,10 @@ class PlanningRepository {
       planId: row.planId,
       categoryId: row.categoryId,
       categoryName: row.categoryName,
+      scope: BudgetScope.values.firstWhere(
+        (scope) => scope.name == row.scope,
+        orElse: () => BudgetScope.individual,
+      ),
       threshold: row.threshold,
       spentAmount: row.spentAmount,
       allocatedAmount: row.allocatedAmount,
@@ -118,11 +127,15 @@ class PlanningRepository {
 
   // ------------------------------------------------------------------ reads
 
-  /// Returns the plan for [month], or null when it was never configured.
-  Future<BudgetPlan?> getPlanForMonth(DateTime month) async {
+  /// Returns the plan for [month] and [scope], or null when not configured.
+  Future<BudgetPlan?> getPlanForMonth(
+    DateTime month, {
+    BudgetScope scope = BudgetScope.individual,
+  }) async {
     final normalized = _normalizeMonth(month);
     final row = await (_db.select(_db.budgetPlans)
-          ..where((plan) => plan.month.equals(normalized)))
+          ..where((plan) =>
+              plan.month.equals(normalized) & plan.scope.equals(scope.name)))
         .getSingleOrNull();
     return row == null ? null : _toModel(row);
   }
@@ -133,10 +146,11 @@ class PlanningRepository {
   /// When omitted, the locally stored categories are used.
   Future<BudgetPlan> getOrCreatePlanForMonth(
     DateTime month, {
+    BudgetScope scope = BudgetScope.individual,
     List<Category>? categories,
     String? userId,
   }) async {
-    final existing = await getPlanForMonth(month);
+    final existing = await getPlanForMonth(month, scope: scope);
     if (existing != null) return existing;
 
     final seededCategories = categories ?? await _localExpenseCategories();
@@ -145,6 +159,7 @@ class PlanningRepository {
       id: _uuid.v4(),
       userId: userId ?? await _currentUserId(),
       month: _normalizeMonth(month),
+      scope: scope,
       categories: [
         for (var index = 0; index < seededCategories.length; index++)
           CategoryBudget(
@@ -162,18 +177,69 @@ class PlanningRepository {
     return savePlan(plan);
   }
 
-  /// Income actually received in [month], based on income transactions.
-  Future<double> getActualIncomeForMonth(DateTime month) async {
+  /// Income transactions of [month], filtered by [scope].
+  Future<List<db.Transaction>> _monthTransactions(
+    DateTime month, {
+    required bool isExpense,
+    required BudgetScope scope,
+  }) async {
     final start = _normalizeMonth(month);
     final end = DateTime(start.year, start.month + 1);
 
-    final rows = await (_db.select(_db.transactions)
-          ..where((t) => t.isExpense.equals(false))
-          ..where((t) => t.date.isBiggerOrEqualValue(start))
-          ..where((t) => t.date.isSmallerThanValue(end)))
-        .get();
+    final query = _db.select(_db.transactions)
+      ..where((t) => t.isExpense.equals(isExpense))
+      ..where((t) => t.date.isBiggerOrEqualValue(start))
+      ..where((t) => t.date.isSmallerThanValue(end));
 
+    if (scope == BudgetScope.individual) {
+      // Partner transactions are merged locally with partnerSynced = true.
+      query.where((t) => t.partnerSynced.equals(false));
+    }
+
+    return query.get();
+  }
+
+  /// Income actually received in [month], based on income transactions.
+  Future<double> getActualIncomeForMonth(
+    DateTime month, {
+    BudgetScope scope = BudgetScope.individual,
+  }) async {
+    final rows = await _monthTransactions(
+      month,
+      isExpense: false,
+      scope: scope,
+    );
     return rows.fold<double>(0, (sum, transaction) => sum + transaction.amount);
+  }
+
+  /// Income of [month] grouped by the person who received it.
+  Future<List<IncomeAttribution>> getIncomeByOwnerForMonth(
+    DateTime month, {
+    BudgetScope scope = BudgetScope.individual,
+  }) async {
+    final rows = await _monthTransactions(
+      month,
+      isExpense: false,
+      scope: scope,
+    );
+
+    final totals = <String, double>{};
+    for (final transaction in rows) {
+      final owner = transaction.ownerId?.isNotEmpty == true
+          ? transaction.ownerId!
+          : transaction.userId;
+      totals[owner] = (totals[owner] ?? 0) + transaction.amount;
+    }
+
+    return totals.entries
+        .map(
+          (entry) => IncomeAttribution(
+            userId: entry.key,
+            amount: entry.value,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.amount.compareTo(a.amount));
   }
 
   /// Income to use for [plan], honoring its [IncomeMode].
@@ -182,20 +248,20 @@ class PlanningRepository {
       case IncomeMode.manual:
         return plan.manualIncome;
       case IncomeMode.actual:
-        return getActualIncomeForMonth(plan.month);
+        return getActualIncomeForMonth(plan.month, scope: plan.scope);
     }
   }
 
-  /// Expenses of [month] grouped by category id.
-  Future<Map<String, double>> getSpentByCategory(DateTime month) async {
-    final start = _normalizeMonth(month);
-    final end = DateTime(start.year, start.month + 1);
-
-    final rows = await (_db.select(_db.transactions)
-          ..where((t) => t.isExpense.equals(true))
-          ..where((t) => t.date.isBiggerOrEqualValue(start))
-          ..where((t) => t.date.isSmallerThanValue(end)))
-        .get();
+  /// Expenses of [month] grouped by category id, filtered by [scope].
+  Future<Map<String, double>> getSpentByCategory(
+    DateTime month, {
+    BudgetScope scope = BudgetScope.individual,
+  }) async {
+    final rows = await _monthTransactions(
+      month,
+      isExpense: true,
+      scope: scope,
+    );
 
     final totals = <String, double>{};
     for (final transaction in rows) {
@@ -207,7 +273,7 @@ class PlanningRepository {
 
   /// Merged view of the plan allocation and the real spending.
   Future<List<CategoryProgress>> getCategoryProgress(BudgetPlan plan) async {
-    final spent = await getSpentByCategory(plan.month);
+    final spent = await getSpentByCategory(plan.month, scope: plan.scope);
     return plan.categories
         .where((category) => category.isActive)
         .map(
@@ -315,15 +381,19 @@ class PlanningRepository {
   /// Returns only the alerts created by this run so callers can display them.
   /// Alerts are deduplicated by (planId, categoryId, threshold), so a threshold
   /// never fires twice for the same plan.
-  Future<List<BudgetAlert>> checkAndCreateAlerts({DateTime? month}) async {
+  Future<List<BudgetAlert>> checkAndCreateAlerts({
+    DateTime? month,
+    BudgetScope scope = BudgetScope.individual,
+  }) async {
     final reference = _normalizeMonth(month ?? DateTime.now());
-    final plan = await getPlanForMonth(reference);
+    final plan = await getPlanForMonth(reference, scope: scope);
     if (plan == null || !plan.notifications.enabled) return const [];
 
     final thresholds = [...plan.notifications.thresholds]..sort();
     if (thresholds.isEmpty) return const [];
 
-    final spentByCategory = await getSpentByCategory(reference);
+    final spentByCategory =
+        await getSpentByCategory(reference, scope: plan.scope);
     final existing = await (_db.select(_db.budgetAlerts)
           ..where((alert) => alert.planId.equals(plan.id)))
         .get();
@@ -356,6 +426,7 @@ class PlanningRepository {
           planId: plan.id,
           categoryId: category.categoryId,
           categoryName: category.categoryName,
+          scope: plan.scope,
           threshold: threshold,
           spentAmount: spent,
           allocatedAmount: allocated,
@@ -368,6 +439,7 @@ class PlanningRepository {
                 planId: Value(alert.planId),
                 categoryId: Value(alert.categoryId),
                 categoryName: Value(alert.categoryName),
+                scope: Value(alert.scope.name),
                 threshold: Value(alert.threshold),
                 spentAmount: Value(alert.spentAmount),
                 allocatedAmount: Value(alert.allocatedAmount),
@@ -394,11 +466,12 @@ class PlanningRepository {
   /// for the check before dismissing a dialog/route.
   void checkAndCreateAlertsInBackground({
     DateTime? month,
+    BudgetScope scope = BudgetScope.individual,
     void Function(List<BudgetAlert> alerts)? onAlerts,
   }) {
     unawaited(() async {
       try {
-        final created = await checkAndCreateAlerts(month: month);
+        final created = await checkAndCreateAlerts(month: month, scope: scope);
         if (created.isNotEmpty) onAlerts?.call(created);
       } catch (_) {
         // Never surface background planning errors to the caller.
@@ -452,6 +525,7 @@ class PlanningRepository {
         'id': plan.id,
         'userId': plan.userId,
         'month': plan.month.toIso8601String(),
+        'scope': plan.scope.name,
         'incomeMode': plan.incomeMode.name,
         'manualIncome': plan.manualIncome,
         'monthlyBudget': plan.monthlyBudget,
@@ -466,6 +540,7 @@ class PlanningRepository {
         'planId': alert.planId,
         'categoryId': alert.categoryId,
         'categoryName': alert.categoryName,
+        'scope': alert.scope.name,
         'threshold': alert.threshold,
         'spentAmount': alert.spentAmount,
         'allocatedAmount': alert.allocatedAmount,

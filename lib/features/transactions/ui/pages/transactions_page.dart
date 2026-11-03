@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
+import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
@@ -86,10 +87,16 @@ class TransactionsPage extends ConsumerWidget {
         ..invalidate(monthPlanningProvider)
         ..invalidate(planningProgressProvider)
         ..invalidate(planningAlertsProvider)
-        ..invalidate(unreadAlertsProvider);
-      ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
-            month: transaction.date,
-          );
+        ..invalidate(unreadAlertsProvider)
+        ..invalidate(monthlyIncomeProvider)
+        ..invalidate(incomeAttributionProvider)
+        ..invalidate(monthSpentTotalProvider);
+      for (final scope in BudgetScope.values) {
+        ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
+              month: transaction.date,
+              scope: scope,
+            );
+      }
     }
   }
 }

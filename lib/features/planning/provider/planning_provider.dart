@@ -9,12 +9,16 @@ final selectedPlanMonthProvider = StateProvider<DateTime>((ref) {
   return DateTime(now.year, now.month);
 });
 
+/// Individual or couple budget currently shown in the planning tab.
+final selectedBudgetScopeProvider =
+    StateProvider<BudgetScope>((ref) => BudgetScope.individual);
+
 /// Holds the budget plan of [selectedPlanMonthProvider].
 ///
 /// Edits are applied optimistically to the state and persisted serially, so
 /// fast slider movements can never write older plans over newer ones.
 class PlanningNotifier extends StateNotifier<AsyncValue<BudgetPlan?>> {
-  PlanningNotifier(this._repository, this.month)
+  PlanningNotifier(this._repository, this.month, this.scope)
       : super(const AsyncValue.loading()) {
     load();
   }
@@ -23,6 +27,9 @@ class PlanningNotifier extends StateNotifier<AsyncValue<BudgetPlan?>> {
 
   /// Reference month this notifier is bound to.
   final DateTime month;
+
+  /// Individual or couple plan this notifier is bound to.
+  final BudgetScope scope;
 
   Future<void> _saveQueue = Future<void>.value();
   int _revision = 0;
@@ -33,7 +40,10 @@ class PlanningNotifier extends StateNotifier<AsyncValue<BudgetPlan?>> {
   Future<void> load() async {
     state = const AsyncValue.loading();
     try {
-      final loaded = await _repository.getOrCreatePlanForMonth(month);
+      final loaded = await _repository.getOrCreatePlanForMonth(
+        month,
+        scope: scope,
+      );
       if (!mounted) return;
       state = AsyncValue.data(loaded);
     } catch (error, stack) {
@@ -145,8 +155,9 @@ class PlanningNotifier extends StateNotifier<AsyncValue<BudgetPlan?>> {
 final monthPlanningProvider =
     StateNotifierProvider<PlanningNotifier, AsyncValue<BudgetPlan?>>((ref) {
   final month = ref.watch(selectedPlanMonthProvider);
+  final scope = ref.watch(selectedBudgetScopeProvider);
   final repository = ref.watch(planningRepositoryProvider);
-  return PlanningNotifier(repository, month);
+  return PlanningNotifier(repository, month, scope);
 });
 
 /// Real spending merged with the plan allocation, per category.
@@ -173,9 +184,37 @@ final reserveAmountProvider = Provider<double>((ref) {
 
 /// Income transactions of a given month (real income).
 final actualIncomeForMonthProvider =
-    FutureProvider.family<double, DateTime>((ref, month) async {
+    FutureProvider.family<double, ({DateTime month, BudgetScope scope})>(
+        (ref, params) async {
   final repository = ref.watch(planningRepositoryProvider);
-  return repository.getActualIncomeForMonth(month);
+  return repository.getActualIncomeForMonth(
+    params.month,
+    scope: params.scope,
+  );
+});
+
+/// Income of a month grouped by the person who received it.
+final incomeAttributionForMonthProvider = FutureProvider.family<
+    List<IncomeAttribution>, ({DateTime month, BudgetScope scope})>(
+  (ref, params) async {
+    final repository = ref.watch(planningRepositoryProvider);
+    return repository.getIncomeByOwnerForMonth(
+      params.month,
+      scope: params.scope,
+    );
+  },
+);
+
+/// Income attribution for the plan currently loaded.
+final incomeAttributionProvider =
+    FutureProvider<List<IncomeAttribution>>((ref) async {
+  final plan = ref.watch(monthPlanningProvider).valueOrNull;
+  if (plan == null) return const <IncomeAttribution>[];
+  return ref.watch(
+    incomeAttributionForMonthProvider(
+      (month: plan.month, scope: plan.scope),
+    ).future,
+  );
 });
 
 /// Income considered for the selected month, according to the plan mode.
@@ -183,7 +222,9 @@ final monthlyIncomeProvider = FutureProvider<double>((ref) async {
   final plan = ref.watch(monthPlanningProvider).valueOrNull;
   if (plan == null) return 0;
   if (plan.incomeMode == IncomeMode.manual) return plan.manualIncome;
-  return ref.watch(actualIncomeForMonthProvider(plan.month).future);
+  return ref.watch(
+    actualIncomeForMonthProvider((month: plan.month, scope: plan.scope)).future,
+  );
 });
 
 /// Total expenses of the plan month (including uncategorized ones).
@@ -191,7 +232,10 @@ final monthSpentTotalProvider = FutureProvider<double>((ref) async {
   final plan = ref.watch(monthPlanningProvider).valueOrNull;
   if (plan == null) return 0;
   final repository = ref.watch(planningRepositoryProvider);
-  final spent = await repository.getSpentByCategory(plan.month);
+  final spent = await repository.getSpentByCategory(
+    plan.month,
+    scope: plan.scope,
+  );
   return spent.values.fold<double>(0, (sum, value) => sum + value);
 });
 

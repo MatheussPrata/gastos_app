@@ -44,13 +44,23 @@ void main() {
   setUpAll(() {
     registerFallbackValue(plan);
     registerFallbackValue(DateTime(2026, 1, 1));
+    registerFallbackValue(BudgetScope.individual);
   });
 
   setUp(() {
     repository = _MockPlanningRepository();
-    when(() => repository.getOrCreatePlanForMonth(any()))
-        .thenAnswer((_) async => plan);
-    when(() => repository.getSpentByCategory(any())).thenAnswer(
+    when(
+      () => repository.getOrCreatePlanForMonth(
+        any(),
+        scope: any(named: 'scope'),
+      ),
+    ).thenAnswer((_) async => plan);
+    when(
+      () => repository.getSpentByCategory(
+        any(),
+        scope: any(named: 'scope'),
+      ),
+    ).thenAnswer(
       (_) async => {'a': 150.0, 'b': 250.0},
     );
     when(() => repository.getCategoryProgress(any())).thenAnswer(
@@ -102,6 +112,8 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Moradia'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Moradia'));
     await tester.pumpAndSettle();
 

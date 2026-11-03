@@ -9,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
-import 'package:gastos_app/features/shopping_list/data/models/shopping_item.dart';
 import 'package:gastos_app/features/shopping_list/data/repositories/shopping_list_repository.dart';
 import 'package:gastos_app/features/sharing/models/sharing_models.dart';
 import 'package:gastos_app/features/sharing/repository/sharing_merger.dart';
