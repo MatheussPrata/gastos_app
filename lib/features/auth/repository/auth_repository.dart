@@ -158,11 +158,10 @@ class AuthRepository {
       final isGuest = await isGuestMode();
       if (!isGuest) {
         final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
-        final headers = <String, dynamic>{
-          if (refreshToken != null && refreshToken.isNotEmpty)
-            'Cookie': 'refresh_token=$refreshToken',
-        };
-        await _dioClient.dio.post(ApiEndpoints.authLogout, options: Options(headers: headers));
+        await _dioClient.dio.post(
+          ApiEndpoints.authLogout,
+          data: {'refreshToken': refreshToken ?? ''},
+        );
       }
     } catch (_) {
       // Best effort: always clear the local session even if the network call fails.

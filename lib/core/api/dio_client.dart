@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
@@ -13,7 +12,6 @@ class DioClient {
   late final Dio dio;
   late final FlutterSecureStorage _storage;
   late final Connectivity _connectivity;
-  bool _sslConfigured = false;
 
   void init({String baseUrl = 'https://pratadev.duckdns.org/api'}) {
     _storage = const FlutterSecureStorage();
@@ -30,44 +28,14 @@ class DioClient {
       },
     ));
 
-    // Configure HTTP client adapter for SSL certificate handling - LAZY
-    // Only configure when first request is made, to avoid blocking startup
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        _configureSSLIfNeeded();
-        handler.next(options);
-      },
-    ));
-
-    // Add interceptors
+    // Validação TLS padrão do sistema (sem bypass de certificado).
+    // Nenhum badCertificateCallback é configurado; a validação real do
+    // certificado é mantida para evitar MITM.
     dio.interceptors.addAll([
       _AuthInterceptor(this),
       _LoggingInterceptor(),
       _ErrorInterceptor(),
     ]);
-  }
-
-  void _configureSSLIfNeeded() {
-    if (_sslConfigured) return;
-    try {
-      (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) {
-          return host == 'pratadev.duckdns.org' ||
-              host == 'localhost' ||
-              host == '10.0.2.2' ||
-              host == '127.0.0.1';
-        };
-        client.connectionTimeout = const Duration(seconds: 15);
-        client.idleTimeout = const Duration(seconds: 15);
-        return client;
-      };
-      _sslConfigured = true;
-    } catch (e) {
-      print('Warning: Could not configure SSL certificate handling: $e');
-      _sslConfigured = true; // Don't retry on failure
-    }
   }
 
   // Helper to check connectivity
@@ -76,8 +44,8 @@ class DioClient {
     return result.isNotEmpty && result.first != ConnectivityResult.none;
   }
 
-  // Refresh the access token using the stored refresh token (sent as a cookie,
-  // as the backend expects). Updates both tokens on success.
+  // Refresh the access token using the stored refresh token (sent no corpo
+  // JSON, conforme o backend). Atualiza ambos os tokens em caso de sucesso.
   Future<bool> refreshToken() async {
     try {
       final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
@@ -88,7 +56,7 @@ class DioClient {
 
       final response = await dio.post(
         ApiEndpoints.authRefresh,
-        options: Options(headers: {'Cookie': 'refresh_token=$refreshToken'}),
+        data: {'refreshToken': refreshToken},
       );
 
       if (response.statusCode == 200) {
