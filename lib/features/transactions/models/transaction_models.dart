@@ -28,7 +28,8 @@ class Transaction with _$Transaction {
     required DateTime updatedAt,
   }) = _Transaction;
 
-  factory Transaction.fromJson(Map<String, dynamic> json) => _$TransactionFromJson(json);
+  factory Transaction.fromJson(Map<String, dynamic> json) =>
+      _$TransactionFromJson(json);
 }
 
 @freezed
@@ -43,7 +44,8 @@ class Category with _$Category {
     @Default(0) int sortOrder,
   }) = _Category;
 
-  factory Category.fromJson(Map<String, dynamic> json) => _$CategoryFromJson(json);
+  factory Category.fromJson(Map<String, dynamic> json) =>
+      _$CategoryFromJson(json);
 }
 
 @freezed
@@ -61,7 +63,8 @@ class CreditCard with _$CreditCard {
     @Default(0) int sortOrder,
   }) = _CreditCard;
 
-  factory CreditCard.fromJson(Map<String, dynamic> json) => _$CreditCardFromJson(json);
+  factory CreditCard.fromJson(Map<String, dynamic> json) =>
+      _$CreditCardFromJson(json);
 }
 
 @freezed
@@ -85,7 +88,8 @@ class RecurringTransaction with _$RecurringTransaction {
     required DateTime createdAt,
   }) = _RecurringTransaction;
 
-  factory RecurringTransaction.fromJson(Map<String, dynamic> json) => _$RecurringTransactionFromJson(json);
+  factory RecurringTransaction.fromJson(Map<String, dynamic> json) =>
+      _$RecurringTransactionFromJson(json);
 }
 
 @freezed
@@ -101,7 +105,8 @@ class ShoppingItem with _$ShoppingItem {
     String? checkedBy,
   }) = _ShoppingItem;
 
-  factory ShoppingItem.fromJson(Map<String, dynamic> json) => _$ShoppingItemFromJson(json);
+  factory ShoppingItem.fromJson(Map<String, dynamic> json) =>
+      _$ShoppingItemFromJson(json);
 }
 
 /// Available payment methods for a transaction
@@ -124,7 +129,25 @@ class MonthlyStats with _$MonthlyStats {
     required double balance,
   }) = _MonthlyStats;
 
-  factory MonthlyStats.fromJson(Map<String, dynamic> json) => _$MonthlyStatsFromJson(json);
+  factory MonthlyStats.fromJson(Map<String, dynamic> json) =>
+      _$MonthlyStatsFromJson(json);
+}
+
+/// Monthly income/expense plus the expense breakdown by category.
+///
+/// Not persisted, so it does not need freezed/json code.
+class MonthlyCategoryStats {
+  const MonthlyCategoryStats({
+    required this.month,
+    required this.income,
+    required this.expense,
+    required this.categories,
+  });
+
+  final String month;
+  final double income;
+  final double expense;
+  final List<CategoryExpense> categories;
 }
 
 @freezed
@@ -136,5 +159,6 @@ class CategoryExpense with _$CategoryExpense {
     required double total,
   }) = _CategoryExpense;
 
-  factory CategoryExpense.fromJson(Map<String, dynamic> json) => _$CategoryExpenseFromJson(json);
+  factory CategoryExpense.fromJson(Map<String, dynamic> json) =>
+      _$CategoryExpenseFromJson(json);
 }

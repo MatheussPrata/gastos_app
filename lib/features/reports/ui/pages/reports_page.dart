@@ -46,7 +46,7 @@ class ReportsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedMonth = ref.watch(selectedMonthProvider);
     final monthTransactions = ref.watch(monthTransactionsProvider);
-    final monthlyStats = ref.watch(monthlyStatsProvider);
+    final monthlyStats = ref.watch(monthlyCategoryStatsProvider);
 
     final start = DateTime(selectedMonth.year, selectedMonth.month, 1);
     final end = DateTime(
@@ -225,9 +225,8 @@ class _SummaryCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: balance >= 0
-                            ? AppColors.income
-                            : AppColors.expense,
+                        color:
+                            balance >= 0 ? AppColors.income : AppColors.expense,
                       ),
                     ),
                   ],
@@ -424,7 +423,7 @@ class _CategoryLegendItem extends StatelessWidget {
 class _MonthlyChart extends StatelessWidget {
   const _MonthlyChart({required this.statsAsync});
 
-  final AsyncValue<List<MonthlyStats>> statsAsync;
+  final AsyncValue<List<MonthlyCategoryStats>> statsAsync;
 
   @override
   Widget build(BuildContext context) {
@@ -449,9 +448,8 @@ class _MonthlyChart extends StatelessWidget {
               );
             }
 
-            final visible = stats.length > 6
-                ? stats.sublist(stats.length - 6)
-                : stats;
+            final visible =
+                stats.length > 6 ? stats.sublist(stats.length - 6) : stats;
             final highest = visible.fold<double>(
               0,
               (value, stat) =>
@@ -459,6 +457,22 @@ class _MonthlyChart extends StatelessWidget {
             );
             final maxY = highest <= 0 ? 100.0 : highest * 1.2;
             final interval = maxY / 4;
+
+            // Categories aggregated across the visible months, used both in
+            // the legend and in the stacked expense bars.
+            final totals = <String, CategoryExpense>{};
+            for (final stat in visible) {
+              for (final category in stat.categories) {
+                final existing = totals[category.categoryId];
+                totals[category.categoryId] = existing == null
+                    ? category
+                    : existing.copyWith(
+                        total: existing.total + category.total,
+                      );
+              }
+            }
+            final legendCategories = totals.values.toList()
+              ..sort((a, b) => b.total.compareTo(a.total));
 
             return Column(
               children: [
@@ -470,6 +484,21 @@ class _MonthlyChart extends StatelessWidget {
                     _ChartLegendDot(color: AppColors.expense, label: 'Saídas'),
                   ],
                 ),
+                if (legendCategories.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      for (final category in legendCategories.take(6))
+                        _ChartLegendDot(
+                          color: _categoryColor(category),
+                          label: category.categoryName,
+                        ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 220,
@@ -547,12 +576,7 @@ class _MonthlyChart extends StatelessWidget {
                                 width: 8,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              BarChartRodData(
-                                toY: visible[index].expense,
-                                color: AppColors.expense,
-                                width: 8,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+                              _expenseRod(visible[index]),
                             ],
                           ),
                       ],
@@ -564,6 +588,38 @@ class _MonthlyChart extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+
+  /// Expense bar stacked by category colors. Falls back to a solid red bar
+  /// when the month has no categorized expenses.
+  BarChartRodData _expenseRod(MonthlyCategoryStats stat) {
+    final stack = <BarChartRodStackItem>[];
+    var start = 0.0;
+    for (final category in stat.categories) {
+      if (category.total <= 0) continue;
+      final end = start + category.total;
+      stack.add(
+        BarChartRodStackItem(start, end, _categoryColor(category)),
+      );
+      start = end;
+    }
+
+    if (stack.isEmpty) {
+      return BarChartRodData(
+        toY: stat.expense,
+        color: AppColors.expense,
+        width: 8,
+        borderRadius: BorderRadius.circular(4),
+      );
+    }
+
+    return BarChartRodData(
+      toY: stat.expense,
+      color: AppColors.expense,
+      rodStackItems: stack,
+      width: 8,
+      borderRadius: BorderRadius.circular(4),
     );
   }
 }

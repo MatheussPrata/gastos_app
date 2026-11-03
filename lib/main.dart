@@ -30,12 +30,13 @@ class GastosApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final themeColor = ref.watch(themeColorProvider);
 
     return MaterialApp.router(
       title: 'Gastos',
       debugShowCheckedModeBanner: false,
-      theme: lightTheme,
-      darkTheme: darkTheme,
+      theme: buildLightTheme(themeColor),
+      darkTheme: buildDarkTheme(themeColor),
       themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
