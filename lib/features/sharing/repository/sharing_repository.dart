@@ -12,6 +12,7 @@ import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/shopping_list/data/models/shopping_item.dart';
 import 'package:gastos_app/features/shopping_list/data/repositories/shopping_list_repository.dart';
 import 'package:gastos_app/features/sharing/models/sharing_models.dart';
+import 'package:gastos_app/features/sharing/repository/sharing_merger.dart';
 import 'package:gastos_app/features/transactions/repository/transactions_repository.dart';
 
 final sharingRepositoryProvider = Provider<SharingRepository>((ref) {
@@ -289,7 +290,7 @@ class SharingRepository {
           db.TransactionsCompanion(
             id: Value(id),
             userId: Value(json['userId'] as String? ?? partnerUserId),
-            amount: Value(_toDouble(json['amount'])),
+            amount: Value(SharingMerger.toDouble(json['amount'])),
             description: Value(json['description'] as String? ?? ''),
             date: Value(date),
             categoryId: Value(json['categoryId'] as String?),
@@ -315,29 +316,16 @@ class SharingRepository {
     if (items.isEmpty) return 0;
 
     final local = await _shoppingListRepository.loadItems();
-    final merged = {for (final item in local) item.id: item};
     final sharedIds = await _loadSharedShoppingIds();
 
-    for (final json in items) {
-      final id = json['id'] as String?;
-      if (id == null) continue;
+    final result = SharingMerger.mergeShoppingItems(
+      local: local,
+      partnerItems: items,
+      sharedIds: sharedIds,
+    );
 
-      merged[id] = ShoppingItem(
-        id: id,
-        name: json['name'] as String? ?? 'Item',
-        quantity: _toDouble(json['quantity'] ?? 1),
-        unit: json['unit'] as String?,
-        estimatedPrice: _toDoubleOrNull(json['estimatedPrice']),
-        actualPrice: _toDoubleOrNull(json['actualPrice']),
-        isPurchased:
-            json['isPurchased'] as bool? ?? json['isChecked'] as bool? ?? false,
-        category: json['category'] as String?,
-      );
-      sharedIds.add(id);
-    }
-
-    await _shoppingListRepository.saveItems(merged.values.toList());
-    await _saveSharedShoppingIds(sharedIds);
+    await _shoppingListRepository.saveItems(result.items);
+    await _saveSharedShoppingIds(result.sharedIds);
     return items.length;
   }
 
@@ -410,17 +398,6 @@ class SharingRepository {
       default:
         return e.message ?? 'Erro inesperado';
     }
-  }
-
-  double _toDouble(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  double? _toDoubleOrNull(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 }
 
