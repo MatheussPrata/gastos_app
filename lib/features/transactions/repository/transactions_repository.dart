@@ -183,7 +183,8 @@ class TransactionsRepository {
         final installment = transaction.copyWith(
           id: _uuid.v4(),
           amount: perInstallment,
-          description: '${transaction.description} ($i/${transaction.totalInstallments})',
+          description:
+              '${transaction.description} ($i/${transaction.totalInstallments})',
           date: _addMonths(transaction.date, i - 1),
           isInstallment: true,
           installmentNumber: i,
@@ -203,7 +204,9 @@ class TransactionsRepository {
         totalInstallments: 1,
         installmentGroupId: null,
       );
-      await _db.into(_db.transactions).insert(_toCompanion(single, synced: false));
+      await _db
+          .into(_db.transactions)
+          .insert(_toCompanion(single, synced: false));
       created.add(single);
     }
 
@@ -212,8 +215,11 @@ class TransactionsRepository {
   }
 
   Future<Transaction> updateTransaction(Transaction transaction) async {
-    final updated = transaction.copyWith(updatedAt: DateTime.now(), isSynced: false);
-    await _db.update(_db.transactions).replace(_toCompanion(updated, synced: false));
+    final updated =
+        transaction.copyWith(updatedAt: DateTime.now(), isSynced: false);
+    await _db
+        .update(_db.transactions)
+        .replace(_toCompanion(updated, synced: false));
     unawaited(syncPendingTransactions());
     return updated;
   }
@@ -240,7 +246,8 @@ class TransactionsRepository {
     }
 
     final keys = data.keys.toList()..sort();
-    final selected = keys.length > months ? keys.sublist(keys.length - months) : keys;
+    final selected =
+        keys.length > months ? keys.sublist(keys.length - months) : keys;
 
     return selected.map((k) {
       final e = data[k]!;
@@ -288,6 +295,60 @@ class TransactionsRepository {
     return list;
   }
 
+  /// Monthly income/expense with expenses broken down by category.
+  Future<List<MonthlyCategoryStats>> getMonthlyCategoryStats({
+    int months = 12,
+  }) async {
+    final all = await _db.select(_db.transactions).get();
+    final categories = await _db.select(_db.categories).get();
+    final nameMap = {for (final c in categories) c.id: c.name};
+    final colorMap = {for (final c in categories) c.id: c.color};
+
+    final income = <String, double>{};
+    final expense = <String, double>{};
+    final byCategory = <String, Map<String, double>>{};
+
+    for (final transaction in all) {
+      final key =
+          '${transaction.date.year}-${transaction.date.month.toString().padLeft(2, '0')}';
+      if (transaction.isExpense) {
+        expense[key] = (expense[key] ?? 0) + transaction.amount;
+        final categoryKey = transaction.categoryId ?? 'none';
+        final monthMap = byCategory.putIfAbsent(key, () => {});
+        monthMap[categoryKey] =
+            (monthMap[categoryKey] ?? 0) + transaction.amount;
+      } else {
+        income[key] = (income[key] ?? 0) + transaction.amount;
+      }
+    }
+
+    final keys = {...income.keys, ...expense.keys}.toList()..sort();
+    final selected =
+        keys.length > months ? keys.sublist(keys.length - months) : keys;
+
+    return selected.map((key) {
+      final categoryList = (byCategory[key] ?? const <String, double>{})
+          .entries
+          .map(
+            (entry) => CategoryExpense(
+              categoryId: entry.key,
+              categoryName: nameMap[entry.key] ?? 'Sem categoria',
+              categoryColor: colorMap[entry.key] ?? 0xFFB8B8B8,
+              total: entry.value,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => b.total.compareTo(a.total));
+
+      return MonthlyCategoryStats(
+        month: key,
+        income: income[key] ?? 0,
+        expense: expense[key] ?? 0,
+        categories: categoryList,
+      );
+    }).toList();
+  }
+
   // ------------------------------------------------------------------ sync
 
   Future<void> syncPendingTransactions() async {
@@ -300,8 +361,8 @@ class TransactionsRepository {
       if (unsynced.isEmpty) return;
 
       final payload = unsynced.map((t) => _toSyncJson(_toModel(t))).toList();
-      final response =
-          await _dioClient.dio.post(ApiEndpoints.sync, data: {'transactions': payload});
+      final response = await _dioClient.dio
+          .post(ApiEndpoints.sync, data: {'transactions': payload});
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         for (final t in unsynced) {

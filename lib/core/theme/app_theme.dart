@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// App color palette - matching the Kotlin app colors
 class AppColors {
   // Primary colors from Kotlin app
-  static const Color primary = Color(0xFF1E88E5);      // Blue
+  static const Color primary = Color(0xFF1E88E5); // Blue
   static const Color primaryVariant = Color(0xFF1565C0);
-  static const Color secondary = Color(0xFF43A047);    // Green
+  static const Color secondary = Color(0xFF43A047); // Green
   static const Color secondaryVariant = Color(0xFF2E7D32);
-  static const Color tertiary = Color(0xFF6750A4);     // Purple
+  static const Color tertiary = Color(0xFF6750A4); // Purple
   static const Color tertiaryVariant = Color(0xFF4F378B);
 
   // Semantic colors
-  static const Color income = Color(0xFF43A047);       // Green for income
-  static const Color expense = Color(0xFFE53935);      // Red for expense
-  static const Color warning = Color(0xFFFFB300);      // Amber for warnings
-  static const Color info = Color(0xFF1E88E5);         // Blue for info
+  static const Color income = Color(0xFF43A047); // Green for income
+  static const Color expense = Color(0xFFE53935); // Red for expense
+  static const Color warning = Color(0xFFFFB300); // Amber for warnings
+  static const Color info = Color(0xFF1E88E5); // Blue for info
 
   // Category colors (matching Kotlin app)
   static const List<Color> categoryColors = [
@@ -31,14 +32,14 @@ class AppColors {
 }
 
 /// Light theme
-ThemeData get lightTheme {
+ThemeData buildLightTheme(Color seedColor) {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+      seedColor: seedColor,
       brightness: Brightness.light,
-      primary: AppColors.primary,
+      primary: seedColor,
       secondary: AppColors.secondary,
       tertiary: AppColors.tertiary,
       error: AppColors.expense,
@@ -64,9 +65,9 @@ ThemeData get lightTheme {
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.grey.shade300),
       ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.primary, width: 2),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: seedColor, width: 2),
       ),
       errorBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -84,7 +85,7 @@ ThemeData get lightTheme {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
+        foregroundColor: seedColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     ),
@@ -92,13 +93,13 @@ ThemeData get lightTheme {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: const BorderSide(color: AppColors.primary),
-        foregroundColor: AppColors.primary,
+        side: BorderSide(color: seedColor),
+        foregroundColor: seedColor,
       ),
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.primary,
+      selectedItemColor: seedColor,
       unselectedItemColor: Colors.grey,
       elevation: 8,
     ),
@@ -106,13 +107,13 @@ ThemeData get lightTheme {
       height: 72,
       elevation: 3,
       backgroundColor: Colors.white,
-      indicatorColor: const Color(0x261E88E5),
+      indicatorColor: seedColor.withAlpha(38),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
           size: 26,
-          color: selected ? AppColors.primary : Colors.grey.shade600,
+          color: selected ? seedColor : Colors.grey.shade600,
         );
       }),
       labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
@@ -120,12 +121,12 @@ ThemeData get lightTheme {
         return TextStyle(
           fontSize: 12,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          color: selected ? AppColors.primary : Colors.grey.shade600,
+          color: selected ? seedColor : Colors.grey.shade600,
         );
       }),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.primary,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: seedColor,
       foregroundColor: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(16)),
@@ -146,7 +147,8 @@ ThemeData get lightTheme {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(20)),
       ),
-      titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
+      titleTextStyle: TextStyle(
+          fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
       contentTextStyle: TextStyle(fontSize: 16, color: Colors.black87),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
@@ -160,14 +162,14 @@ ThemeData get lightTheme {
 }
 
 /// Dark theme
-ThemeData get darkTheme {
+ThemeData buildDarkTheme(Color seedColor) {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+      seedColor: seedColor,
       brightness: Brightness.dark,
-      primary: AppColors.primary,
+      primary: seedColor,
       secondary: AppColors.secondary,
       tertiary: AppColors.tertiary,
       error: AppColors.expense,
@@ -193,9 +195,9 @@ ThemeData get darkTheme {
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.grey.shade700),
       ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.primary, width: 2),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: seedColor, width: 2),
       ),
       errorBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -213,7 +215,7 @@ ThemeData get darkTheme {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
+        foregroundColor: seedColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     ),
@@ -221,13 +223,13 @@ ThemeData get darkTheme {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: const BorderSide(color: AppColors.primary),
-        foregroundColor: AppColors.primary,
+        side: BorderSide(color: seedColor),
+        foregroundColor: seedColor,
       ),
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.primary,
+      selectedItemColor: seedColor,
       unselectedItemColor: Colors.grey.shade400,
       elevation: 8,
       backgroundColor: Colors.grey.shade900,
@@ -236,13 +238,13 @@ ThemeData get darkTheme {
       height: 72,
       elevation: 3,
       backgroundColor: Colors.grey.shade900,
-      indicatorColor: const Color(0x331E88E5),
+      indicatorColor: seedColor.withAlpha(51),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
           size: 26,
-          color: selected ? AppColors.primary : Colors.grey.shade400,
+          color: selected ? seedColor : Colors.grey.shade400,
         );
       }),
       labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
@@ -250,12 +252,12 @@ ThemeData get darkTheme {
         return TextStyle(
           fontSize: 12,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          color: selected ? AppColors.primary : Colors.grey.shade400,
+          color: selected ? seedColor : Colors.grey.shade400,
         );
       }),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.primary,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: seedColor,
       foregroundColor: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(16)),
@@ -276,7 +278,8 @@ ThemeData get darkTheme {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(20)),
       ),
-      titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+      titleTextStyle: const TextStyle(
+          fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
       contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
       backgroundColor: Colors.grey[850],
     ),
@@ -292,3 +295,47 @@ ThemeData get darkTheme {
 
 /// Theme mode provider
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
+/// Default themes (blue seed) kept for callers that do not customize colors.
+ThemeData get lightTheme => buildLightTheme(AppColors.primary);
+ThemeData get darkTheme => buildDarkTheme(AppColors.primary);
+
+/// Colors available for the primary color customization.
+const List<Color> kThemeSeedColors = [
+  Color(0xFF1E88E5), // Azul
+  Color(0xFF43A047), // Verde
+  Color(0xFF6750A4), // Roxo
+  Color(0xFFFB8C00), // Laranja
+  Color(0xFFD81B60), // Rosa
+  Color(0xFF00897B), // Teal
+  Color(0xFF3949AB), // Índigo
+  Color(0xFF6D4C41), // Marrom
+];
+
+/// Persists the chosen primary color for the app theme.
+class ThemeColorNotifier extends StateNotifier<Color> {
+  ThemeColorNotifier() : super(AppColors.primary) {
+    _load();
+  }
+
+  static const _prefsKey = 'theme_primary_color';
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getInt(_prefsKey);
+      if (value != null) state = Color(value);
+    } catch (_) {}
+  }
+
+  Future<void> setColor(Color color) async {
+    state = color;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefsKey, color.value);
+    } catch (_) {}
+  }
+}
+
+final themeColorProvider = StateNotifierProvider<ThemeColorNotifier, Color>(
+    (ref) => ThemeColorNotifier());

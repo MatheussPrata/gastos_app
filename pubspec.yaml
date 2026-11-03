@@ -1,7 +1,7 @@
 name: gastos_app
 description: "Gastos Flutter - Personal finance manager"
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -40,6 +40,9 @@ dependencies:
 
   # Notifications
   flutter_local_notifications: ^17.2.2
+
+  # App info
+  package_info_plus: ^8.1.0
 
   # Utils
   intl: ^0.19.0

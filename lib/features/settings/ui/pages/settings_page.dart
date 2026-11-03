@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
+import 'package:gastos_app/core/app_info.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
+import 'package:gastos_app/features/settings/ui/widgets/theme_color_picker.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
 import 'package:gastos_app/features/shopping_list/ui/widgets/category_manager_sheet.dart';
 
@@ -34,10 +36,6 @@ class SettingsPage extends ConsumerWidget {
               ),
               title: Text(user?.username ?? 'Usuário'),
               subtitle: Text(user?.email ?? ''),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: () {},
-              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -77,9 +75,22 @@ class SettingsPage extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.color_lens),
                   title: const Text('Cor principal'),
-                  subtitle: const Text('Personalizar cores (implementar)'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  subtitle: const Text('Toque para escolher'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 10,
+                        backgroundColor: ref.watch(themeColorProvider),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  onTap: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const ThemeColorPickerDialog(),
+                  ),
                 ),
               ],
             ),
@@ -226,7 +237,9 @@ class SettingsPage extends ConsumerWidget {
             child: ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('Versão do app'),
-              subtitle: const Text('1.0.0'),
+              subtitle: Text(
+                ref.watch(appVersionProvider).valueOrNull ?? 'Carregando...',
+              ),
             ),
           ),
         ],

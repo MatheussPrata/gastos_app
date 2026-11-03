@@ -12,7 +12,8 @@ final selectedMonthProvider = StateProvider<DateTime>((ref) {
 });
 
 /// All transactions that fall within the currently selected month.
-final monthTransactionsProvider = FutureProvider<List<Transaction>>((ref) async {
+final monthTransactionsProvider =
+    FutureProvider<List<Transaction>>((ref) async {
   final month = ref.watch(selectedMonthProvider);
   final repository = ref.watch(transactionsRepositoryProvider);
   return repository.getTransactionsForMonth(month);
@@ -30,10 +31,17 @@ final monthlyStatsProvider = FutureProvider<List<MonthlyStats>>((ref) async {
   return repository.getMonthlyStats();
 });
 
-/// Expenses grouped by category for a given date range.
-final categoryExpensesProvider =
-    FutureProvider.family<List<CategoryExpense>, ({DateTime start, DateTime end})>(
-        (ref, params) async {
+/// Monthly income/expense with category-colored expense breakdown.
+final monthlyCategoryStatsProvider =
+    FutureProvider<List<MonthlyCategoryStats>>((ref) async {
   final repository = ref.watch(transactionsRepositoryProvider);
-  return repository.getExpensesByCategory(startDate: params.start, endDate: params.end);
+  return repository.getMonthlyCategoryStats();
+});
+
+/// Expenses grouped by category for a given date range.
+final categoryExpensesProvider = FutureProvider.family<List<CategoryExpense>,
+    ({DateTime start, DateTime end})>((ref, params) async {
+  final repository = ref.watch(transactionsRepositoryProvider);
+  return repository.getExpensesByCategory(
+      startDate: params.start, endDate: params.end);
 });
