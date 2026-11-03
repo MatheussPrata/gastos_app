@@ -142,12 +142,11 @@ class SharingRepository {
       await _dioClient.dio.delete(
         '${ApiEndpoints.connections}/${connection.id}',
       );
-    } on DioException catch (e) {
-      throw SharingException(_messageFor(e));
-    } finally {
       await _cleanupPartnerData(connection);
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cacheKey);
+    } on DioException catch (e) {
+      throw SharingException(_messageFor(e));
     }
   }
 
@@ -168,9 +167,11 @@ class SharingRepository {
     }
 
     final result = await _pullPartnerData(connection);
-    await _cacheConnection(
-      connection.copyWith(lastSyncedAt: DateTime.now()),
-    );
+    if (result.hasPartner) {
+      await _cacheConnection(
+        connection.copyWith(lastSyncedAt: DateTime.now()),
+      );
+    }
     return result;
   }
 
@@ -258,6 +259,13 @@ class SharingRepository {
         shareShopping: shareShopping,
       );
     } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        // O parceiro desconectou. Limpa o cache para a tela refletir.
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_cacheKey);
+        await _cleanupPartnerData(connection);
+        return const SharingSyncResult();
+      }
       throw SharingException(_messageFor(e));
     }
   }
