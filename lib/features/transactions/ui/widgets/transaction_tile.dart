@@ -57,6 +57,7 @@ class TransactionTile extends StatelessWidget {
   String _subtitle() {
     final parts = <String>[
       DateFormatter.formatDayMonthYear(transaction.date),
+      if (transaction.partnerSynced) 'Parceiro',
       if (transaction.paymentMethod.isNotEmpty) transaction.paymentMethod,
       if (transaction.isInstallment && transaction.totalInstallments > 1)
         '${transaction.installmentNumber}/${transaction.totalInstallments}',

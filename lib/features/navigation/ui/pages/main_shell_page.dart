@@ -4,6 +4,7 @@ import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/settings/ui/pages/settings_page.dart';
+import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
 import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.dart';
 
 /// Main application shell.
@@ -12,7 +13,7 @@ import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.da
 /// scroll position are preserved while the user switches tabs. Only the
 /// selected index changes, which keeps rebuilds scoped to the shell and the
 /// active tab.
-class MainShellPage extends ConsumerWidget {
+class MainShellPage extends ConsumerStatefulWidget {
   const MainShellPage({super.key});
 
   static const List<Widget> _pages = [
@@ -23,7 +24,26 @@ class MainShellPage extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainShellPage> createState() => _MainShellPageState();
+}
+
+class _MainShellPageState extends ConsumerState<MainShellPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _silentSync());
+  }
+
+  Future<void> _silentSync() async {
+    try {
+      await runSharingSync(ref);
+    } catch (_) {
+      // Offline or not configured: local data continues to work.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedIndex = ref.watch(bottomNavIndexProvider);
 
     return PopScope(
@@ -36,7 +56,7 @@ class MainShellPage extends ConsumerWidget {
       child: Scaffold(
         body: IndexedStack(
           index: selectedIndex,
-          children: _pages,
+          children: MainShellPage._pages,
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: selectedIndex,
