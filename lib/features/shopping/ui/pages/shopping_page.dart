@@ -35,7 +35,7 @@ class ShoppingPage extends ConsumerWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .primaryContainer
-                      .withValues(alpha: 0.4),
+                      .withOpacity(0.4),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
