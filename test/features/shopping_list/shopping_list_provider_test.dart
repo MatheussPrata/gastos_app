@@ -40,7 +40,7 @@ void main() {
       category: 'Mercearia',
     );
 
-    final items = notifier.state.valueOrNull!;
+    final items = notifier.state.value!;
 
     expect(items, hasLength(1));
     expect(items.single.name, 'Arroz');
@@ -53,13 +53,13 @@ void main() {
 
   test('edita um item existente', () async {
     await notifier.addItem(name: 'Arroz', estimatedPrice: 10);
-    final item = notifier.state.valueOrNull!.single;
+    final item = notifier.state.value!.single;
 
     await notifier.updateItem(
       item.copyWith(name: 'Arroz integral', quantity: 3, estimatedPrice: 12),
     );
 
-    final updated = notifier.state.valueOrNull!.single;
+    final updated = notifier.state.value!.single;
 
     expect(updated.name, 'Arroz integral');
     expect(updated.quantity, 3);
@@ -69,22 +69,22 @@ void main() {
 
   test('alterna o status de comprado', () async {
     await notifier.addItem(name: 'Arroz');
-    final id = notifier.state.valueOrNull!.single.id;
+    final id = notifier.state.value!.single.id;
 
     await notifier.togglePurchased(id);
-    expect(notifier.state.valueOrNull!.single.isPurchased, isTrue);
+    expect(notifier.state.value!.single.isPurchased, isTrue);
 
     await notifier.togglePurchased(id);
-    expect(notifier.state.valueOrNull!.single.isPurchased, isFalse);
+    expect(notifier.state.value!.single.isPurchased, isFalse);
   });
 
   test('registra valor real e usa como base para a próxima compra', () async {
     await notifier.addItem(name: 'Arroz', estimatedPrice: 10);
-    final id = notifier.state.valueOrNull!.single.id;
+    final id = notifier.state.value!.single.id;
 
     await notifier.setActualPrice(id, 15.5);
 
-    final item = notifier.state.valueOrNull!.single;
+    final item = notifier.state.value!.single;
 
     expect(item.actualPrice, 15.5);
     expect(item.estimatedPrice, 15.5);
@@ -94,11 +94,11 @@ void main() {
   test('remove um item da lista', () async {
     await notifier.addItem(name: 'Arroz');
     await notifier.addItem(name: 'Feijão');
-    final id = notifier.state.valueOrNull!.first.id;
+    final id = notifier.state.value!.first.id;
 
     await notifier.deleteItem(id);
 
-    final items = notifier.state.valueOrNull!;
+    final items = notifier.state.value!;
 
     expect(items, hasLength(1));
     expect(items.single.name, 'Feijão');
