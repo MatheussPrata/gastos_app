@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -11,6 +13,7 @@ import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
 import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
+import 'package:gastos_app/features/planning/services/notification_service.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category, RecurringTransaction;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
@@ -188,7 +191,12 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           .read(planningRepositoryProvider)
           .checkAndCreateAlertsInBackground(
             month: _date,
-            onAlerts: (_) {
+            onAlerts: (alerts) {
+              for (final alert in alerts) {
+                unawaited(
+                  NotificationService.instance.showBudgetAlert(alert),
+                );
+              }
               container
                 ..invalidate(planningAlertsProvider)
                 ..invalidate(unreadAlertsProvider)
