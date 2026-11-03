@@ -15,7 +15,7 @@ class Users extends Table {
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   BoolColumn get isAdmin => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -27,10 +27,11 @@ class Categories extends Table {
   IntColumn get color => integer()();
   TextColumn get icon => text()();
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
-  BoolColumn get isExpenseDefault => boolean().withDefault(const Constant(true))();
+  BoolColumn get isExpenseDefault =>
+      boolean().withDefault(const Constant(true))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -42,7 +43,7 @@ class Subcategories extends Table {
   TextColumn get name => text()();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -60,7 +61,7 @@ class CreditCards extends Table {
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -77,17 +78,19 @@ class Transactions extends Table {
   TextColumn get creditCardId => text().nullable()();
   TextColumn get paymentMethod => text().withDefault(const Constant(''))();
   BoolColumn get isExpense => boolean().withDefault(const Constant(true))();
-  BoolColumn get isInstallment => boolean().withDefault(const Constant(false))();
+  BoolColumn get isInstallment =>
+      boolean().withDefault(const Constant(false))();
   IntColumn get installmentNumber => integer().withDefault(const Constant(1))();
   IntColumn get totalInstallments => integer().withDefault(const Constant(1))();
   TextColumn get installmentGroupId => text().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get ownerId => text().nullable()();
-  BoolColumn get partnerSynced => boolean().withDefault(const Constant(false))();
+  BoolColumn get partnerSynced =>
+      boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -102,7 +105,8 @@ class RecurringTransactions extends Table {
   TextColumn get categoryId => text().nullable()();
   TextColumn get subcategoryId => text().nullable()();
   TextColumn get creditCardId => text().nullable()();
-  TextColumn get frequency => text()(); // 'daily', 'weekly', 'monthly', 'yearly'
+  TextColumn get frequency =>
+      text()(); // 'daily', 'weekly', 'monthly', 'yearly'
   IntColumn get dayOfMonth => integer()();
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get endDate => dateTime().nullable()();
@@ -111,7 +115,7 @@ class RecurringTransactions extends Table {
   DateTimeColumn get lastGeneratedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -127,7 +131,7 @@ class ShoppingItems extends Table {
   DateTimeColumn get checkedAt => dateTime().nullable()();
   TextColumn get checkedBy => text().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -137,9 +141,55 @@ class AppSettings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {key};
+}
+
+/// Budget plans table (monthly financial planning)
+class BudgetPlans extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text()();
+
+  /// Reference month, normalized to the first day (local time).
+  DateTimeColumn get month => dateTime()();
+
+  /// 'manual' or 'actual' (see IncomeMode in planning_models.dart).
+  TextColumn get incomeMode => text().withDefault(const Constant('manual'))();
+  RealColumn get manualIncome => real().withDefault(const Constant(0.0))();
+  RealColumn get monthlyBudget => real().withDefault(const Constant(0.0))();
+
+  /// Serialized List<CategoryBudget>.
+  TextColumn get categoriesJson => text().withDefault(const Constant('[]'))();
+
+  /// Serialized NotificationSettings.
+  TextColumn get notificationsJson =>
+      text().withDefault(const Constant('{}'))();
+
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Budget alerts table (thresholds reached per category/month plan)
+class BudgetAlerts extends Table {
+  TextColumn get id => text()();
+  TextColumn get planId => text()();
+  TextColumn get categoryId => text()();
+  TextColumn get categoryName => text()();
+  IntColumn get threshold => integer()();
+  RealColumn get spentAmount => real()();
+  RealColumn get allocatedAmount => real()();
+  DateTimeColumn get triggeredAt => dateTime()();
+  BoolColumn get read => boolean().withDefault(const Constant(false))();
+  BoolColumn get dismissed => boolean().withDefault(const Constant(false))();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 /// Connections table (for sharing with partner)
@@ -153,7 +203,7 @@ class Connections extends Table {
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get lastSyncedAt => dateTime().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -166,7 +216,7 @@ class PasswordResetTokens extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get expiresAt => dateTime()();
   DateTimeColumn get usedAt => dateTime().nullable()();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -181,7 +231,7 @@ class Sessions extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get expiresAt => dateTime()();
   DateTimeColumn get revokedAt => dateTime().nullable()();
-  
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -195,6 +245,8 @@ class Sessions extends Table {
   RecurringTransactions,
   ShoppingItems,
   AppSettings,
+  BudgetPlans,
+  BudgetAlerts,
   Connections,
   PasswordResetTokens,
   Sessions,
@@ -203,23 +255,31 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) async {
-      await m.createAll();
-    },
-    onUpgrade: (m, from, to) async {
-      if (from < 2) {
-        await m.addColumn(transactions, transactions.paymentMethod);
-      }
-    },
-  );
+        onCreate: (m) async {
+          await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(transactions, transactions.paymentMethod);
+          }
+          if (from < 3) {
+            // Non-destructive: drift's createTable emits CREATE TABLE IF NOT
+            // EXISTS, so existing tables and data are preserved.
+            await m.createTable(budgetPlans);
+            await m.createTable(budgetAlerts);
+          }
+        },
+      );
 
   // Clear all data (for logout)
   Future<void> clearAllData() {
     return transaction(() async {
+      await delete(budgetAlerts).go();
+      await delete(budgetPlans).go();
       await delete(transactions).go();
       await delete(recurringTransactions).go();
       await delete(shoppingItems).go();

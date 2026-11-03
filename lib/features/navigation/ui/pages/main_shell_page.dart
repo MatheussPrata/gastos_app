@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
+import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/ui/pages/planning_page.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/settings/ui/pages/settings_page.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
@@ -19,6 +21,7 @@ class MainShellPage extends ConsumerStatefulWidget {
   static const List<Widget> _pages = [
     DashboardPage(),
     ReportsPage(),
+    PlanningPage(),
     ShoppingListPage(showBackButton: false),
     SettingsPage(),
   ];
@@ -45,6 +48,7 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
   @override
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(bottomNavIndexProvider);
+    final unreadAlerts = ref.watch(unreadAlertCountProvider);
 
     return PopScope(
       // On secondary tabs, back returns to the home tab before exiting.
@@ -64,7 +68,7 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
             if (index == selectedIndex) return;
             ref.read(bottomNavIndexProvider.notifier).state = index;
           },
-          destinations: const [
+          destinations: [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home),
@@ -76,6 +80,20 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
               selectedIcon: Icon(Icons.bar_chart),
               label: 'Relatórios',
               tooltip: 'Relatórios',
+            ),
+            NavigationDestination(
+              icon: Badge(
+                isLabelVisible: unreadAlerts > 0,
+                label: Text('$unreadAlerts'),
+                child: const Icon(Icons.savings_outlined),
+              ),
+              selectedIcon: Badge(
+                isLabelVisible: unreadAlerts > 0,
+                label: Text('$unreadAlerts'),
+                child: const Icon(Icons.savings),
+              ),
+              label: 'Planejamento',
+              tooltip: 'Planejamento financeiro',
             ),
             NavigationDestination(
               icon: Icon(Icons.shopping_cart_outlined),
