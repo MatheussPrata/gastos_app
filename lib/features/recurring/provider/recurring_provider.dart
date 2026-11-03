@@ -2,9 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/recurring/repository/recurring_repository.dart';
 
-final recurringRepositoryProvider = Provider<RecurringRepository>((ref) => RecurringRepository());
+final recurringRepositoryProvider =
+    Provider<RecurringRepository>((ref) => RecurringRepository());
 
-class RecurringListNotifier extends StateNotifier<AsyncValue<List<RecurringTransaction>>> {
+class RecurringListNotifier
+    extends StateNotifier<AsyncValue<List<RecurringTransaction>>> {
   final RecurringRepository _repository;
 
   RecurringListNotifier(this._repository) : super(const AsyncValue.loading()) {
@@ -14,7 +16,8 @@ class RecurringListNotifier extends StateNotifier<AsyncValue<List<RecurringTrans
   Future<void> loadRecurring({bool forceRefresh = false}) async {
     state = const AsyncValue.loading();
     try {
-      final recurring = await _repository.getRecurring(forceRefresh: forceRefresh);
+      final recurring =
+          await _repository.getRecurring(forceRefresh: forceRefresh);
       state = AsyncValue.data(recurring);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
@@ -49,7 +52,8 @@ class RecurringListNotifier extends StateNotifier<AsyncValue<List<RecurringTrans
   }
 }
 
-final recurringListProvider = StateNotifierProvider<RecurringListNotifier, AsyncValue<List<RecurringTransaction>>>((ref) {
+final recurringListProvider = StateNotifierProvider<RecurringListNotifier,
+    AsyncValue<List<RecurringTransaction>>>((ref) {
   final repository = ref.watch(recurringRepositoryProvider);
   return RecurringListNotifier(repository);
 });

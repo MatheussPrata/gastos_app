@@ -6,8 +6,12 @@ import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/recurring/models/recurring_models.dart';
+import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
+import 'package:gastos_app/features/recurring/repository/recurring_repository.dart';
+import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
-    hide Category;
+    hide Category, RecurringTransaction;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 
 const List<int> _newCategoryColors = [
@@ -31,7 +35,8 @@ class TransactionFormPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<TransactionFormPage> createState() => _TransactionFormPageState();
+  ConsumerState<TransactionFormPage> createState() =>
+      _TransactionFormPageState();
 }
 
 class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
@@ -46,6 +51,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   DateTime _date = DateTime.now();
   bool _isInstallment = false;
   int _installments = 2;
+  bool _isRecurring = false;
+  String _frequency = 'monthly';
   bool _isSaving = false;
 
   @override
@@ -66,7 +73,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
   Future<void> _loadTransaction() async {
     final repository = ref.read(transactionsRepositoryProvider);
-    final transaction = await repository.getTransactionById(widget.transactionId!);
+    final transaction =
+        await repository.getTransactionById(widget.transactionId!);
     if (transaction == null || !mounted) return;
 
     setState(() {
@@ -105,7 +113,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
     try {
       if (widget.isEditing && widget.transactionId != null) {
-        final existing = await repository.getTransactionById(widget.transactionId!);
+        final existing =
+            await repository.getTransactionById(widget.transactionId!);
         if (existing == null) throw Exception('Transação não encontrada');
 
         await repository.updateTransaction(existing.copyWith(
@@ -139,11 +148,32 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           updatedAt: now,
         );
         await repository.createTransaction(transaction);
+
+        if (_isRecurring) {
+          final recurring = RecurringTransaction(
+            id: const Uuid().v4(),
+            userId: userId,
+            description: transaction.description,
+            amount: transaction.amount,
+            type: _isExpense ? 'expense' : 'income',
+            categoryId: _categoryId,
+            frequency: _frequency,
+            dayOfMonth: _date.day,
+            startDate: _date,
+            isActive: true,
+            nextDueDate: RecurringDates.nextDue(_date, _frequency),
+            createdAt: now,
+          );
+          await ref
+              .read(recurringRepositoryProvider)
+              .createRecurring(recurring);
+        }
       }
 
       ref.invalidate(monthTransactionsProvider);
       ref.invalidate(transactionsListProvider);
       ref.invalidate(monthlyStatsProvider);
+      ref.invalidate(recurringListProvider);
 
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -195,16 +225,18 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
     if (name == null || name.isEmpty || !mounted) return;
 
-    final categories = ref.read(categoriesListProvider).value ?? const <Category>[];
-    final existingIndex =
-        categories.indexWhere((c) => c.name.toLowerCase() == name.toLowerCase());
+    final categories =
+        ref.read(categoriesListProvider).value ?? const <Category>[];
+    final existingIndex = categories
+        .indexWhere((c) => c.name.toLowerCase() == name.toLowerCase());
 
     if (existingIndex >= 0) {
       setState(() => _categoryId = categories[existingIndex].id);
       return;
     }
 
-    final color = _newCategoryColors[categories.length % _newCategoryColors.length];
+    final color =
+        _newCategoryColors[categories.length % _newCategoryColors.length];
     final category = Category(
       id: const Uuid().v4(),
       name: name,
@@ -273,7 +305,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _paymentMethod,
-              decoration: const InputDecoration(labelText: 'Método de Pagamento'),
+              decoration:
+                  const InputDecoration(labelText: 'Método de Pagamento'),
               items: [
                 for (final method in PaymentMethods.all)
                   DropdownMenuItem(value: method, child: Text(method)),
@@ -286,6 +319,10 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             if (_isExpense) ...[
               const SizedBox(height: 8),
               _buildInstallmentSection(),
+            ],
+            if (!widget.isEditing) ...[
+              const SizedBox(height: 8),
+              _buildRecurringSection(),
             ],
             const SizedBox(height: 16),
             TextFormField(
@@ -404,8 +441,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       children: [
         CheckboxListTile(
           value: _isInstallment,
-          onChanged: (value) =>
-              setState(() => _isInstallment = value ?? false),
+          onChanged: (value) => setState(() => _isInstallment = value ?? false),
           title: const Text('Parcelado'),
           subtitle: const Text('Dividir em parcelas mensais'),
           contentPadding: EdgeInsets.zero,
@@ -419,8 +455,40 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
               for (var i = 2; i <= 36; i++)
                 DropdownMenuItem(value: i, child: Text('${i}x')),
             ],
+            onChanged: (value) => setState(() => _installments = value ?? 2),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRecurringSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CheckboxListTile(
+          value: _isRecurring,
+          onChanged: _isInstallment
+              ? null
+              : (value) => setState(() => _isRecurring = value ?? false),
+          title: const Text('Transação recorrente'),
+          subtitle: const Text(
+            'Repete automaticamente (contas fixas, salário, assinaturas...)',
+          ),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+        if (_isRecurring)
+          DropdownButtonFormField<String>(
+            value: _frequency,
+            decoration: const InputDecoration(labelText: 'Repetir a cada'),
+            items: const [
+              DropdownMenuItem(value: 'daily', child: Text('Dia')),
+              DropdownMenuItem(value: 'weekly', child: Text('Semana')),
+              DropdownMenuItem(value: 'monthly', child: Text('Mês')),
+              DropdownMenuItem(value: 'yearly', child: Text('Ano')),
+            ],
             onChanged: (value) =>
-                setState(() => _installments = value ?? 2),
+                setState(() => _frequency = value ?? 'monthly'),
           ),
       ],
     );

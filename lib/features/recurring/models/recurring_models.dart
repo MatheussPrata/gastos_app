@@ -24,5 +24,6 @@ class RecurringTransaction with _$RecurringTransaction {
     required DateTime createdAt,
   }) = _RecurringTransaction;
 
-  factory RecurringTransaction.fromJson(Map<String, dynamic> json) => _$RecurringTransactionFromJson(json);
+  factory RecurringTransaction.fromJson(Map<String, dynamic> json) =>
+      _$RecurringTransactionFromJson(json);
 }

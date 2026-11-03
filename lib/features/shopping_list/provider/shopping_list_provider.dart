@@ -67,6 +67,24 @@ class ShoppingListNotifier extends StateNotifier<AsyncValue<List<ShoppingItem>>>
     );
   }
 
+  /// Propaga a renomeação de uma categoria para os itens existentes.
+  Future<void> renameCategoryOnItems(String oldName, String newName) async {
+    await _persist(
+      _items
+          .map((e) => e.category == oldName ? e.copyWith(category: newName) : e)
+          .toList(),
+    );
+  }
+
+  /// Remove a categoria dos itens que a usam (categoria excluída).
+  Future<void> clearCategoryOnItems(String name) async {
+    await _persist(
+      _items
+          .map((e) => e.category == name ? e.copyWith(category: null) : e)
+          .toList(),
+    );
+  }
+
   /// Registra o valor real pago e o usa como base para as proximas compras.
   Future<void> setActualPrice(String id, double price) async {
     await _persist(

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gastos_app/features/shopping_list/data/models/shopping_category.dart';
 import 'package:gastos_app/features/shopping_list/data/models/shopping_item.dart';
+import 'package:gastos_app/features/shopping_list/provider/shopping_category_provider.dart';
 import 'package:gastos_app/features/shopping_list/provider/shopping_list_provider.dart';
+import 'package:gastos_app/features/shopping_list/ui/widgets/category_manager_sheet.dart';
 
 /// Abre o formulario (bottom sheet) para criar ou editar um item.
 Future<void> showItemFormSheet(
@@ -22,6 +25,8 @@ Future<void> showItemFormSheet(
     ),
   );
 }
+
+const List<String> _units = ['un', 'g', 'kg', 'ml', 'L'];
 
 class ItemFormSheet extends ConsumerStatefulWidget {
   const ItemFormSheet({
@@ -44,11 +49,9 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _quantityController;
   late final TextEditingController _priceController;
-  late final TextEditingController _categoryController;
+  String? _categoryName;
   String _unit = 'un';
   bool _saving = false;
-
-  static const List<String> _units = ['un', 'g', 'kg', 'ml', 'L'];
 
   bool get _isEditing => widget.item != null;
 
@@ -66,7 +69,7 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     _priceController = TextEditingController(
       text: initialPrice == null ? '' : _formatPrice(initialPrice),
     );
-    _categoryController = TextEditingController(text: item?.category ?? '');
+    _categoryName = item?.category;
     _unit = item?.unit ?? 'un';
   }
 
@@ -75,7 +78,6 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     _nameController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
@@ -110,7 +112,7 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     final name = _nameController.text.trim();
     final quantity = _parseQuantity(_quantityController.text);
     final price = _parsePrice(_priceController.text);
-    final category = _categoryController.text.trim();
+    final category = (_categoryName ?? '').trim();
 
     final notifier = ref.read(shoppingListProvider.notifier);
 
@@ -146,10 +148,46 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     }
   }
 
+  Future<void> _createCategory() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Nova Categoria'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(labelText: 'Nome da categoria'),
+            onSubmitted: (value) => Navigator.pop(ctx, value.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (name == null || name.isEmpty || !mounted) return;
+
+    await ref.read(shoppingCategoryProvider.notifier).addCategory(name);
+    if (mounted) setState(() => _categoryName = name);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final categoriesAsync = ref.watch(shoppingCategoryProvider);
+    final categories = categoriesAsync.value ?? const <ShoppingCategory>[];
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -235,15 +273,50 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _categoryController,
-                textCapitalization: TextCapitalization.sentences,
+              DropdownButtonFormField<String?>(
+                value: _categoryName,
+                isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Categoria (opcional)',
+                  labelText: 'Categoria',
                   prefixIcon: Icon(Icons.label_outline),
                 ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Sem categoria'),
+                  ),
+                  for (final category in categories)
+                    DropdownMenuItem<String?>(
+                      value: category.name,
+                      child: Text(category.name),
+                    ),
+                  // Mantem a categoria atual no menu mesmo se ela nao
+                  // existir mais na lista de categorias do app.
+                  if (_categoryName != null &&
+                      !categories.any((c) => c.name == _categoryName))
+                    DropdownMenuItem<String?>(
+                      value: _categoryName,
+                      child: Text(_categoryName!),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _categoryName = value),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: _createCategory,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nova categoria'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => showCategoryManagerSheet(context),
+                    icon: const Icon(Icons.settings_outlined),
+                    label: const Text('Gerenciar'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
