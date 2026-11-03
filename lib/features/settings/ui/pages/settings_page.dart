@@ -6,6 +6,7 @@ import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
+import 'package:gastos_app/features/shopping_list/ui/widgets/category_manager_sheet.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -94,10 +95,18 @@ class SettingsPage extends ConsumerWidget {
               children: [
                 ListTile(
                   leading: const Icon(Icons.category_outlined),
-                  title: const Text('Gerenciar categorias'),
-                  subtitle: const Text('Criar, editar e organizar categorias'),
+                  title: const Text('Categorias de gastos'),
+                  subtitle: const Text('Alimentação, Transporte, Moradia…'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push(RouteNames.categories),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.shopping_basket_outlined),
+                  title: const Text('Categorias de compras'),
+                  subtitle: const Text('Alimentação, Limpeza, Higiene…'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => showCategoryManagerSheet(context),
                 ),
                 const Divider(height: 1),
                 ListTile(
