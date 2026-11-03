@@ -18,12 +18,12 @@ class DioClient {
   void init({String baseUrl = 'https://pratadev.duckdns.org/api'}) {
     _storage = const FlutterSecureStorage();
     _connectivity = Connectivity();
-    
+
     dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
-      sendTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 20),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -52,11 +52,12 @@ class DioClient {
     try {
       (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
-        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          return host == 'pratadev.duckdns.org' || 
-                 host == 'localhost' || 
-                 host == '10.0.2.2' || 
-                 host == '127.0.0.1';
+        client.badCertificateCallback =
+            (X509Certificate cert, String host, int port) {
+          return host == 'pratadev.duckdns.org' ||
+              host == 'localhost' ||
+              host == '10.0.2.2' ||
+              host == '127.0.0.1';
         };
         client.connectionTimeout = const Duration(seconds: 15);
         client.idleTimeout = const Duration(seconds: 15);
@@ -81,7 +82,9 @@ class DioClient {
     try {
       final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
       // Skip refresh for guest tokens (local-only)
-      if (refreshToken == null || refreshToken.isEmpty || refreshToken.startsWith('guest_refresh_')) return false;
+      if (refreshToken == null ||
+          refreshToken.isEmpty ||
+          refreshToken.startsWith('guest_refresh_')) return false;
 
       final response = await dio.post(
         ApiEndpoints.authRefresh,
@@ -94,9 +97,11 @@ class DioClient {
           final accessToken = data['accessToken'] as String?;
           final newRefreshToken = data['refreshToken'] as String?;
           if (accessToken != null && accessToken.isNotEmpty) {
-            await _storage.write(key: StorageKeys.accessToken, value: accessToken);
+            await _storage.write(
+                key: StorageKeys.accessToken, value: accessToken);
             if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
-              await _storage.write(key: StorageKeys.refreshToken, value: newRefreshToken);
+              await _storage.write(
+                  key: StorageKeys.refreshToken, value: newRefreshToken);
             }
             return true;
           }
@@ -112,18 +117,27 @@ class _AuthInterceptor extends Interceptor {
   _AuthInterceptor(this._client);
 
   static const _publicPaths = [
-    '/health', '/ready', '/live',
-    '/auth/login', '/auth/register', '/auth/refresh',
-    '/auth/forgot-password', '/auth/reset-password',
+    '/health',
+    '/ready',
+    '/live',
+    '/auth/login',
+    '/auth/register',
+    '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/reset-password',
   ];
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
     final isPublic = _publicPaths.any((path) => options.path.contains(path));
     if (!isPublic) {
-      final accessToken = await _client._storage.read(key: StorageKeys.accessToken);
+      final accessToken =
+          await _client._storage.read(key: StorageKeys.accessToken);
       // Skip adding Authorization header for guest tokens (local-only)
-      if (accessToken != null && accessToken.isNotEmpty && !accessToken.startsWith('guest_token_')) {
+      if (accessToken != null &&
+          accessToken.isNotEmpty &&
+          !accessToken.startsWith('guest_token_')) {
         options.headers['Authorization'] = 'Bearer $accessToken';
       }
     }
@@ -132,11 +146,23 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401 && !err.requestOptions.path.contains('/auth/refresh')) {
+    if (err.response?.statusCode == 401 &&
+        !err.requestOptions.path.contains('/auth/refresh')) {
+      final accessToken =
+          await _client._storage.read(key: StorageKeys.accessToken);
+      final isGuest =
+          accessToken != null && accessToken.startsWith('guest_token_');
+      if (isGuest) {
+        // Guest mode is local-only. Never wipe the local session because a
+        // protected endpoint rejected an anonymous request.
+        handler.next(err);
+        return;
+      }
       final refreshed = await _client.refreshToken();
       if (refreshed) {
-        final accessToken = await _client._storage.read(key: StorageKeys.accessToken);
-        err.requestOptions.headers['Authorization'] = 'Bearer $accessToken';
+        final newAccessToken =
+            await _client._storage.read(key: StorageKeys.accessToken);
+        err.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
         try {
           final response = await Dio().fetch(err.requestOptions);
           handler.resolve(response);
@@ -150,7 +176,6 @@ class _AuthInterceptor extends Interceptor {
     }
     handler.next(err);
   }
-
 }
 
 class _LoggingInterceptor extends Interceptor {
@@ -170,7 +195,8 @@ class _LoggingInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     print('❌ ERROR: ${err.response?.statusCode} ${err.requestOptions.path}');
-    if (err.response?.data != null) print('📥 ERROR BODY: ${err.response?.data}');
+    if (err.response?.data != null)
+      print('📥 ERROR BODY: ${err.response?.data}');
     handler.next(err);
   }
 }
@@ -200,7 +226,8 @@ class _ErrorInterceptor extends Interceptor {
       case DioExceptionType.connectionError:
         // Check if it's an SSL handshake error
         if (err.error is HandshakeException) {
-          message = 'Erro de certificado SSL. Verifique se o certificado do servidor é válido.';
+          message =
+              'Erro de certificado SSL. Verifique se o certificado do servidor é válido.';
         } else {
           message = 'Sem conexão com o servidor. Verifique sua internet.';
         }

@@ -1,51 +1,55 @@
 /// API Endpoints constants
 class ApiEndpoints {
   static const String baseUrl = 'https://pratadev.duckdns.org/api';
-  
+
   // Auth endpoints
   static const String authRegister = '/auth/register';
   static const String authLogin = '/auth/login';
   static const String authRefresh = '/auth/refresh';
   static const String authLogout = '/auth/logout';
   static const String authForgotPassword = '/auth/forgot-password';
-  static const String authResetPassword = '/auth/auth/reset-password';
+  static const String authResetPassword = '/auth/reset-password';
   static const String authMe = '/auth/me';
-  
+
   // Health endpoints
   static const String health = '/health';
   static const String ready = '/ready';
   static const String live = '/live';
-  
+
   // Sync endpoints
   static const String sync = '/sync';
   static const String syncStatus = '/sync/status';
-  
+  static const String syncPartner = '/sync/partner';
+
+  // Partner connections (sharing between two devices/accounts)
+  static const String connections = '/connections';
+
   // Transactions (baseUrl already includes /api)
   static const String transactions = '/transactions';
   static const String transactionsById = '/transactions/'; // + id
   static const String transactionsStats = '/transactions/stats';
-  
+
   // Categories
-  static const String categories = '/api/categories';
-  static const String categoriesById = '/api/categories/'; // + id
-  
+  static const String categories = '/categories';
+  static const String categoriesById = '/categories/'; // + id
+
   // Credit Cards
-  static const String creditCards = '/api/credit-cards';
-  static const String creditCardsById = '/api/credit-cards/'; // + id
-  
+  static const String creditCards = '/credit-cards';
+  static const String creditCardsById = '/credit-cards/'; // + id
+
   // Recurring
-  static const String recurring = '/api/recurring';
-  static const String recurringById = '/api/recurring/'; // + id
-  
+  static const String recurring = '/recurring';
+  static const String recurringById = '/recurring/'; // + id
+
   // Shopping
-  static const String shopping = '/api/shopping';
-  static const String shoppingById = '/api/shopping/'; // + id
-  
+  static const String shopping = '/shopping';
+  static const String shoppingById = '/shopping/'; // + id
+
   // Settings
-  static const String settings = '/api/settings';
-  
+  static const String settings = '/settings';
+
   // Backup
-  static const String backup = '/api/backup';
+  static const String backup = '/backup';
 }
 
 // Storage keys

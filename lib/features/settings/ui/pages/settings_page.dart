@@ -5,6 +5,7 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
+import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -13,7 +14,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final themeMode = ref.watch(themeModeProvider);
-    
+
     return Scaffold(
       appBar: AppBar(title: const Text('Configurações')),
       body: ListView(
@@ -26,7 +27,8 @@ class SettingsPage extends ConsumerWidget {
                 backgroundColor: AppColors.primary,
                 child: Text(
                   user?.username.substring(0, 1).toUpperCase() ?? 'U',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
               title: Text(user?.username ?? 'Usuário'),
@@ -38,9 +40,10 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Appearance section
-          const Text('Aparência', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Aparência',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Card(
             child: Column(
@@ -49,16 +52,23 @@ class SettingsPage extends ConsumerWidget {
                   leading: const Icon(Icons.brightness_6),
                   title: const Text('Tema'),
                   subtitle: Text(
-                    themeMode == ThemeMode.light ? 'Claro' :
-                    themeMode == ThemeMode.dark ? 'Escuro' : 'Sistema',
+                    themeMode == ThemeMode.light
+                        ? 'Claro'
+                        : themeMode == ThemeMode.dark
+                            ? 'Escuro'
+                            : 'Sistema',
                   ),
                   trailing: PopupMenuButton<ThemeMode>(
                     initialValue: themeMode,
-                    onSelected: (mode) => ref.read(themeModeProvider.notifier).state = mode,
+                    onSelected: (mode) =>
+                        ref.read(themeModeProvider.notifier).state = mode,
                     itemBuilder: (context) => [
-                      const PopupMenuItem(value: ThemeMode.system, child: Text('Sistema')),
-                      const PopupMenuItem(value: ThemeMode.light, child: Text('Claro')),
-                      const PopupMenuItem(value: ThemeMode.dark, child: Text('Escuro')),
+                      const PopupMenuItem(
+                          value: ThemeMode.system, child: Text('Sistema')),
+                      const PopupMenuItem(
+                          value: ThemeMode.light, child: Text('Claro')),
+                      const PopupMenuItem(
+                          value: ThemeMode.dark, child: Text('Escuro')),
                     ],
                   ),
                 ),
@@ -76,7 +86,8 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 16),
 
           // Organization section
-          const Text('Organização', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Organização',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Card(
             child: Column(
@@ -110,7 +121,8 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 16),
 
           // Data section
-          const Text('Dados', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Dados',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Card(
             child: Column(
@@ -126,25 +138,43 @@ class SettingsPage extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.sync),
                   title: const Text('Sincronizar agora'),
-                  subtitle: const Text('Forçar sincronização com o servidor'),
+                  subtitle:
+                      const Text('Enviar dados locais e receber do parceiro'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  onTap: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      final result = await runSharingSync(ref);
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(result.summary)),
+                      );
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.people),
                   title: const Text('Compartilhamento'),
-                  subtitle: const Text('Conectar com parceiro'),
+                  subtitle: const Text(
+                      'Conectar com parceiro e escolher o que compartilhar'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  onTap: () => context.push(RouteNames.sharing),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Account section
-          const Text('Conta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Conta',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Card(
             child: Column(
@@ -158,13 +188,15 @@ class SettingsPage extends ConsumerWidget {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.delete_forever, color: Colors.red),
-                  title: const Text('Excluir conta', style: TextStyle(color: Colors.red)),
+                  title: const Text('Excluir conta',
+                      style: TextStyle(color: Colors.red)),
                   onTap: () {},
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.logout, color: AppColors.primary),
-                  title: const Text('Sair', style: TextStyle(color: AppColors.primary)),
+                  title: const Text('Sair',
+                      style: TextStyle(color: AppColors.primary)),
                   onTap: () async {
                     await ref.read(authControllerProvider.notifier).logout();
                     ref.read(bottomNavIndexProvider.notifier).state =
@@ -176,9 +208,10 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // About section
-          const Text('Sobre', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Sobre',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Card(
             child: ListTile(
