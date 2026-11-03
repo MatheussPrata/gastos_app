@@ -118,11 +118,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Salvar'), findsOneWidget);
-    expect(
-        find.textContaining('disponível para esta categoria'), findsOneWidget);
+    expect(find.textContaining('Máximo'), findsWidgets);
 
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(find.text('Salvar'), findsNothing);
+  });
+
+  testWidgets('permite digitar o valor em reais', (tester) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Moradia'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Moradia'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('R\$'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'R\$ 90,00');
+    await tester.pumpAndSettle();
+
+    // R$ 90 de R$ 1.000 = 9%.
+    expect(find.text('9%'), findsWidgets);
+    expect(find.textContaining('90,00'), findsWidgets);
   });
 }
