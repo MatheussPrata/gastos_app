@@ -16,7 +16,7 @@ import '../../features/recurring/ui/pages/recurring_form_page.dart';
 import '../../features/shopping/ui/pages/shopping_page.dart';
 import '../../features/shopping/ui/pages/shopping_form_page.dart';
 import '../../features/settings/ui/pages/settings_page.dart';
-import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.dart';
 
 /// Route names for type-safe navigation
 class RouteNames {
@@ -33,6 +33,7 @@ class RouteNames {
   static const String recurringForm = '/recurring/form';
   static const String shopping = '/shopping';
   static const String shoppingForm = '/shopping/form';
+  static const String shoppingList = '/shopping-list';
   static const String settings = '/settings';
 }
 
@@ -150,6 +151,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.settings,
         builder: (context, state) => const SettingsPage(),
+      ),
+      GoRoute(
+        path: RouteNames.shoppingList,
+        builder: (context, state) => const ShoppingListPage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

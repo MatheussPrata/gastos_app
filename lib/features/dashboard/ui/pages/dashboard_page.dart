@@ -28,6 +28,11 @@ class DashboardPage extends ConsumerWidget {
         title: Text('Olá, ${user?.username ?? 'Usuário'}'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.shopping_cart_outlined),
+            tooltip: 'Lista de compras',
+            onPressed: () => context.go(RouteNames.shoppingList),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => context.go(RouteNames.settings),
           ),
