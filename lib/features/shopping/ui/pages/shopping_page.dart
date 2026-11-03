@@ -15,24 +15,60 @@ class ShoppingPage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go(RouteNames.shoppingForm, extra: {'isEditing': false}),
+            tooltip: 'Novo item',
+            onPressed: () => context.push(
+              RouteNames.shoppingForm,
+              extra: {'isEditing': false},
+            ),
           ),
         ],
       ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Lista de Compras', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text('Lista de compras (implementar)', style: TextStyle(color: Colors.grey)),
-          ],
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withOpacity(0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.shopping_cart_outlined,
+                  size: 56,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Lista de Compras',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Em breve você poderá montar e compartilhar suas listas de compras.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go(RouteNames.shoppingForm, extra: {'isEditing': false}),
+        tooltip: 'Novo item',
+        onPressed: () => context.push(
+          RouteNames.shoppingForm,
+          extra: {'isEditing': false},
+        ),
         child: const Icon(Icons.add),
       ),
     );

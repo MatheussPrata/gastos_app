@@ -29,7 +29,7 @@ class TransactionsPage extends ConsumerWidget {
               final transaction = transactions[index];
               return TransactionTile(
                 transaction: transaction,
-                onTap: () => context.go(
+                onTap: () => context.push(
                   RouteNames.transactionForm,
                   extra: {'id': transaction.id, 'isEditing': true},
                 ),
@@ -40,8 +40,11 @@ class TransactionsPage extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            context.go(RouteNames.transactionForm, extra: {'isEditing': false}),
+        tooltip: 'Nova transação',
+        onPressed: () => context.push(
+          RouteNames.transactionForm,
+          extra: {'isEditing': false},
+        ),
         child: const Icon(Icons.add),
       ),
     );

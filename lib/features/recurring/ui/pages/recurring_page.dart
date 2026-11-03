@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
-import 'package:gastos_app/core/theme/app_theme.dart';
 
 class RecurringPage extends ConsumerWidget {
   const RecurringPage({super.key});
@@ -15,7 +14,11 @@ class RecurringPage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go(RouteNames.recurringForm, extra: {'isEditing': false}),
+            tooltip: 'Nova recorrência',
+            onPressed: () => context.push(
+              RouteNames.recurringForm,
+              extra: {'isEditing': false},
+            ),
           ),
         ],
       ),
@@ -32,7 +35,11 @@ class RecurringPage extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go(RouteNames.recurringForm, extra: {'isEditing': false}),
+        tooltip: 'Nova recorrência',
+        onPressed: () => context.push(
+          RouteNames.recurringForm,
+          extra: {'isEditing': false},
+        ),
         child: const Icon(Icons.add),
       ),
     );

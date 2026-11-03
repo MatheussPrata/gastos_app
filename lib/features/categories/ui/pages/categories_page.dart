@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
-import 'package:gastos_app/core/theme/app_theme.dart';
 
 class CategoriesPage extends ConsumerWidget {
   const CategoriesPage({super.key});
@@ -15,7 +14,11 @@ class CategoriesPage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go(RouteNames.categoryForm, extra: {'isEditing': false}),
+            tooltip: 'Nova categoria',
+            onPressed: () => context.push(
+              RouteNames.categoryForm,
+              extra: {'isEditing': false},
+            ),
           ),
         ],
       ),

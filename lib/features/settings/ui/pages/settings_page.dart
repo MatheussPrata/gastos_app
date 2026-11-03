@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -24,7 +25,7 @@ class SettingsPage extends ConsumerWidget {
               leading: CircleAvatar(
                 backgroundColor: AppColors.primary,
                 child: Text(
-                  user?.username?.substring(0, 1).toUpperCase() ?? 'U',
+                  user?.username.substring(0, 1).toUpperCase() ?? 'U',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -73,7 +74,41 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
+          // Organization section
+          const Text('Organização', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.category_outlined),
+                  title: const Text('Gerenciar categorias'),
+                  subtitle: const Text('Criar, editar e organizar categorias'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(RouteNames.categories),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.receipt_long_outlined),
+                  title: const Text('Todas as transações'),
+                  subtitle: const Text('Histórico completo de lançamentos'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(RouteNames.transactions),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.repeat),
+                  title: const Text('Transações recorrentes'),
+                  subtitle: const Text('Contas fixas e assinaturas'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(RouteNames.recurring),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Data section
           const Text('Dados', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -132,6 +167,8 @@ class SettingsPage extends ConsumerWidget {
                   title: const Text('Sair', style: TextStyle(color: AppColors.primary)),
                   onTap: () async {
                     await ref.read(authControllerProvider.notifier).logout();
+                    ref.read(bottomNavIndexProvider.notifier).state =
+                        AppTab.home;
                     if (context.mounted) context.go('/login');
                   },
                 ),
