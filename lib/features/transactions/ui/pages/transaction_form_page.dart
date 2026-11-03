@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -8,8 +10,10 @@ import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
-import 'package:gastos_app/features/recurring/repository/recurring_repository.dart';
 import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
+import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
+import 'package:gastos_app/features/planning/services/notification_service.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category, RecurringTransaction;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
@@ -174,6 +178,31 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       ref.invalidate(transactionsListProvider);
       ref.invalidate(monthlyStatsProvider);
       ref.invalidate(recurringListProvider);
+
+      // Planning: refresh percentages/alerts and check thresholds in the
+      // background so the dialog can close immediately.
+      final container = ProviderScope.containerOf(context, listen: false);
+      ref
+        ..invalidate(monthPlanningProvider)
+        ..invalidate(planningProgressProvider)
+        ..invalidate(planningAlertsProvider)
+        ..invalidate(unreadAlertsProvider);
+      container
+          .read(planningRepositoryProvider)
+          .checkAndCreateAlertsInBackground(
+            month: _date,
+            onAlerts: (alerts) {
+              for (final alert in alerts) {
+                unawaited(
+                  NotificationService.instance.showBudgetAlert(alert),
+                );
+              }
+              container
+                ..invalidate(planningAlertsProvider)
+                ..invalidate(unreadAlertsProvider)
+                ..invalidate(planningProgressProvider);
+            },
+          );
 
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

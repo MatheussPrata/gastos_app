@@ -10,6 +10,7 @@ final bottomNavIndexProvider = StateProvider<int>((ref) => AppTab.home);
 abstract final class AppTab {
   static const int home = 0;
   static const int reports = 1;
-  static const int shopping = 2;
-  static const int settings = 3;
+  static const int planning = 2;
+  static const int shopping = 3;
+  static const int settings = 4;
 }

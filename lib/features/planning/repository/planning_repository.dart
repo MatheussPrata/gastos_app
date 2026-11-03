@@ -1,0 +1,515 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:uuid/uuid.dart';
+
+import 'package:gastos_app/core/api/dio_client.dart';
+import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/planning/models/planning_models.dart';
+
+final planningRepositoryProvider = Provider<PlanningRepository>((ref) {
+  return PlanningRepository();
+});
+
+/// Offline-first repository for the financial planning (budget) feature.
+class PlanningRepository {
+  final db.AppDatabase _db;
+  final FlutterSecureStorage _storage;
+  final DioClient _dioClient;
+  final Uuid _uuid;
+
+  PlanningRepository({
+    db.AppDatabase? database,
+    FlutterSecureStorage? storage,
+    DioClient? dioClient,
+    Uuid? uuid,
+  })  : _db = database ?? db.AppDatabase(),
+        _storage = storage ?? const FlutterSecureStorage(),
+        _dioClient = dioClient ?? DioClient(),
+        _uuid = uuid ?? const Uuid();
+
+  // ---------------------------------------------------------------- mapping
+
+  DateTime _normalizeMonth(DateTime month) => DateTime(month.year, month.month);
+
+  BudgetPlan _toModel(db.BudgetPlan row) {
+    return BudgetPlan(
+      id: row.id,
+      userId: row.userId,
+      month: row.month,
+      incomeMode: IncomeMode.values.firstWhere(
+        (mode) => mode.name == row.incomeMode,
+        orElse: () => IncomeMode.manual,
+      ),
+      manualIncome: row.manualIncome,
+      monthlyBudget: row.monthlyBudget,
+      categories: _decodeCategories(row.categoriesJson),
+      notifications: _decodeNotifications(row.notificationsJson),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      isSynced: row.isSynced,
+    );
+  }
+
+  db.BudgetPlansCompanion _toCompanion(BudgetPlan plan,
+      {required bool synced}) {
+    return db.BudgetPlansCompanion(
+      id: Value(plan.id),
+      userId: Value(plan.userId),
+      month: Value(_normalizeMonth(plan.month)),
+      incomeMode: Value(plan.incomeMode.name),
+      manualIncome: Value(plan.manualIncome),
+      monthlyBudget: Value(plan.monthlyBudget),
+      categoriesJson: Value(jsonEncode(
+        plan.categories.map((category) => category.toJson()).toList(),
+      )),
+      notificationsJson: Value(jsonEncode(plan.notifications.toJson())),
+      createdAt: Value(plan.createdAt),
+      updatedAt: Value(plan.updatedAt),
+      isSynced: Value(synced),
+    );
+  }
+
+  BudgetAlert _alertToModel(db.BudgetAlert row) {
+    return BudgetAlert(
+      id: row.id,
+      planId: row.planId,
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+      threshold: row.threshold,
+      spentAmount: row.spentAmount,
+      allocatedAmount: row.allocatedAmount,
+      triggeredAt: row.triggeredAt,
+      read: row.read,
+      dismissed: row.dismissed,
+      isSynced: row.isSynced,
+    );
+  }
+
+  List<CategoryBudget> _decodeCategories(String raw) {
+    if (raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(CategoryBudget.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  NotificationSettings _decodeNotifications(String raw) {
+    if (raw.trim().isEmpty) return const NotificationSettings();
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return const NotificationSettings();
+      return NotificationSettings.fromJson(decoded);
+    } catch (_) {
+      return const NotificationSettings();
+    }
+  }
+
+  // ------------------------------------------------------------------ reads
+
+  /// Returns the plan for [month], or null when it was never configured.
+  Future<BudgetPlan?> getPlanForMonth(DateTime month) async {
+    final normalized = _normalizeMonth(month);
+    final row = await (_db.select(_db.budgetPlans)
+          ..where((plan) => plan.month.equals(normalized)))
+        .getSingleOrNull();
+    return row == null ? null : _toModel(row);
+  }
+
+  /// Returns the plan for [month], creating a default one when absent.
+  ///
+  /// [categories] is used to seed the plan with every expense category at 0%.
+  /// When omitted, the locally stored categories are used.
+  Future<BudgetPlan> getOrCreatePlanForMonth(
+    DateTime month, {
+    List<Category>? categories,
+    String? userId,
+  }) async {
+    final existing = await getPlanForMonth(month);
+    if (existing != null) return existing;
+
+    final seededCategories = categories ?? await _localExpenseCategories();
+    final now = DateTime.now();
+    final plan = BudgetPlan(
+      id: _uuid.v4(),
+      userId: userId ?? await _currentUserId(),
+      month: _normalizeMonth(month),
+      categories: [
+        for (var index = 0; index < seededCategories.length; index++)
+          CategoryBudget(
+            categoryId: seededCategories[index].id,
+            categoryName: seededCategories[index].name,
+            categoryColor: seededCategories[index].color,
+            categoryIcon: seededCategories[index].icon,
+            sortOrder: index,
+          ),
+      ],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    return savePlan(plan);
+  }
+
+  /// Income actually received in [month], based on income transactions.
+  Future<double> getActualIncomeForMonth(DateTime month) async {
+    final start = _normalizeMonth(month);
+    final end = DateTime(start.year, start.month + 1);
+
+    final rows = await (_db.select(_db.transactions)
+          ..where((t) => t.isExpense.equals(false))
+          ..where((t) => t.date.isBiggerOrEqualValue(start))
+          ..where((t) => t.date.isSmallerThanValue(end)))
+        .get();
+
+    return rows.fold<double>(0, (sum, transaction) => sum + transaction.amount);
+  }
+
+  /// Income to use for [plan], honoring its [IncomeMode].
+  Future<double> resolveIncome(BudgetPlan plan) async {
+    switch (plan.incomeMode) {
+      case IncomeMode.manual:
+        return plan.manualIncome;
+      case IncomeMode.actual:
+        return getActualIncomeForMonth(plan.month);
+    }
+  }
+
+  /// Expenses of [month] grouped by category id.
+  Future<Map<String, double>> getSpentByCategory(DateTime month) async {
+    final start = _normalizeMonth(month);
+    final end = DateTime(start.year, start.month + 1);
+
+    final rows = await (_db.select(_db.transactions)
+          ..where((t) => t.isExpense.equals(true))
+          ..where((t) => t.date.isBiggerOrEqualValue(start))
+          ..where((t) => t.date.isSmallerThanValue(end)))
+        .get();
+
+    final totals = <String, double>{};
+    for (final transaction in rows) {
+      final key = transaction.categoryId ?? 'none';
+      totals[key] = (totals[key] ?? 0) + transaction.amount;
+    }
+    return totals;
+  }
+
+  /// Merged view of the plan allocation and the real spending.
+  Future<List<CategoryProgress>> getCategoryProgress(BudgetPlan plan) async {
+    final spent = await getSpentByCategory(plan.month);
+    return plan.categories
+        .where((category) => category.isActive)
+        .map(
+          (category) => CategoryProgress(
+            budget: category,
+            allocatedAmount: category.amountFor(plan.monthlyBudget),
+            spentAmount: spent[category.categoryId] ?? 0,
+            thresholds: plan.notifications.thresholds,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.progress.compareTo(a.progress));
+  }
+
+  Future<List<BudgetAlert>> getAlerts({
+    bool unreadOnly = false,
+    bool includeDismissed = false,
+  }) async {
+    final query = _db.select(_db.budgetAlerts)
+      ..orderBy([(alert) => OrderingTerm.desc(alert.triggeredAt)]);
+
+    if (unreadOnly) {
+      query.where((alert) => alert.read.equals(false));
+    }
+    if (!includeDismissed) {
+      query.where((alert) => alert.dismissed.equals(false));
+    }
+
+    final rows = await query.get();
+    return rows.map(_alertToModel).toList();
+  }
+
+  Future<int> getUnreadAlertCount() async {
+    final count = _db.budgetAlerts.id.count();
+    final query = _db.selectOnly(_db.budgetAlerts)
+      ..addColumns([count])
+      ..where(_db.budgetAlerts.read.equals(false) &
+          _db.budgetAlerts.dismissed.equals(false));
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  // ----------------------------------------------------------------- writes
+
+  /// Persists [plan]. Percentages above 100 are rejected defensively.
+  Future<BudgetPlan> savePlan(BudgetPlan plan) async {
+    if (!plan.isValid) {
+      throw ArgumentError(
+        'A soma dos percentuais não pode ultrapassar 100% '
+        '(atual: ${plan.allocatedPercentage.toStringAsFixed(1)}%).',
+      );
+    }
+
+    final now = DateTime.now();
+    final normalized = plan.copyWith(
+      month: _normalizeMonth(plan.month),
+      updatedAt: now,
+      isSynced: false,
+    );
+
+    await _db
+        .into(_db.budgetPlans)
+        .insertOnConflictUpdate(_toCompanion(normalized, synced: false));
+
+    unawaited(_syncPlan(normalized));
+
+    return normalized;
+  }
+
+  Future<void> deletePlan(String id) async {
+    await (_db.delete(_db.budgetPlans)..where((plan) => plan.id.equals(id)))
+        .go();
+    await (_db.delete(_db.budgetAlerts)
+          ..where((alert) => alert.planId.equals(id)))
+        .go();
+  }
+
+  Future<void> markAlertRead(String alertId) async {
+    await (_db.update(_db.budgetAlerts)..where((a) => a.id.equals(alertId)))
+        .write(const db.BudgetAlertsCompanion(
+      read: Value(true),
+      isSynced: Value(false),
+    ));
+  }
+
+  Future<void> dismissAlert(String alertId) async {
+    await (_db.update(_db.budgetAlerts)..where((a) => a.id.equals(alertId)))
+        .write(const db.BudgetAlertsCompanion(
+      dismissed: Value(true),
+      isSynced: Value(false),
+    ));
+  }
+
+  Future<void> markAllAlertsRead() async {
+    await _db.update(_db.budgetAlerts).write(const db.BudgetAlertsCompanion(
+          read: Value(true),
+          isSynced: Value(false),
+        ));
+  }
+
+  // ---------------------------------------------------------------- triggers
+
+  /// Checks the plan of [month] against real spending and persists new alerts.
+  ///
+  /// Returns only the alerts created by this run so callers can display them.
+  /// Alerts are deduplicated by (planId, categoryId, threshold), so a threshold
+  /// never fires twice for the same plan.
+  Future<List<BudgetAlert>> checkAndCreateAlerts({DateTime? month}) async {
+    final reference = _normalizeMonth(month ?? DateTime.now());
+    final plan = await getPlanForMonth(reference);
+    if (plan == null || !plan.notifications.enabled) return const [];
+
+    final thresholds = [...plan.notifications.thresholds]..sort();
+    if (thresholds.isEmpty) return const [];
+
+    final spentByCategory = await getSpentByCategory(reference);
+    final existing = await (_db.select(_db.budgetAlerts)
+          ..where((alert) => alert.planId.equals(plan.id)))
+        .get();
+    final alreadyFired = {
+      for (final alert in existing) '${alert.categoryId}:${alert.threshold}',
+    };
+
+    final created = <BudgetAlert>[];
+    final now = DateTime.now();
+
+    for (final category in plan.categories) {
+      if (!category.isActive || category.percentage <= 0) continue;
+
+      final allocated = category.amountFor(plan.monthlyBudget);
+      if (allocated <= 0) continue;
+
+      final spent = spentByCategory[category.categoryId] ?? 0;
+      if (spent <= 0) continue;
+
+      final progressPercent = spent / allocated * 100;
+
+      for (final threshold in thresholds) {
+        if (progressPercent < threshold) continue;
+        if (alreadyFired.contains('${category.categoryId}:$threshold')) {
+          continue;
+        }
+
+        final alert = BudgetAlert(
+          id: _uuid.v4(),
+          planId: plan.id,
+          categoryId: category.categoryId,
+          categoryName: category.categoryName,
+          threshold: threshold,
+          spentAmount: spent,
+          allocatedAmount: allocated,
+          triggeredAt: now,
+        );
+
+        await _db.into(_db.budgetAlerts).insert(
+              db.BudgetAlertsCompanion(
+                id: Value(alert.id),
+                planId: Value(alert.planId),
+                categoryId: Value(alert.categoryId),
+                categoryName: Value(alert.categoryName),
+                threshold: Value(alert.threshold),
+                spentAmount: Value(alert.spentAmount),
+                allocatedAmount: Value(alert.allocatedAmount),
+                triggeredAt: Value(alert.triggeredAt),
+                read: Value(alert.read),
+                dismissed: Value(alert.dismissed),
+                isSynced: const Value(false),
+              ),
+            );
+
+        alreadyFired.add('${category.categoryId}:$threshold');
+        created.add(alert);
+      }
+    }
+
+    if (created.isNotEmpty) {
+      unawaited(_syncAlerts(created));
+    }
+
+    return created;
+  }
+
+  /// Fire-and-forget variant used by transaction flows so the UI never waits
+  /// for the check before dismissing a dialog/route.
+  void checkAndCreateAlertsInBackground({
+    DateTime? month,
+    void Function(List<BudgetAlert> alerts)? onAlerts,
+  }) {
+    unawaited(() async {
+      try {
+        final created = await checkAndCreateAlerts(month: month);
+        if (created.isNotEmpty) onAlerts?.call(created);
+      } catch (_) {
+        // Never surface background planning errors to the caller.
+      }
+    }());
+  }
+
+  // ------------------------------------------------------------------- sync
+
+  Future<void> _syncPlan(BudgetPlan plan) async {
+    if (await _isGuestMode()) return;
+    try {
+      final response = await _dioClient.dio.post(
+        ApiEndpoints.sync,
+        data: {
+          'budgetPlans': [_planToSyncJson(plan)]
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await (_db.update(_db.budgetPlans)
+              ..where((row) => row.id.equals(plan.id)))
+            .write(const db.BudgetPlansCompanion(isSynced: Value(true)));
+      }
+    } catch (_) {
+      // Offline: keep isSynced = false and retry later.
+    }
+  }
+
+  Future<void> _syncAlerts(List<BudgetAlert> alerts) async {
+    if (await _isGuestMode()) return;
+    try {
+      final response = await _dioClient.dio.post(
+        ApiEndpoints.sync,
+        data: {
+          'budgetAlerts': alerts.map(_alertToSyncJson).toList(),
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        for (final alert in alerts) {
+          await (_db.update(_db.budgetAlerts)
+                ..where((row) => row.id.equals(alert.id)))
+              .write(const db.BudgetAlertsCompanion(isSynced: Value(true)));
+        }
+      }
+    } catch (_) {
+      // Offline: keep isSynced = false and retry later.
+    }
+  }
+
+  Map<String, dynamic> _planToSyncJson(BudgetPlan plan) => {
+        'id': plan.id,
+        'userId': plan.userId,
+        'month': plan.month.toIso8601String(),
+        'incomeMode': plan.incomeMode.name,
+        'manualIncome': plan.manualIncome,
+        'monthlyBudget': plan.monthlyBudget,
+        'categories': plan.categories.map((c) => c.toJson()).toList(),
+        'notifications': plan.notifications.toJson(),
+        'createdAt': plan.createdAt.toIso8601String(),
+        'updatedAt': plan.updatedAt.toIso8601String(),
+      };
+
+  Map<String, dynamic> _alertToSyncJson(BudgetAlert alert) => {
+        'id': alert.id,
+        'planId': alert.planId,
+        'categoryId': alert.categoryId,
+        'categoryName': alert.categoryName,
+        'threshold': alert.threshold,
+        'spentAmount': alert.spentAmount,
+        'allocatedAmount': alert.allocatedAmount,
+        'triggeredAt': alert.triggeredAt.toIso8601String(),
+        'read': alert.read,
+        'dismissed': alert.dismissed,
+      };
+
+  Future<bool> _isGuestMode() async {
+    try {
+      return await _storage.read(key: StorageKeys.isGuestMode) == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------- helpers
+
+  Future<String> _currentUserId() async {
+    try {
+      return await _storage.read(key: StorageKeys.userId) ?? 'local';
+    } catch (_) {
+      return 'local';
+    }
+  }
+
+  Future<List<Category>> _localExpenseCategories() async {
+    final rows = await (_db.select(_db.categories)
+          ..where((category) => category.isExpenseDefault.equals(true))
+          ..orderBy([(category) => OrderingTerm.asc(category.sortOrder)]))
+        .get();
+
+    return rows
+        .map(
+          (row) => Category(
+            id: row.id,
+            name: row.name,
+            color: row.color,
+            icon: row.icon,
+            isDefault: row.isDefault,
+            isExpenseDefault: row.isExpenseDefault,
+            sortOrder: row.sortOrder,
+          ),
+        )
+        .toList();
+  }
+}

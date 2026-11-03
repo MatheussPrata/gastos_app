@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_app/core/api/api_providers.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
-import 'package:go_router/go_router.dart';
+import 'package:gastos_app/features/planning/services/notification_service.dart';
 
 /// App entry point
 void main() async {
@@ -13,6 +12,9 @@ void main() async {
 
   // Initialize Dio client
   DioClient().init(baseUrl: ApiEndpoints.baseUrl);
+
+  // Configure budget alert notifications (asks permission on Android 13+).
+  await NotificationService.instance.initialize();
 
   // Initialize database (optional - can be lazy)
   // AppDatabase(); // Singleton, will initialize on first access

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
+import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:gastos_app/features/transactions/ui/widgets/transaction_tile.dart';
@@ -71,10 +73,23 @@ class TransactionsPage extends ConsumerWidget {
     );
 
     if (confirmed == true) {
-      await ref.read(transactionsRepositoryProvider).deleteTransaction(transaction.id);
+      await ref
+          .read(transactionsRepositoryProvider)
+          .deleteTransaction(transaction.id);
       ref.invalidate(transactionsListProvider);
       ref.invalidate(monthTransactionsProvider);
       ref.invalidate(monthlyStatsProvider);
+
+      // Deleting changes the real spending, so refresh planning and re-check
+      // thresholds without blocking the list update.
+      ref
+        ..invalidate(monthPlanningProvider)
+        ..invalidate(planningProgressProvider)
+        ..invalidate(planningAlertsProvider)
+        ..invalidate(unreadAlertsProvider);
+      ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
+            month: transaction.date,
+          );
     }
   }
 }
