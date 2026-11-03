@@ -102,6 +102,28 @@ ThemeData get lightTheme {
       unselectedItemColor: Colors.grey,
       elevation: 8,
     ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 72,
+      elevation: 3,
+      backgroundColor: Colors.white,
+      indicatorColor: const Color(0x261E88E5),
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          size: 26,
+          color: selected ? AppColors.primary : Colors.grey.shade600,
+        );
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          color: selected ? AppColors.primary : Colors.grey.shade600,
+        );
+      }),
+    ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
@@ -209,6 +231,28 @@ ThemeData get darkTheme {
       unselectedItemColor: Colors.grey.shade400,
       elevation: 8,
       backgroundColor: Colors.grey.shade900,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 72,
+      elevation: 3,
+      backgroundColor: Colors.grey.shade900,
+      indicatorColor: const Color(0x331E88E5),
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          size: 26,
+          color: selected ? AppColors.primary : Colors.grey.shade400,
+        );
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          color: selected ? AppColors.primary : Colors.grey.shade400,
+        );
+      }),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppColors.primary,

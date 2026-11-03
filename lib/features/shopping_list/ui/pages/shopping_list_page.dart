@@ -12,7 +12,11 @@ import 'package:gastos_app/features/shopping_list/ui/widgets/price_comparator_sh
 /// Tela principal da lista de compras com planejamento de preco e comparador
 /// de custo-beneficio entre embalagens.
 class ShoppingListPage extends ConsumerWidget {
-  const ShoppingListPage({super.key});
+  const ShoppingListPage({super.key, this.showBackButton = true});
+
+  /// Quando a tela e usada como aba da navegacao principal, o botao de voltar
+  /// da AppBar e desnecessario.
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,17 +25,20 @@ class ShoppingListPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Voltar',
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(RouteNames.dashboard);
-            }
-          },
-        ),
+        automaticallyImplyLeading: false,
+        leading: showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Voltar',
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(RouteNames.dashboard);
+                  }
+                },
+              )
+            : null,
         title: const Text('Lista de Compras'),
         actions: [
           IconButton(

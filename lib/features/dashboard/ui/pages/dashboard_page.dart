@@ -5,6 +5,7 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:gastos_app/features/transactions/ui/widgets/transaction_tile.dart';
@@ -30,11 +31,16 @@ class DashboardPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.shopping_cart_outlined),
             tooltip: 'Lista de compras',
-            onPressed: () => context.go(RouteNames.shoppingList),
+            onPressed: () {
+              ref.read(bottomNavIndexProvider.notifier).state = AppTab.shopping;
+            },
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.go(RouteNames.settings),
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Configurações',
+            onPressed: () {
+              ref.read(bottomNavIndexProvider.notifier).state = AppTab.settings;
+            },
           ),
         ],
       ),
@@ -48,8 +54,11 @@ class DashboardPage extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            context.go(RouteNames.transactionForm, extra: {'isEditing': false}),
+        tooltip: 'Nova transação',
+        onPressed: () => context.push(
+          RouteNames.transactionForm,
+          extra: {'isEditing': false},
+        ),
         child: const Icon(Icons.add),
       ),
     );
@@ -194,7 +203,7 @@ class DashboardPage extends ConsumerWidget {
             final transaction = transactions[index];
             return TransactionTile(
               transaction: transaction,
-              onTap: () => context.go(
+              onTap: () => context.push(
                 RouteNames.transactionForm,
                 extra: {'id': transaction.id, 'isEditing': true},
               ),
