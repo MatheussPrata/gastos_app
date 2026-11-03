@@ -154,6 +154,9 @@ class BudgetPlans extends Table {
   /// Reference month, normalized to the first day (local time).
   DateTimeColumn get month => dateTime()();
 
+  /// 'individual' or 'couple' (see BudgetScope in planning_models.dart).
+  TextColumn get scope => text().withDefault(const Constant('individual'))();
+
   /// 'manual' or 'actual' (see IncomeMode in planning_models.dart).
   TextColumn get incomeMode => text().withDefault(const Constant('manual'))();
   RealColumn get manualIncome => real().withDefault(const Constant(0.0))();
@@ -180,6 +183,7 @@ class BudgetAlerts extends Table {
   TextColumn get planId => text()();
   TextColumn get categoryId => text()();
   TextColumn get categoryName => text()();
+  TextColumn get scope => text().withDefault(const Constant('individual'))();
   IntColumn get threshold => integer()();
   RealColumn get spentAmount => real()();
   RealColumn get allocatedAmount => real()();
@@ -255,7 +259,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -272,6 +276,11 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(budgetPlans);
             await m.createTable(budgetAlerts);
           }
+      if (from < 4) {
+        // Existing plans/alerts become individual by default.
+        await m.addColumn(budgetPlans, budgetPlans.scope);
+        await m.addColumn(budgetAlerts, budgetAlerts.scope);
+      }
         },
       );
 

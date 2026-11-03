@@ -6,6 +6,7 @@ import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/categories/utils/category_icons.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/ui/widgets/category_budget_dialog.dart';
 import 'package:gastos_app/features/planning/ui/widgets/notification_settings_dialog.dart';
 
 /// Full-screen editor for the monthly budget plan.
@@ -115,11 +116,32 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
     }
   }
 
+  Future<void> _editCategory(CategoryBudget category) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => CategoryBudgetDialog(
+        plan: _draft,
+        category: category,
+        onSave: (percentage) async {
+          setState(() {
+            _draft = _draft.upsertCategory(
+              category.copyWith(percentage: percentage),
+            );
+          });
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Configurar orçamento'),
+        title: Text(
+          widget.plan.scope == BudgetScope.couple
+              ? 'Orçamento do casal'
+              : 'Orçamento individual',
+        ),
         actions: [
           IconButton(
             tooltip: 'Alertas de limite',
@@ -207,6 +229,7 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
                     category.copyWith(percentage: value),
                   );
                 }),
+                onEdit: () => _editCategory(category),
               ),
             if (_draft.categories.isEmpty)
               Padding(
@@ -261,8 +284,11 @@ class _ActualIncomePreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final month = ref.watch(selectedPlanMonthProvider);
+    final scope = ref.watch(selectedBudgetScopeProvider);
     final incomeAsync = ref.watch(
-      actualIncomeForMonthProvider(DateTime(month.year, month.month)),
+      actualIncomeForMonthProvider(
+        (month: DateTime(month.year, month.month), scope: scope),
+      ),
     );
 
     return Container(
@@ -372,12 +398,14 @@ class _CategorySliderTile extends StatelessWidget {
     required this.monthlyBudget,
     required this.maxPercentage,
     required this.onChanged,
+    required this.onEdit,
   });
 
   final CategoryBudget category;
   final double monthlyBudget;
   final double maxPercentage;
   final ValueChanged<double> onChanged;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -391,43 +419,63 @@ class _CategorySliderTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: color.withOpacity(0.16),
-                child: Icon(
-                  categoryIcon(category.categoryIcon),
-                  size: 16,
-                  color: color,
+          InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: color.withOpacity(0.16),
+                  child: Icon(
+                    categoryIcon(category.categoryIcon),
+                    size: 16,
+                    color: color,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  category.categoryName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    category.categoryName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ),
-              ),
-              Text(
-                '${value.toStringAsFixed(0)}%',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ],
+                Icon(Icons.edit_outlined, size: 15, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  '${value.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
           ),
           Row(
             children: [
               Expanded(
-                child: Slider(
-                  value: value,
-                  max: maxPercentage <= 0 ? 1 : maxPercentage,
-                  divisions: maxPercentage <= 0
-                      ? null
-                      : maxPercentage.round().clamp(1, 100),
-                  label: '${value.toStringAsFixed(0)}%',
-                  onChanged: maxPercentage <= 0 ? null : onChanged,
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: color,
+                    inactiveTrackColor: color.withOpacity(0.18),
+                    thumbColor: color,
+                    overlayColor: color.withOpacity(0.12),
+                    valueIndicatorColor: color,
+                    valueIndicatorTextStyle:
+                        const TextStyle(color: Colors.white),
+                  ),
+                  child: Slider(
+                    value: value,
+                    max: maxPercentage <= 0 ? 1 : maxPercentage,
+                    divisions: maxPercentage <= 0
+                        ? null
+                        : maxPercentage.round().clamp(1, 100),
+                    label: '${value.toStringAsFixed(0)}%',
+                    onChanged: maxPercentage <= 0 ? null : onChanged,
+                  ),
                 ),
               ),
               SizedBox(

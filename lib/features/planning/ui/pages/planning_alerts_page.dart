@@ -134,6 +134,7 @@ class _AlertTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(
+        '${alert.scope == BudgetScope.couple ? 'Casal' : 'Individual'} • '
         '${CurrencyFormatter.format(alert.spentAmount)} de '
         '${CurrencyFormatter.format(alert.allocatedAmount)} • '
         '${DateFormatter.formatDateTime(alert.triggeredAt)}',

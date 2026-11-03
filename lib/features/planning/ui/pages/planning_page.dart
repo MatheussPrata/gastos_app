@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
+import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/utils/category_icons.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
@@ -11,6 +12,7 @@ import 'package:gastos_app/features/planning/ui/pages/planning_alerts_page.dart'
 import 'package:gastos_app/features/planning/ui/planning_ui_helpers.dart';
 import 'package:gastos_app/features/planning/ui/widgets/category_budget_dialog.dart';
 import 'package:gastos_app/features/planning/ui/widgets/notification_settings_dialog.dart';
+import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
 
 /// Planning tab: monthly budget, per-category progress and alerts.
 class PlanningPage extends ConsumerWidget {
@@ -55,9 +57,11 @@ class PlanningPage extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 24),
               children: [
+                const _ScopeSelector(),
                 const _PlanMonthSelector(),
                 if (isEmpty)
                   _EmptyPlanning(
+                    scope: plan.scope,
                     onStart: () => _openSetup(context, plan),
                   )
                 else ...[
@@ -105,6 +109,39 @@ class _AlertsButton extends ConsumerWidget {
       ),
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const PlanningAlertsPage()),
+      ),
+    );
+  }
+}
+
+class _ScopeSelector extends ConsumerWidget {
+  const _ScopeSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(selectedBudgetScopeProvider);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SegmentedButton<BudgetScope>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(
+            value: BudgetScope.individual,
+            icon: Icon(Icons.person_outline),
+            label: Text('Individual'),
+          ),
+          ButtonSegment(
+            value: BudgetScope.couple,
+            icon: Icon(Icons.people_outline),
+            label: Text('Casal'),
+          ),
+        ],
+        selected: {scope},
+        onSelectionChanged: (selection) {
+          ref.read(selectedBudgetScopeProvider.notifier).state =
+              selection.first;
+        },
       ),
     );
   }
@@ -279,7 +316,7 @@ class _BudgetOverviewCard extends ConsumerWidget {
               children: [
                 Expanded(
                   child: _OverviewMetric(
-                    label: 'Renda do mês',
+                    label: 'Entradas do mês',
                     value: incomeAsync.isLoading
                         ? '...'
                         : CurrencyFormatter.format(income),
@@ -294,9 +331,109 @@ class _BudgetOverviewCard extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _IncomeBreakdown(plan: plan),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _IncomeBreakdown extends ConsumerWidget {
+  const _IncomeBreakdown({required this.plan});
+
+  final BudgetPlan plan;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (plan.incomeMode == IncomeMode.manual) {
+      return Text(
+        'Renda informada manualmente: '
+        '${CurrencyFormatter.format(plan.manualIncome)}',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+      );
+    }
+
+    final incomeAsync = ref.watch(incomeAttributionProvider);
+    final currentUser = ref.watch(currentUserProvider);
+    final connection = ref.watch(sharingConnectionProvider).valueOrNull;
+
+    String labelFor(String userId) {
+      if (plan.scope == BudgetScope.individual) {
+        final name = currentUser?.username;
+        return name == null || name.isEmpty ? 'Eu' : 'Eu ($name)';
+      }
+      if (userId == currentUser?.id) {
+        final name = currentUser?.username;
+        return name == null || name.isEmpty ? 'Eu' : 'Eu ($name)';
+      }
+      if (userId == connection?.partnerUserId) {
+        return connection?.partnerUsername ?? 'Parceiro';
+      }
+      return 'Outro';
+    }
+
+    return incomeAsync.when(
+      loading: () => const SizedBox(
+        height: 18,
+        width: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      error: (_, __) => Text(
+        'Não foi possível carregar as entradas.',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+      ),
+      data: (items) {
+        if (items.isEmpty) {
+          return Text(
+            'Nenhuma entrada registrada no mês.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Entradas por pessoa',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            for (final item in items)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.arrow_upward,
+                      size: 14,
+                      color: AppColors.secondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        labelFor(item.userId),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    Text(
+                      CurrencyFormatter.format(item.amount),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -597,8 +734,9 @@ class _SettingsTile extends ConsumerWidget {
 }
 
 class _EmptyPlanning extends StatelessWidget {
-  const _EmptyPlanning({required this.onStart});
+  const _EmptyPlanning({required this.scope, required this.onStart});
 
+  final BudgetScope scope;
   final VoidCallback onStart;
 
   @override
@@ -614,7 +752,9 @@ class _EmptyPlanning extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Planeje seu mês',
+            scope == BudgetScope.couple
+                ? 'Planeje o mês do casal'
+                : 'Planeje seu mês',
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -622,8 +762,12 @@ class _EmptyPlanning extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Defina quanto quer gastar no mês e distribua percentuais por '
-            'categoria. Você recebe um alerta ao chegar no limite.',
+            scope == BudgetScope.couple
+                ? 'Defina o orçamento compartilhado e distribua percentuais '
+                    'por categoria. As entradas e gastos dos dois entram na '
+                    'conta, com alerta ao chegar no limite.'
+                : 'Defina quanto quer gastar no mês e distribua percentuais '
+                    'por categoria. Você recebe um alerta ao chegar no limite.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade600, height: 1.4),
           ),

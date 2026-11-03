@@ -44,13 +44,23 @@ void main() {
   setUpAll(() {
     registerFallbackValue(plan);
     registerFallbackValue(DateTime(2026, 1, 1));
+    registerFallbackValue(BudgetScope.individual);
   });
 
   setUp(() {
     repository = _MockPlanningRepository();
-    when(() => repository.getOrCreatePlanForMonth(any()))
-        .thenAnswer((_) async => plan);
-    when(() => repository.getSpentByCategory(any())).thenAnswer(
+    when(
+      () => repository.getOrCreatePlanForMonth(
+        any(),
+        scope: any(named: 'scope'),
+      ),
+    ).thenAnswer((_) async => plan);
+    when(
+      () => repository.getSpentByCategory(
+        any(),
+        scope: any(named: 'scope'),
+      ),
+    ).thenAnswer(
       (_) async => {'a': 150.0, 'b': 250.0},
     );
     when(() => repository.getCategoryProgress(any())).thenAnswer(
@@ -102,15 +112,36 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Moradia'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Moradia'));
     await tester.pumpAndSettle();
 
     expect(find.text('Salvar'), findsOneWidget);
-    expect(
-        find.textContaining('disponível para esta categoria'), findsOneWidget);
+    expect(find.textContaining('Máximo'), findsWidgets);
 
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(find.text('Salvar'), findsNothing);
+  });
+
+  testWidgets('permite digitar o valor em reais', (tester) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Moradia'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Moradia'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('R\$'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'R\$ 90,00');
+    await tester.pumpAndSettle();
+
+    // R$ 90 de R$ 1.000 = 9%.
+    expect(find.text('9%'), findsWidgets);
+    expect(find.textContaining('90,00'), findsWidgets);
   });
 }

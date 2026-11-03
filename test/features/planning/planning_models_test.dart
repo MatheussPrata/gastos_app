@@ -161,4 +161,52 @@ void main() {
       expect(settings.enabled, isTrue);
     });
   });
+
+  group('mergeRemote', () {
+    BudgetPlan plan({
+      required DateTime updatedAt,
+      double budget = 1000,
+    }) {
+      return BudgetPlan(
+        id: 'local-plan',
+        userId: 'user-1',
+        month: DateTime(2026, 11, 1),
+        monthlyBudget: budget,
+        createdAt: DateTime(2026, 11, 1),
+        updatedAt: updatedAt,
+      );
+    }
+
+    test('remote mais novo sobrescreve mantendo id e marca sincronizado', () {
+      final local = plan(updatedAt: DateTime(2026, 11, 1));
+      final remote = plan(
+        updatedAt: DateTime(2026, 11, 2),
+        budget: 1500,
+      );
+
+      final merged = local.mergeRemote(remote);
+
+      expect(merged.id, local.id);
+      expect(merged.monthlyBudget, 1500);
+      expect(merged.updatedAt, remote.updatedAt);
+      expect(merged.isSynced, isTrue);
+    });
+
+    test('local mais novo prevalece e mantém o estado de sync', () {
+      final local = plan(
+        updatedAt: DateTime(2026, 11, 3),
+        budget: 2000,
+      );
+      final remote = plan(
+        updatedAt: DateTime(2026, 11, 2),
+        budget: 1500,
+      );
+
+      final merged = local.mergeRemote(remote);
+
+      expect(merged.monthlyBudget, 2000);
+      expect(merged.updatedAt, local.updatedAt);
+      expect(merged.isSynced, local.isSynced);
+    });
+  });
 }

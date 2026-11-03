@@ -12,6 +12,15 @@ enum IncomeMode {
   actual,
 }
 
+/// Who the budget plan belongs to.
+enum BudgetScope {
+  /// Only the signed-in user's expenses and income.
+  individual,
+
+  /// The couple's shared budget, including the partner's transactions.
+  couple,
+}
+
 /// Monthly financial plan: how much to spend and how it is split per category.
 ///
 /// Percentages are intentionally allowed to sum to **less than** 100%; the
@@ -24,6 +33,9 @@ class BudgetPlan with _$BudgetPlan {
 
     /// Reference month, always normalized to the first day at 00:00.
     required DateTime month,
+
+    /// Whether this is the individual or the couple budget.
+    @Default(BudgetScope.individual) BudgetScope scope,
 
     /// Whether income comes from a manual value or from real transactions.
     @Default(IncomeMode.manual) IncomeMode incomeMode,
@@ -90,6 +102,23 @@ class BudgetPlan with _$BudgetPlan {
     }
     return copyWith(categories: updated);
   }
+
+  /// Merges a plan downloaded from the server using last-write-wins.
+  ///
+  /// Returns `this` when the local plan is newer, keeping its local id and
+  /// sync flag. Otherwise returns the remote values with [isSynced] set.
+  BudgetPlan mergeRemote(BudgetPlan remote) {
+    if (updatedAt.isAfter(remote.updatedAt)) return this;
+    return copyWith(
+      incomeMode: remote.incomeMode,
+      manualIncome: remote.manualIncome,
+      monthlyBudget: remote.monthlyBudget,
+      categories: remote.categories,
+      notifications: remote.notifications,
+      updatedAt: remote.updatedAt,
+      isSynced: true,
+    );
+  }
 }
 
 /// Budget assigned to a single category.
@@ -145,6 +174,9 @@ class BudgetAlert with _$BudgetAlert {
     required String planId,
     required String categoryId,
     required String categoryName,
+
+    /// Whether the alert came from the individual or the couple budget.
+    @Default(BudgetScope.individual) BudgetScope scope,
 
     /// Percentage threshold that was reached (80, 90, 100...).
     required int threshold,
@@ -217,4 +249,15 @@ class CategoryProgress {
 
   /// Whether at least one configured alert threshold was reached.
   bool get isAlert => triggeredThreshold != null;
+}
+
+/// Income received by one person in a given month.
+class IncomeAttribution {
+  const IncomeAttribution({
+    required this.userId,
+    required this.amount,
+  });
+
+  final String userId;
+  final double amount;
 }

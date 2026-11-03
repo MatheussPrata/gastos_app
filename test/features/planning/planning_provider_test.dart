@@ -25,6 +25,7 @@ CategoryBudget _category(
 
 BudgetPlan _plan({
   DateTime? month,
+  BudgetScope scope = BudgetScope.individual,
   IncomeMode incomeMode = IncomeMode.manual,
   double manualIncome = 5000,
   double monthlyBudget = 1000,
@@ -35,6 +36,7 @@ BudgetPlan _plan({
     id: 'plan-1',
     userId: 'user-1',
     month: month ?? _month,
+    scope: scope,
     incomeMode: incomeMode,
     manualIncome: manualIncome,
     monthlyBudget: monthlyBudget,
@@ -76,12 +78,20 @@ void main() {
   setUpAll(() {
     registerFallbackValue(_plan());
     registerFallbackValue(DateTime(2026, 1, 1));
+    registerFallbackValue(BudgetScope.individual);
   });
 
   setUp(() {
     repository = _MockPlanningRepository();
-    when(() => repository.getOrCreatePlanForMonth(any()))
-        .thenAnswer((_) async => _plan());
+    when(
+      () => repository.getOrCreatePlanForMonth(
+        any(),
+        scope: any(named: 'scope'),
+      ),
+    ).thenAnswer((invocation) async {
+      final scope = invocation.namedArguments[#scope] as BudgetScope;
+      return _plan(scope: scope);
+    });
     when(() => repository.savePlan(any())).thenAnswer(
       (invocation) async => invocation.positionalArguments.first as BudgetPlan,
     );
@@ -117,8 +127,12 @@ void main() {
       expect(plan.month, _month);
       expect(
           container.read(monthPlanningProvider), isA<AsyncData<BudgetPlan?>>());
-      verify(() => repository.getOrCreatePlanForMonth(_month))
-          .called(greaterThan(0));
+      verify(
+        () => repository.getOrCreatePlanForMonth(
+          _month,
+          scope: BudgetScope.individual,
+        ),
+      ).called(greaterThan(0));
     });
 
     test('alterna o modo de renda e persiste', () async {
@@ -171,7 +185,12 @@ void main() {
     });
 
     test('percentual é limitado ao intervalo 0..100', () async {
-      when(() => repository.getOrCreatePlanForMonth(any())).thenAnswer(
+      when(
+        () => repository.getOrCreatePlanForMonth(
+          any(),
+          scope: any(named: 'scope'),
+        ),
+      ).thenAnswer(
         (_) async => _plan(categories: [_category('a', 30)]),
       );
       await loadPlan();
@@ -198,7 +217,12 @@ void main() {
     });
 
     test('rejeita soma acima de 100% sem alterar o estado', () async {
-      when(() => repository.getOrCreatePlanForMonth(any())).thenAnswer(
+      when(
+        () => repository.getOrCreatePlanForMonth(
+          any(),
+          scope: any(named: 'scope'),
+        ),
+      ).thenAnswer(
         (_) async => _plan(
           categories: [_category('a', 60), _category('b', 30)],
         ),
@@ -250,8 +274,59 @@ void main() {
       await container.read(monthPlanningProvider.notifier).load();
 
       verify(
-        () => repository.getOrCreatePlanForMonth(DateTime(2026, 12)),
+        () => repository.getOrCreatePlanForMonth(
+          DateTime(2026, 12),
+          scope: BudgetScope.individual,
+        ),
       ).called(greaterThan(0));
+    });
+
+    test('carrega o plano do casal ao trocar o escopo', () async {
+      await loadPlan();
+
+      container.read(selectedBudgetScopeProvider.notifier).state =
+          BudgetScope.couple;
+      await container.read(monthPlanningProvider.notifier).load();
+
+      final plan = container.read(monthPlanningProvider).valueOrNull!;
+      expect(plan.scope, BudgetScope.couple);
+      verify(
+        () => repository.getOrCreatePlanForMonth(
+          any(),
+          scope: BudgetScope.couple,
+        ),
+      ).called(greaterThan(0));
+    });
+  });
+
+  group('incomeAttributionProvider', () {
+    test('separa as entradas por pessoa no modo automático', () async {
+      when(
+        () => repository.getOrCreatePlanForMonth(
+          any(),
+          scope: any(named: 'scope'),
+        ),
+      ).thenAnswer(
+        (_) async => _plan(incomeMode: IncomeMode.actual),
+      );
+      when(
+        () => repository.getIncomeByOwnerForMonth(
+          any(),
+          scope: any(named: 'scope'),
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          IncomeAttribution(userId: 'user-1', amount: 5000),
+          IncomeAttribution(userId: 'partner-1', amount: 3000),
+        ],
+      );
+
+      await loadPlan();
+      final income = await container.read(incomeAttributionProvider.future);
+
+      expect(income, hasLength(2));
+      expect(income.first.userId, 'user-1');
+      expect(income.first.amount, 5000);
     });
   });
 
@@ -297,7 +372,12 @@ void main() {
     });
 
     test('retorna lista vazia quando o plano não tem categorias', () async {
-      when(() => repository.getOrCreatePlanForMonth(any())).thenAnswer(
+      when(
+        () => repository.getOrCreatePlanForMonth(
+          any(),
+          scope: any(named: 'scope'),
+        ),
+      ).thenAnswer(
         (_) async => _plan(categories: const <CategoryBudget>[]),
       );
       await loadPlan();

@@ -5,9 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:gastos_app/features/auth/models/auth_models.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/planning/models/planning_models.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/sharing/models/sharing_models.dart';
 import 'package:gastos_app/features/sharing/repository/sharing_repository.dart';
 import 'package:gastos_app/features/sharing/ui/pages/sharing_page.dart';
+import 'package:mocktail/mocktail.dart';
+
+class FakePlanningRepository extends Mock implements PlanningRepository {}
 
 class FakeSharingRepository extends SharingRepository {
   FakeSharingRepository({this.connection});
@@ -61,7 +66,7 @@ class FakeSharingRepository extends SharingRepository {
   }
 
   @override
-  Future<SharingSyncResult> syncNow() async {
+  Future<SharingSyncResult> syncNow({DateTime? planMonth}) async {
     if (connection == null) return const SharingSyncResult();
     return SharingSyncResult(
       partnerUsername: connection!.partnerUsername,
@@ -80,9 +85,18 @@ User _user() => User(
     );
 
 Widget _wrap(SharingRepository repository) {
+  final planning = FakePlanningRepository();
+  when(
+    () => planning.checkAndCreateAlerts(
+      month: any(named: 'month'),
+      scope: any(named: 'scope'),
+    ),
+  ).thenAnswer((_) async => const <BudgetAlert>[]);
+
   return ProviderScope(
     overrides: [
       sharingRepositoryProvider.overrideWithValue(repository),
+      planningRepositoryProvider.overrideWithValue(planning),
       currentUserProvider.overrideWithValue(_user()),
     ],
     child: const MaterialApp(home: SharingPage()),
@@ -90,6 +104,10 @@ Widget _wrap(SharingRepository repository) {
 }
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(BudgetScope.individual);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
