@@ -50,7 +50,8 @@ class ShoppingListPage extends ConsumerWidget {
       ),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorView(onRetry: () => ref.read(shoppingListProvider.notifier).loadItems()),
+        error: (e, _) => _ErrorView(
+            onRetry: () => ref.read(shoppingListProvider.notifier).loadItems()),
         data: (items) {
           if (items.isEmpty) {
             return _EmptyView(onAdd: () => _openForm(context));
@@ -76,10 +77,13 @@ class ShoppingListPage extends ConsumerWidget {
               else
                 ...pending.map((item) => _ItemTile(
                       item: item,
-                      onToggle: () =>
-                          ref.read(shoppingListProvider.notifier).togglePurchased(item.id),
+                      onToggle: () => ref
+                          .read(shoppingListProvider.notifier)
+                          .togglePurchased(item.id),
                       onEdit: () => _openForm(context, item: item),
-                      onDelete: () => ref.read(shoppingListProvider.notifier).deleteItem(item.id),
+                      onDelete: () => ref
+                          .read(shoppingListProvider.notifier)
+                          .deleteItem(item.id),
                       onSetPrice: () => _promptActualPrice(context, ref, item),
                     )),
               const SizedBox(height: 24),
@@ -92,10 +96,13 @@ class ShoppingListPage extends ConsumerWidget {
               else
                 ...purchased.map((item) => _ItemTile(
                       item: item,
-                      onToggle: () =>
-                          ref.read(shoppingListProvider.notifier).togglePurchased(item.id),
+                      onToggle: () => ref
+                          .read(shoppingListProvider.notifier)
+                          .togglePurchased(item.id),
                       onEdit: () => _openForm(context, item: item),
-                      onDelete: () => ref.read(shoppingListProvider.notifier).deleteItem(item.id),
+                      onDelete: () => ref
+                          .read(shoppingListProvider.notifier)
+                          .deleteItem(item.id),
                       onSetPrice: () => _promptActualPrice(context, ref, item),
                     )),
             ],
@@ -169,7 +176,9 @@ class ShoppingListPage extends ConsumerWidget {
     );
 
     if (price != null) {
-      await ref.read(shoppingListProvider.notifier).setActualPrice(item.id, price);
+      await ref
+          .read(shoppingListProvider.notifier)
+          .setActualPrice(item.id, price);
     }
   }
 }
@@ -327,7 +336,7 @@ class _ItemTile extends StatelessWidget {
                 )
               : theme.textTheme.bodyLarge,
         ),
-        subtitle: Text(_quantityUnit(item)),
+        subtitle: Text(_subtitle(item)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -360,11 +369,18 @@ class _ItemTile extends StatelessWidget {
 
   String _quantityUnit(ShoppingItem item) {
     final qty = item.quantity;
-    final qtyText = qty == qty.roundToDouble()
-        ? qty.toInt().toString()
-        : qty.toString();
+    final qtyText =
+        qty == qty.roundToDouble() ? qty.toInt().toString() : qty.toString();
     final unit = item.unit ?? 'un';
     return qtyText + ' ' + unit;
+  }
+
+  String _subtitle(ShoppingItem item) {
+    final parts = <String>[_quantityUnit(item)];
+    if (item.category != null && item.category!.isNotEmpty) {
+      parts.add(item.category!);
+    }
+    return parts.join(' • ');
   }
 }
 

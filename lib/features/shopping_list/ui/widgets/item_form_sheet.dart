@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
+import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/shopping_list/data/models/shopping_item.dart';
 import 'package:gastos_app/features/shopping_list/provider/shopping_list_provider.dart';
 
@@ -22,6 +25,16 @@ Future<void> showItemFormSheet(
     ),
   );
 }
+
+const List<int> _newCategoryColors = [
+  0xFFFF6B6B,
+  0xFF4ECDC4,
+  0xFFFFB347,
+  0xFF6BCB77,
+  0xFFFF8E8E,
+  0xFFA8E6CF,
+  0xFFB8B8B8,
+];
 
 class ItemFormSheet extends ConsumerStatefulWidget {
   const ItemFormSheet({
@@ -44,7 +57,7 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _quantityController;
   late final TextEditingController _priceController;
-  late final TextEditingController _categoryController;
+  String? _categoryName;
   String _unit = 'un';
   bool _saving = false;
 
@@ -66,7 +79,7 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     _priceController = TextEditingController(
       text: initialPrice == null ? '' : _formatPrice(initialPrice),
     );
-    _categoryController = TextEditingController(text: item?.category ?? '');
+    _categoryName = item?.category;
     _unit = item?.unit ?? 'un';
   }
 
@@ -75,7 +88,6 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     _nameController.dispose();
     _quantityController.dispose();
     _priceController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
@@ -110,7 +122,7 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     final name = _nameController.text.trim();
     final quantity = _parseQuantity(_quantityController.text);
     final price = _parsePrice(_priceController.text);
-    final category = _categoryController.text.trim();
+    final category = (_categoryName ?? '').trim();
 
     final notifier = ref.read(shoppingListProvider.notifier);
 
@@ -146,10 +158,75 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     }
   }
 
+  Future<void> _createCategory() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Nova Categoria'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(labelText: 'Nome da categoria'),
+            onSubmitted: (value) => Navigator.pop(ctx, value.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (name == null || name.isEmpty || !mounted) return;
+
+    final categories =
+        ref.read(categoriesListProvider).value ?? const <Category>[];
+    final existingIndex = categories
+        .indexWhere((c) => c.name.toLowerCase() == name.toLowerCase());
+    if (existingIndex >= 0) {
+      setState(() => _categoryName = categories[existingIndex].name);
+      return;
+    }
+
+    final color =
+        _newCategoryColors[categories.length % _newCategoryColors.length];
+    final category = Category(
+      id: const Uuid().v4(),
+      name: name,
+      color: color,
+      icon: 'category',
+      isDefault: false,
+      isExpenseDefault: true,
+      sortOrder: categories.length,
+    );
+
+    try {
+      await ref.read(categoriesListProvider.notifier).createCategory(category);
+      if (mounted) setState(() => _categoryName = category.name);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nao foi possivel criar a categoria.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final categoriesAsync = ref.watch(categoriesListProvider);
+    final categories = categoriesAsync.value ?? const <Category>[];
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -235,15 +312,44 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _categoryController,
-                textCapitalization: TextCapitalization.sentences,
+              DropdownButtonFormField<String?>(
+                value: _categoryName,
+                isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Categoria (opcional)',
+                  labelText: 'Categoria',
                   prefixIcon: Icon(Icons.label_outline),
                 ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Sem categoria'),
+                  ),
+                  for (final category in categories)
+                    DropdownMenuItem<String?>(
+                      value: category.name,
+                      child: Text(category.name),
+                    ),
+                  // Mantem a categoria atual no menu mesmo se ela nao
+                  // existir mais na lista de categorias do app.
+                  if (_categoryName != null &&
+                      !categories.any((c) => c.name == _categoryName))
+                    DropdownMenuItem<String?>(
+                      value: _categoryName,
+                      child: Text(_categoryName!),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _categoryName = value),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _createCategory,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nova categoria'),
+                ),
+              ),
+              const SizedBox(height: 20),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
