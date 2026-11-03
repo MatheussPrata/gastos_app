@@ -19,7 +19,9 @@ final sharingConnectionProvider =
 
 /// Sincroniza envio local + download do parceiro e atualiza as telas.
 Future<SharingSyncResult> runSharingSync(WidgetRef ref) async {
-  final result = await ref.read(sharingRepositoryProvider).syncNow();
+  final result = await ref.read(sharingRepositoryProvider).syncNow(
+        planMonth: ref.read(selectedPlanMonthProvider),
+      );
 
   // Os gastos do parceiro entram no progresso do planejamento e podem cruzar
   // limites, então reavaliamos o mês aberto depois da sincronização.

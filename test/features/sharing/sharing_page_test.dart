@@ -66,7 +66,7 @@ class FakeSharingRepository extends SharingRepository {
   }
 
   @override
-  Future<SharingSyncResult> syncNow() async {
+  Future<SharingSyncResult> syncNow({DateTime? planMonth}) async {
     if (connection == null) return const SharingSyncResult();
     return SharingSyncResult(
       partnerUsername: connection!.partnerUsername,

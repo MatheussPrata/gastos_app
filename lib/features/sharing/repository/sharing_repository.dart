@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/features/planning/models/planning_models.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/shopping_list/data/repositories/shopping_list_repository.dart';
 import 'package:gastos_app/features/sharing/models/sharing_models.dart';
 import 'package:gastos_app/features/sharing/repository/sharing_merger.dart';
@@ -151,7 +153,7 @@ class SharingRepository {
   }
 
   /// Envia os dados locais e baixa o que o parceiro compartilha.
-  Future<SharingSyncResult> syncNow() async {
+  Future<SharingSyncResult> syncNow({DateTime? planMonth}) async {
     if (await _isGuestMode()) {
       return const SharingSyncResult();
     }
@@ -166,7 +168,7 @@ class SharingRepository {
       return const SharingSyncResult();
     }
 
-    final result = await _pullPartnerData(connection);
+    final result = await _pullPartnerData(connection, planMonth: planMonth);
     if (result.hasPartner) {
       await _cacheConnection(
         connection.copyWith(lastSyncedAt: DateTime.now()),
@@ -213,10 +215,16 @@ class SharingRepository {
   }
 
   Future<SharingSyncResult> _pullPartnerData(
-    SharingConnection connection,
-  ) async {
+    SharingConnection connection, {
+    DateTime? planMonth,
+  }) async {
     try {
-      final response = await _dioClient.dio.get(ApiEndpoints.syncPartner);
+      final monthQuery = planMonth == null
+          ? ''
+          : '?month=${planMonth.year}-'
+              '${planMonth.month.toString().padLeft(2, '0')}';
+      final response =
+          await _dioClient.dio.get('${ApiEndpoints.syncPartner}$monthQuery');
       final data = response.data is Map ? response.data['data'] : null;
       if (data is! Map<String, dynamic>) {
         return SharingSyncResult(partnerUsername: connection.partnerUsername);
@@ -250,6 +258,18 @@ class SharingRepository {
       final pulledShopping = await _mergePartnerShopping(
         shoppingItems.whereType<Map>().map(Map<String, dynamic>.from).toList(),
       );
+
+      final budgetPlanJson = data['budgetPlan'];
+      if (budgetPlanJson is Map) {
+        try {
+          final remote = BudgetPlan.fromJson(
+            Map<String, dynamic>.from(budgetPlanJson),
+          );
+          await PlanningRepository(database: _db).mergeRemotePlan(remote);
+        } catch (_) {
+          // Plano remoto invalido nao impede o resto da sincronizacao.
+        }
+      }
 
       return SharingSyncResult(
         partnerUsername: connection.partnerUsername,

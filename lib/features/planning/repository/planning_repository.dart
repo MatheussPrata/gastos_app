@@ -351,6 +351,28 @@ class PlanningRepository {
         .go();
   }
 
+  /// Merges a plan downloaded from the server into the local database.
+  ///
+  /// The local row keeps its id; only the plan values are replaced when the
+  /// remote version is newer (see [BudgetPlan.mergeRemote]).
+  Future<BudgetPlan> mergeRemotePlan(BudgetPlan remote) async {
+    final normalized = _normalizeMonth(remote.month);
+    final local = await getPlanForMonth(normalized, scope: remote.scope);
+    final merged = local == null
+        ? remote.copyWith(
+            month: normalized,
+            userId: await _currentUserId(),
+            isSynced: true,
+          )
+        : local.mergeRemote(remote);
+
+    await _db.into(_db.budgetPlans).insertOnConflictUpdate(
+          _toCompanion(merged, synced: merged.isSynced),
+        );
+
+    return merged;
+  }
+
   Future<void> markAlertRead(String alertId) async {
     await (_db.update(_db.budgetAlerts)..where((a) => a.id.equals(alertId)))
         .write(const db.BudgetAlertsCompanion(

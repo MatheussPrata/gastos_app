@@ -102,6 +102,23 @@ class BudgetPlan with _$BudgetPlan {
     }
     return copyWith(categories: updated);
   }
+
+  /// Merges a plan downloaded from the server using last-write-wins.
+  ///
+  /// Returns `this` when the local plan is newer, keeping its local id and
+  /// sync flag. Otherwise returns the remote values with [isSynced] set.
+  BudgetPlan mergeRemote(BudgetPlan remote) {
+    if (updatedAt.isAfter(remote.updatedAt)) return this;
+    return copyWith(
+      incomeMode: remote.incomeMode,
+      manualIncome: remote.manualIncome,
+      monthlyBudget: remote.monthlyBudget,
+      categories: remote.categories,
+      notifications: remote.notifications,
+      updatedAt: remote.updatedAt,
+      isSynced: true,
+    );
+  }
 }
 
 /// Budget assigned to a single category.
