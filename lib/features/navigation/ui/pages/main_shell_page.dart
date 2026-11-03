@@ -4,7 +4,7 @@ import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/settings/ui/pages/settings_page.dart';
-import 'package:gastos_app/features/shopping/ui/pages/shopping_page.dart';
+import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.dart';
 
 /// Main application shell.
 ///
@@ -18,7 +18,7 @@ class MainShellPage extends ConsumerWidget {
   static const List<Widget> _pages = [
     DashboardPage(),
     ReportsPage(),
-    ShoppingPage(),
+    ShoppingListPage(showBackButton: false),
     SettingsPage(),
   ];
 

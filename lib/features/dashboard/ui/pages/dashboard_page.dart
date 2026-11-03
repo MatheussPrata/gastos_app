@@ -29,6 +29,13 @@ class DashboardPage extends ConsumerWidget {
         title: Text('Olá, ${user?.username ?? 'Usuário'}'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.shopping_cart_outlined),
+            tooltip: 'Lista de compras',
+            onPressed: () {
+              ref.read(bottomNavIndexProvider.notifier).state = AppTab.shopping;
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Configurações',
             onPressed: () {
