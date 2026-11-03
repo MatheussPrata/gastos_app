@@ -6,6 +6,7 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/shopping_list/data/models/shopping_item.dart';
 import 'package:gastos_app/features/shopping_list/provider/shopping_list_provider.dart';
+import 'package:gastos_app/features/shopping_list/ui/widgets/category_manager_sheet.dart';
 import 'package:gastos_app/features/shopping_list/ui/widgets/item_form_sheet.dart';
 import 'package:gastos_app/features/shopping_list/ui/widgets/price_comparator_sheet.dart';
 
@@ -41,6 +42,11 @@ class ShoppingListPage extends ConsumerWidget {
             : null,
         title: const Text('Lista de Compras'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.label_outline),
+            tooltip: 'Categorias',
+            onPressed: () => showCategoryManagerSheet(context),
+          ),
           IconButton(
             icon: const Icon(Icons.compare_arrows),
             tooltip: 'Comparador de precos',

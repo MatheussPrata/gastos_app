@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
-import 'package:gastos_app/features/categories/models/category_models.dart';
-import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/shopping_list/data/models/shopping_category.dart';
 import 'package:gastos_app/features/shopping_list/data/models/shopping_item.dart';
+import 'package:gastos_app/features/shopping_list/provider/shopping_category_provider.dart';
 import 'package:gastos_app/features/shopping_list/provider/shopping_list_provider.dart';
+import 'package:gastos_app/features/shopping_list/ui/widgets/category_manager_sheet.dart';
 
 /// Abre o formulario (bottom sheet) para criar ou editar um item.
 Future<void> showItemFormSheet(
@@ -26,15 +26,7 @@ Future<void> showItemFormSheet(
   );
 }
 
-const List<int> _newCategoryColors = [
-  0xFFFF6B6B,
-  0xFF4ECDC4,
-  0xFFFFB347,
-  0xFF6BCB77,
-  0xFFFF8E8E,
-  0xFFA8E6CF,
-  0xFFB8B8B8,
-];
+const List<String> _units = ['un', 'g', 'kg', 'ml', 'L'];
 
 class ItemFormSheet extends ConsumerStatefulWidget {
   const ItemFormSheet({
@@ -60,8 +52,6 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
   String? _categoryName;
   String _unit = 'un';
   bool _saving = false;
-
-  static const List<String> _units = ['un', 'g', 'kg', 'ml', 'L'];
 
   bool get _isEditing => widget.item != null;
 
@@ -188,45 +178,16 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
 
     if (name == null || name.isEmpty || !mounted) return;
 
-    final categories =
-        ref.read(categoriesListProvider).value ?? const <Category>[];
-    final existingIndex = categories
-        .indexWhere((c) => c.name.toLowerCase() == name.toLowerCase());
-    if (existingIndex >= 0) {
-      setState(() => _categoryName = categories[existingIndex].name);
-      return;
-    }
-
-    final color =
-        _newCategoryColors[categories.length % _newCategoryColors.length];
-    final category = Category(
-      id: const Uuid().v4(),
-      name: name,
-      color: color,
-      icon: 'category',
-      isDefault: false,
-      isExpenseDefault: true,
-      sortOrder: categories.length,
-    );
-
-    try {
-      await ref.read(categoriesListProvider.notifier).createCategory(category);
-      if (mounted) setState(() => _categoryName = category.name);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nao foi possivel criar a categoria.')),
-        );
-      }
-    }
+    await ref.read(shoppingCategoryProvider.notifier).addCategory(name);
+    if (mounted) setState(() => _categoryName = name);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final categoriesAsync = ref.watch(categoriesListProvider);
-    final categories = categoriesAsync.value ?? const <Category>[];
+    final categoriesAsync = ref.watch(shoppingCategoryProvider);
+    final categories = categoriesAsync.value ?? const <ShoppingCategory>[];
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -341,13 +302,19 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
                 onChanged: (value) => setState(() => _categoryName = value),
               ),
               const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _createCategory,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Nova categoria'),
-                ),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: _createCategory,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nova categoria'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => showCategoryManagerSheet(context),
+                    icon: const Icon(Icons.settings_outlined),
+                    label: const Text('Gerenciar'),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               FilledButton(
