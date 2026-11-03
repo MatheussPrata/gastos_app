@@ -5,14 +5,28 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/dashboard/ui/widgets/settings_drawer.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
+import 'package:gastos_app/features/planning/models/planning_models.dart';
+import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:gastos_app/features/transactions/ui/widgets/transaction_tile.dart';
 
 const List<String> _monthNames = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
 ];
 
 class DashboardPage extends ConsumerWidget {
@@ -25,7 +39,15 @@ class DashboardPage extends ConsumerWidget {
     final transactionsAsync = ref.watch(monthTransactionsProvider);
 
     return Scaffold(
+      drawer: const SettingsDrawer(),
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         title: Text('Olá, ${user?.username ?? 'Usuário'}'),
         actions: [
           IconButton(
@@ -33,13 +55,6 @@ class DashboardPage extends ConsumerWidget {
             tooltip: 'Lista de compras',
             onPressed: () {
               ref.read(bottomNavIndexProvider.notifier).state = AppTab.shopping;
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Configurações',
-            onPressed: () {
-              ref.read(bottomNavIndexProvider.notifier).state = AppTab.settings;
             },
           ),
         ],
@@ -65,7 +80,10 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildMonthSelector(
-      BuildContext context, WidgetRef ref, DateTime month) {
+    BuildContext context,
+    WidgetRef ref,
+    DateTime month,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
@@ -105,7 +123,9 @@ class DashboardPage extends ConsumerWidget {
       '${_monthNames[month.month - 1]} ${month.year}';
 
   Widget _buildSummary(
-      BuildContext context, AsyncValue<List<Transaction>> transactionsAsync) {
+    BuildContext context,
+    AsyncValue<List<Transaction>> transactionsAsync,
+  ) {
     return transactionsAsync.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -185,16 +205,16 @@ class DashboardPage extends ConsumerWidget {
   }
 
   Widget _buildTransactionsList(
-      BuildContext context, WidgetRef ref,
-      AsyncValue<List<Transaction>> transactionsAsync) {
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<Transaction>> transactionsAsync,
+  ) {
     return transactionsAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (e, _) => const SizedBox.shrink(),
       data: (transactions) {
         if (transactions.isEmpty) {
-          return const Center(
-            child: Text('Nenhum lançamento neste mês'),
-          );
+          return const Center(child: Text('Nenhum lançamento neste mês'));
         }
         return ListView.separated(
           itemCount: transactions.length,
@@ -207,10 +227,60 @@ class DashboardPage extends ConsumerWidget {
                 RouteNames.transactionForm,
                 extra: {'id': transaction.id, 'isEditing': true},
               ),
+              onDelete: () => _confirmDelete(context, ref, transaction),
             );
           },
         );
       },
     );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Transaction transaction,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir transação'),
+        content: Text('Deseja excluir "${transaction.description}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await ref
+        .read(transactionsRepositoryProvider)
+        .deleteTransaction(transaction.id);
+
+    ref
+      ..invalidate(transactionsListProvider)
+      ..invalidate(monthTransactionsProvider)
+      ..invalidate(monthlyStatsProvider)
+      ..invalidate(monthPlanningProvider)
+      ..invalidate(planningProgressProvider)
+      ..invalidate(planningAlertsProvider)
+      ..invalidate(unreadAlertsProvider)
+      ..invalidate(monthlyIncomeProvider)
+      ..invalidate(incomeAttributionProvider)
+      ..invalidate(monthSpentTotalProvider);
+
+    for (final scope in BudgetScope.values) {
+      ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
+            month: transaction.date,
+            scope: scope,
+          );
+    }
   }
 }

@@ -5,7 +5,6 @@ import 'package:gastos_app/features/navigation/provider/navigation_provider.dart
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/ui/pages/planning_page.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
-import 'package:gastos_app/features/settings/ui/pages/settings_page.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
 import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.dart';
 
@@ -23,7 +22,6 @@ class MainShellPage extends ConsumerStatefulWidget {
     ReportsPage(),
     PlanningPage(),
     ShoppingListPage(showBackButton: false),
-    SettingsPage(),
   ];
 
   @override
@@ -100,12 +98,6 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
               selectedIcon: Icon(Icons.shopping_cart),
               label: 'Compras',
               tooltip: 'Lista de Compras',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Configurações',
-              tooltip: 'Configurações',
             ),
           ],
         ),
