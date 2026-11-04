@@ -12,6 +12,7 @@ class DioClient {
   late final Dio dio;
   late final FlutterSecureStorage _storage;
   late final Connectivity _connectivity;
+  Future<bool>? _refreshFuture;
 
   void init({String baseUrl = 'https://pratadev.duckdns.org/api'}) {
     _storage = const FlutterSecureStorage();
@@ -46,7 +47,15 @@ class DioClient {
 
   // Refresh the access token using the stored refresh token (sent no corpo
   // JSON, conforme o backend). Atualiza ambos os tokens em caso de sucesso.
-  Future<bool> refreshToken() async {
+  // Single-flight: chamadas concorrentes reaproveitam o mesmo refresh para
+  // evitar rotacionar o token duas vezes e derrubar a sessão.
+  Future<bool> refreshToken() {
+    return _refreshFuture ??= _performRefresh().whenComplete(() {
+      _refreshFuture = null;
+    });
+  }
+
+  Future<bool> _performRefresh() async {
     try {
       final refreshToken = await _storage.read(key: StorageKeys.refreshToken);
       // Skip refresh for guest tokens (local-only)
