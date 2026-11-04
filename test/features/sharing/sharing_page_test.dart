@@ -47,15 +47,12 @@ class FakeSharingRepository extends SharingRepository {
   Future<SharingConnection> updateSharing(
     SharingConnection connection, {
     bool? shareTransactions,
-    bool? shareShopping,
   }) async {
     updateCalls.add({
       'shareTransactions': shareTransactions,
-      'shareShopping': shareShopping,
     });
     return this.connection = connection.copyWith(
       shareTransactions: shareTransactions,
-      shareShopping: shareShopping,
     );
   }
 
@@ -71,7 +68,6 @@ class FakeSharingRepository extends SharingRepository {
     return SharingSyncResult(
       partnerUsername: connection!.partnerUsername,
       pulledTransactions: 2,
-      pulledShoppingItems: 3,
     );
   }
 }
@@ -154,7 +150,6 @@ void main() {
 
     expect(repository.updateCalls, hasLength(1));
     expect(repository.updateCalls.single['shareTransactions'], isFalse);
-    expect(repository.updateCalls.single['shareShopping'], isNull);
 
     final updatedSwitch = tester.widget<SwitchListTile>(
       find.widgetWithText(SwitchListTile, 'Compartilhar gastos'),
@@ -209,7 +204,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('2 gasto(s)'), findsOneWidget);
-    expect(find.textContaining('3 compra(s)'), findsOneWidget);
 
     // Deixa o snackbar expirar para nao sobrar timer pendente.
     await tester.pump(const Duration(seconds: 5));
