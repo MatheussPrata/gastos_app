@@ -7,7 +7,6 @@ class SharingConnection {
     required this.createdAt,
     this.lastSyncedAt,
     this.shareTransactions = true,
-    this.shareShopping = true,
   });
 
   final String id;
@@ -18,7 +17,6 @@ class SharingConnection {
 
   /// O que EU compartilho com o parceiro.
   final bool shareTransactions;
-  final bool shareShopping;
 
   factory SharingConnection.fromJson(Map<String, dynamic> json) {
     return SharingConnection(
@@ -28,14 +26,12 @@ class SharingConnection {
       createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
       lastSyncedAt: _parseDate(json['lastSyncedAt']),
       shareTransactions: json['shareTransactions'] as bool? ?? true,
-      shareShopping: json['shareShopping'] as bool? ?? true,
     );
   }
 
   SharingConnection copyWith({
     DateTime? lastSyncedAt,
     bool? shareTransactions,
-    bool? shareShopping,
   }) {
     return SharingConnection(
       id: id,
@@ -44,7 +40,6 @@ class SharingConnection {
       createdAt: createdAt,
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       shareTransactions: shareTransactions ?? this.shareTransactions,
-      shareShopping: shareShopping ?? this.shareShopping,
     );
   }
 
@@ -55,7 +50,6 @@ class SharingConnection {
         'createdAt': createdAt.toIso8601String(),
         'lastSyncedAt': lastSyncedAt?.toIso8601String(),
         'shareTransactions': shareTransactions,
-        'shareShopping': shareShopping,
       };
 
   static DateTime? _parseDate(dynamic value) {
@@ -84,16 +78,12 @@ class SharingSyncResult {
   const SharingSyncResult({
     this.partnerUsername,
     this.pulledTransactions = 0,
-    this.pulledShoppingItems = 0,
     this.shareTransactions = true,
-    this.shareShopping = true,
   });
 
   final String? partnerUsername;
   final int pulledTransactions;
-  final int pulledShoppingItems;
   final bool shareTransactions;
-  final bool shareShopping;
 
   bool get hasPartner => partnerUsername != null;
 
@@ -102,9 +92,6 @@ class SharingSyncResult {
     final parts = <String>[];
     if (shareTransactions) {
       parts.add('$pulledTransactions gasto(s)');
-    }
-    if (shareShopping) {
-      parts.add('$pulledShoppingItems compra(s)');
     }
     if (parts.isEmpty) {
       return 'Seu parceiro não está compartilhando nenhum tipo de dado.';

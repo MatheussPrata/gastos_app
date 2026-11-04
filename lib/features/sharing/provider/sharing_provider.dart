@@ -8,7 +8,6 @@ import 'package:gastos_app/features/planning/services/notification_service.dart'
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/sharing/models/sharing_models.dart';
 import 'package:gastos_app/features/sharing/repository/sharing_repository.dart';
-import 'package:gastos_app/features/shopping_list/provider/shopping_list_provider.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 
 /// Conexao ativa exibida na tela de compartilhamento.
@@ -50,6 +49,5 @@ Future<SharingSyncResult> runSharingSync(WidgetRef ref) async {
     ..invalidate(monthSpentTotalProvider)
     ..invalidate(incomeAttributionProvider);
 
-  await ref.read(shoppingListProvider.notifier).loadItems();
   return result;
 }

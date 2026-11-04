@@ -8,7 +8,6 @@ import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/settings/ui/widgets/theme_color_picker.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
-import 'package:gastos_app/features/shopping_list/ui/widgets/category_manager_sheet.dart';
 
 /// Drawer de configurações que abre a partir do menu hambúrguer no Dashboard.
 class SettingsDrawer extends ConsumerWidget {
@@ -130,14 +129,6 @@ class SettingsDrawer extends ConsumerWidget {
                     subtitle: const Text('Alimentação, Transporte, Moradia…'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.push(RouteNames.categories),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.shopping_basket_outlined),
-                    title: const Text('Categorias de compras'),
-                    subtitle: const Text('Alimentação, Limpeza, Higiene…'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => showCategoryManagerSheet(context),
                   ),
                   const Divider(height: 1),
                   ListTile(

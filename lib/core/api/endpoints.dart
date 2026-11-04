@@ -41,10 +41,6 @@ class ApiEndpoints {
   static const String recurring = '/recurring';
   static const String recurringById = '/recurring/'; // + id
 
-  // Shopping
-  static const String shopping = '/shopping';
-  static const String shoppingById = '/shopping/'; // + id
-
   // Settings
   static const String settings = '/settings';
 
