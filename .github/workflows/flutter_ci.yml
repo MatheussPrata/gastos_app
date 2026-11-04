@@ -46,7 +46,7 @@ jobs:
       - name: Build APK (release assinado)
         run: |
           flutter build apk --release \
-            --build-name="1.2.${{ github.run_number }}" \
+            --build-name="1.3.${{ github.run_number }}" \
             --build-number="${{ github.run_number }}"
         env:
           KEYSTORE_PATH: "release.jks"
