@@ -6,7 +6,6 @@ import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/settings_drawer.dart';
-import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
@@ -49,15 +48,6 @@ class DashboardPage extends ConsumerWidget {
           ),
         ),
         title: Text('Olá, ${user?.username ?? 'Usuário'}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined),
-            tooltip: 'Lista de compras',
-            onPressed: () {
-              ref.read(bottomNavIndexProvider.notifier).state = AppTab.shopping;
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [

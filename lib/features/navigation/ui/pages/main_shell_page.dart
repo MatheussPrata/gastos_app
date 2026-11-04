@@ -6,7 +6,6 @@ import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/ui/pages/planning_page.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
-import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.dart';
 
 /// Main application shell.
 ///
@@ -21,7 +20,6 @@ class MainShellPage extends ConsumerStatefulWidget {
     DashboardPage(),
     ReportsPage(),
     PlanningPage(),
-    ShoppingListPage(showBackButton: false),
   ];
 
   @override
@@ -92,12 +90,6 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
               ),
               label: 'Planejamento',
               tooltip: 'Planejamento financeiro',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.shopping_cart_outlined),
-              selectedIcon: Icon(Icons.shopping_cart),
-              label: 'Compras',
-              tooltip: 'Lista de Compras',
             ),
           ],
         ),

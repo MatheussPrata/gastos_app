@@ -9,7 +9,7 @@ import 'package:gastos_app/features/categories/utils/category_icons.dart';
 
 /// Lista e gerenciamento das categorias de GASTOS (transações).
 ///
-/// É independente das categorias de compras (ver `shopping_list`).
+/// Categorias usadas nos lançamentos de gastos.
 class CategoriesPage extends ConsumerWidget {
   const CategoriesPage({super.key});
 

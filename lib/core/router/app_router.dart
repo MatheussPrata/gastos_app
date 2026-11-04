@@ -11,8 +11,6 @@ import 'package:gastos_app/features/categories/ui/pages/category_form_page.dart'
 import 'package:gastos_app/features/navigation/ui/pages/main_shell_page.dart';
 import 'package:gastos_app/features/recurring/ui/pages/recurring_form_page.dart';
 import 'package:gastos_app/features/recurring/ui/pages/recurring_page.dart';
-import 'package:gastos_app/features/shopping/ui/pages/shopping_form_page.dart';
-import 'package:gastos_app/features/shopping_list/ui/pages/shopping_list_page.dart';
 import 'package:gastos_app/features/sharing/ui/pages/sharing_page.dart';
 import 'package:gastos_app/features/transactions/ui/pages/transaction_form_page.dart';
 import 'package:gastos_app/features/transactions/ui/pages/transactions_page.dart';
@@ -30,8 +28,6 @@ class RouteNames {
   static const String categoryForm = '/categories/form';
   static const String recurring = '/recurring';
   static const String recurringForm = '/recurring/form';
-  static const String shoppingForm = '/shopping/form';
-  static const String shoppingList = '/shopping-list';
   static const String sharing = '/sharing';
 }
 
@@ -137,22 +133,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Shopping lives inside the main shell; only its form is a separate
-      // route pushed on top of the current tab.
-      GoRoute(
-        path: RouteNames.shoppingForm,
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          return ShoppingFormPage(
-            itemId: extra?['id'] as String?,
-            isEditing: extra?['isEditing'] as bool? ?? false,
-          );
-        },
-      ),
-      GoRoute(
-        path: RouteNames.shoppingList,
-        builder: (context, state) => const ShoppingListPage(),
-      ),
       GoRoute(
         path: RouteNames.sharing,
         builder: (context, state) => const SharingPage(),

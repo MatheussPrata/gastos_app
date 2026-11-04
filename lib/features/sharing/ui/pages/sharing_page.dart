@@ -98,7 +98,6 @@ class _SharingPageState extends ConsumerState<SharingPage> {
 
   Future<void> _updateSharing({
     bool? shareTransactions,
-    bool? shareShopping,
   }) async {
     final connection = _connection;
     if (connection == null) return;
@@ -108,7 +107,6 @@ class _SharingPageState extends ConsumerState<SharingPage> {
       final updated = await ref.read(sharingRepositoryProvider).updateSharing(
             connection,
             shareTransactions: shareTransactions,
-            shareShopping: shareShopping,
           );
       if (!mounted) return;
       setState(() => _connection = updated);
@@ -298,16 +296,6 @@ class _SharingPageState extends ConsumerState<SharingPage> {
               onChanged: _busy
                   ? null
                   : (value) => _updateSharing(shareTransactions: value),
-            ),
-            const Divider(height: 1),
-            SwitchListTile(
-              secondary: const Icon(Icons.shopping_cart_outlined),
-              title: const Text('Compartilhar compras'),
-              subtitle: const Text('Lista de compras e precos'),
-              value: connection.shareShopping,
-              onChanged: _busy
-                  ? null
-                  : (value) => _updateSharing(shareShopping: value),
             ),
           ],
         ),
