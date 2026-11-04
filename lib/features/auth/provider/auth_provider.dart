@@ -51,6 +51,12 @@ class AuthController extends StateNotifier<AuthState> {
     final isLoggedIn = await _repository.isLoggedIn();
     if (isLoggedIn) {
       final isGuest = await _repository.isGuestMode();
+      if (!isGuest) {
+        // Renova a sessão ao abrir o app: o prazo de inatividade (40 dias)
+        // passa a contar a partir do último uso, e não da data do login.
+        // Roda em segundo plano para não atrasar a abertura do app.
+        _repository.refreshToken().ignore();
+      }
       final user = await _repository.getStoredUser();
       if (user != null) {
         state = state.copyWith(status: AuthStatus.authenticated, user: user);
