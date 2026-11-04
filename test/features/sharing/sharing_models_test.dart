@@ -11,12 +11,10 @@ void main() {
         'createdAt': '2026-11-03T10:00:00.000Z',
         'lastSyncedAt': '2026-11-03T10:05:00.000Z',
         'shareTransactions': false,
-        'shareShopping': true,
       });
 
       expect(connection.partnerUsername, 'Maria');
       expect(connection.shareTransactions, isFalse);
-      expect(connection.shareShopping, isTrue);
       expect(connection.lastSyncedAt, isNotNull);
     });
 
@@ -34,7 +32,6 @@ void main() {
       expect(restored.id, original.id);
       expect(restored.partnerUserId, original.partnerUserId);
       expect(restored.shareTransactions, isFalse);
-      expect(restored.shareShopping, isTrue);
     });
   });
 
@@ -43,12 +40,10 @@ void main() {
       const result = SharingSyncResult(
         partnerUsername: 'Maria',
         pulledTransactions: 3,
-        pulledShoppingItems: 2,
       );
 
       expect(result.hasPartner, isTrue);
       expect(result.summary, contains('3 gasto(s)'));
-      expect(result.summary, contains('2 compra(s)'));
     });
 
     test('avisa quando nao existe parceiro', () {
