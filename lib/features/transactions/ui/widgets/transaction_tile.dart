@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
 
 class TransactionTile extends StatelessWidget {
@@ -41,7 +42,7 @@ class TransactionTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(_subtitle()),
-          if (transaction.reminderAt != null)
+          if (transaction.reminderEnabled)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(
@@ -52,7 +53,9 @@ class TransactionTile extends StatelessWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      'Lembrete ${ReminderSchedule.describe(transaction.reminderAt!)}',
+                      ReminderSchedule.summarize(
+                        TransactionReminderService.instance.leadDays,
+                      ),
                       style: const TextStyle(
                           fontSize: 11, color: Colors.orange),
                       maxLines: 1,

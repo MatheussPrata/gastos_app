@@ -517,7 +517,8 @@ class SyncService {
               notes: Value(json['notes']?.toString()),
               ownerId: Value(json['ownerId']?.toString()),
               partnerSynced: Value(json['partnerSynced'] as bool? ?? false),
-              reminderAt: Value(_optionalDate(json['reminderAt'])),
+              reminderEnabled:
+                  Value(json['reminderEnabled'] as bool? ?? false),
               createdAt: Value(createdAt),
               updatedAt: Value(updatedAt),
               isSynced: const Value(true),
@@ -638,13 +639,9 @@ class SyncService {
   /// Reagenda no sistema operativo os lembretes restaurados do servidor.
   Future<void> _rescheduleRestoredReminders() async {
     final now = DateTime.now();
-    // A coluna e nullable; filtra em Dart para nao depender de comparacao
-    // com nulo no SQL.
-    final all = await _db.select(_db.transactions).get();
-    final rows = all.where((row) {
-      final reminder = row.reminderAt;
-      return reminder != null && reminder.isAfter(now);
-    });
+    final rows = await (_db.select(_db.transactions)
+          ..where((t) => t.reminderEnabled.equals(true)))
+        .get();
     for (final row in rows) {
       try {
         await TransactionReminderService.instance.schedule(
@@ -652,7 +649,9 @@ class SyncService {
           description: row.description,
           amount: row.amount,
           isExpense: row.isExpense,
-          reminderAt: row.reminderAt,
+          dueDate: row.date,
+          enabled: true,
+          now: now,
         );
       } catch (_) {
         // Um lembrete que falha nao impede o restauro dos dados.
@@ -680,7 +679,7 @@ class SyncService {
         'notes': t.notes,
         'ownerId': t.ownerId,
         'partnerSynced': t.partnerSynced,
-        'reminderAt': t.reminderAt?.toIso8601String(),
+        'reminderEnabled': t.reminderEnabled,
         'createdAt': t.createdAt.toIso8601String(),
         'updatedAt': t.updatedAt.toIso8601String(),
       };

@@ -160,6 +160,15 @@ class SettingsDrawer extends ConsumerWidget {
               child: Column(
                 children: [
                   ListTile(
+                    leading: const Icon(Icons.notifications_outlined),
+                    title: const Text('Notificações'),
+                    subtitle: const Text(
+                        'Escolher quantos dias antes avisar'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RouteNames.notificationSettings),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
                     leading: const Icon(Icons.cloud_sync),
                     title: const Text('Sincronizar agora'),
                     subtitle: const Text(

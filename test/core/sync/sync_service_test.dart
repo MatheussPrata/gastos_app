@@ -327,8 +327,7 @@ void main() {
   });
 
   group('lembretes', () {
-    test('envia reminderAt no push', () async {
-      final reminder = DateTime(2026, 11, 20, 9);
+    test('envia reminderEnabled no push', () async {
       await db.into(db.transactions).insert(
             TransactionsCompanion.insert(
               id: 'tx-rem',
@@ -338,7 +337,7 @@ void main() {
               date: DateTime(2026, 11, 20),
               createdAt: DateTime(2026, 11, 6),
               updatedAt: DateTime(2026, 11, 6),
-              reminderAt: Value(reminder),
+              reminderEnabled: const Value(true),
             ),
           );
 
@@ -355,10 +354,10 @@ void main() {
       await service.push();
 
       final json = (sent!['transactions'] as List).first as Map;
-      expect(json['reminderAt'], reminder.toIso8601String());
+      expect(json['reminderEnabled'], isTrue);
     });
 
-    test('restaura reminderAt vindo do servidor', () async {
+    test('restaura reminderEnabled vindo do servidor', () async {
       when(() => dio.get(any())).thenAnswer(
         (_) async => _ok(
           {
@@ -369,7 +368,7 @@ void main() {
                   'amount': 88,
                   'description': 'Conta de luz',
                   'date': '2026-11-20T00:00:00.000Z',
-                  'reminderAt': '2026-11-20T09:00:00.000Z',
+                  'reminderEnabled': true,
                   'createdAt': '2026-11-06T00:00:00.000Z',
                   'updatedAt': '2026-11-06T00:00:00.000Z',
                 }
@@ -385,8 +384,7 @@ void main() {
       final tx = await (db.select(db.transactions)
             ..where((t) => t.id.equals('tx-rem')))
           .getSingle();
-      expect(tx.reminderAt, isNotNull);
-      expect(tx.reminderAt!.toUtc().hour, 9);
+      expect(tx.reminderEnabled, isTrue);
     });
 
     test('transacao sem lembrete continua valida', () async {
@@ -415,7 +413,7 @@ void main() {
       final tx = await (db.select(db.transactions)
             ..where((t) => t.id.equals('tx-plain')))
           .getSingle();
-      expect(tx.reminderAt, isNull);
+      expect(tx.reminderEnabled, isFalse);
     });
   });
 

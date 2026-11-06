@@ -1,15 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
-/// Lembretes de pagamento agendados no proprio aparelho.
+import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
+
+/// Lembretes de vencimento agendados no proprio aparelho.
 ///
-/// Uma notificacao e agendada por transacao que tenha [reminderAt] no futuro.
-/// O agendamento vive no sistema operativo, por isso chega mesmo com o app
-/// fechado; se o aparelho reiniciar, o plugin reagenda a partir do estado
-/// guardado no manifesto.
+/// Cada transacao com lembrete gera dois avisos: um [leadDays] dias antes do
+/// vencimento e outro no proprio dia. A antecedencia e uma preferencia global
+/// (ver [leadDays] / [setLeadDays]).
 class TransactionReminderService {
   TransactionReminderService._();
 
@@ -17,17 +19,24 @@ class TransactionReminderService {
       TransactionReminderService._();
 
   static const _channelId = 'transaction_reminders';
-  static const _channelName = 'Lembretes de pagamento';
+  static const _channelName = 'Lembretes de vencimento';
   static const _channelDescription =
-      'Avisos na data escolhida para pagar uma transacao.';
+      'Avisos antes e no dia do vencimento de uma transacao.';
+
+  static const _leadDaysKey = 'reminder_lead_days';
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
   bool _timezoneReady = false;
+  int _leadDays = ReminderSchedule.defaultLeadDays;
 
-  /// Configura o plugin, o fuso horario e pede permissao (Android 13+).
+  /// Antecedencia configurada, em dias.
+  int get leadDays => _leadDays;
+
+  /// Configura o plugin, o fuso horario, pede permissao e carrega a
+  /// preferencia de antecedencia.
   Future<void> initialize() async {
     if (!_initialized) {
       const android = AndroidInitializationSettings('ic_stat_budget');
@@ -52,7 +61,29 @@ class TransactionReminderService {
       }
     }
 
+    await _loadPreferences();
     await _ensureTimezone();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getInt(_leadDaysKey);
+      if (stored != null && ReminderSchedule.leadDayOptions.contains(stored)) {
+        _leadDays = stored;
+      }
+    } catch (_) {
+      // Sem preferencia guardada: mantem o padrao.
+    }
+  }
+
+  /// Grava a antecedencia escolhida nas configuracoes.
+  Future<void> setLeadDays(int days) async {
+    _leadDays = days;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_leadDaysKey, days);
+    } catch (_) {}
   }
 
   Future<void> _ensureTimezone() async {
@@ -63,7 +94,6 @@ class TransactionReminderService {
       tz.setLocalLocation(tz.getLocation(name));
       _timezoneReady = true;
     } catch (_) {
-      // Sem fuso resolvido, usa o padrao do pacote (UTC) em vez de falhar.
       try {
         tz_data.initializeTimeZones();
       } catch (_) {}
@@ -83,36 +113,83 @@ class TransactionReminderService {
     }
   }
 
-  /// Id estavel da notificacao de um lembrete.
-  ///
-  /// Usa o id da transacao para que reagendar substitua o anterior em vez de
-  /// duplicar avisos.
-  int notificationIdFor(String transactionId) =>
-      transactionId.hashCode & 0x7FFFFFFF;
-
-  /// Agenda (ou reagenda) o lembrete de uma transacao.
-  ///
-  /// [reminderAt] nulo cancela qualquer lembrete existente.
+  /// Agenda os avisos de uma transacao conforme a antecedencia atual.
   Future<void> schedule({
     required String transactionId,
     required String description,
     required double amount,
     required bool isExpense,
-    DateTime? reminderAt,
+    required DateTime dueDate,
+    required bool enabled,
+    required DateTime now,
   }) async {
     await initialize();
     if (!_initialized) return;
 
     await cancel(transactionId);
+    if (!enabled) return;
 
-    if (reminderAt == null || !reminderAt.isAfter(DateTime.now())) return;
+    final reminders = ReminderSchedule.forTransaction(
+      dueDate: dueDate,
+      leadDays: _leadDays,
+      now: now,
+    );
 
-    final title = isExpense ? 'Hora de pagar' : 'Entrada prevista';
-    final body = isExpense
-        ? '$description • ${_formatAmount(amount)}'
-        : '$description • ${_formatAmount(amount)}';
+    for (final reminder in reminders) {
+      final isDueDay = reminder.kind == ReminderKind.dueDay;
+      await _show(
+        id: isDueDay
+            ? ReminderSchedule.dueDayNotificationId(transactionId)
+            : ReminderSchedule.advanceNotificationId(transactionId),
+        at: reminder.at,
+        title: isDueDay
+            ? (isExpense ? 'Vence hoje' : 'Recebimento hoje')
+            : (isExpense
+                ? ReminderSchedule.advanceDescription(_leadDays)
+                : 'Recebimento ${ReminderSchedule.advanceDescription(_leadDays).toLowerCase()}'),
+        body: '$description • ${_formatAmount(amount)}',
+        payload: transactionId,
+      );
+    }
+  }
 
-    final when = tz.TZDateTime.from(reminderAt, tz.local);
+  /// Remove os avisos agendados de [transactionId].
+  Future<void> cancel(String transactionId) async {
+    if (!_initialized) return;
+    try {
+      await _plugin.cancel(ReminderSchedule.advanceNotificationId(transactionId));
+      await _plugin.cancel(ReminderSchedule.dueDayNotificationId(transactionId));
+    } catch (_) {}
+  }
+
+  /// Reagenda todas as transacoes que tem lembrete ligado.
+  ///
+  /// Usado quando o utilizador muda a antecedencia nas configuracoes.
+  Future<void> rescheduleAll(
+    Iterable<({String id, String description, double amount, bool isExpense, DateTime dueDate})> transactions,
+  ) async {
+    final now = DateTime.now();
+    for (final item in transactions) {
+      await schedule(
+        transactionId: item.id,
+        description: item.description,
+        amount: item.amount,
+        isExpense: item.isExpense,
+        dueDate: item.dueDate,
+        enabled: true,
+        now: now,
+      );
+    }
+  }
+
+  Future<void> _show({
+    required int id,
+    required DateTime at,
+    required String title,
+    required String body,
+    required String payload,
+  }) async {
+    final when = tz.TZDateTime.from(at, tz.local);
 
     // Alarme exato entrega na hora escolhida, mas o Android 14 pode negar a
     // permissao. Nesse caso cai para o modo inexato, que ainda entrega no dia.
@@ -122,7 +199,7 @@ class TransactionReminderService {
     ]) {
       try {
         await _plugin.zonedSchedule(
-          notificationIdFor(transactionId),
+          id,
           title,
           body,
           when,
@@ -130,22 +207,14 @@ class TransactionReminderService {
           androidScheduleMode: mode,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
-          payload: transactionId,
+          payload: payload,
         );
         return;
       } catch (_) {
-        // Tenta o proximo modo; se todos falharem, nao bloqueia a gravacao.
+        // Tenta o proximo modo; se todos falharem, nao bloqueia o fluxo.
       }
     }
-    debugPrint('Nao foi possivel agendar o lembrete de $transactionId');
-  }
-
-  /// Remove o lembrete agendado de [transactionId].
-  Future<void> cancel(String transactionId) async {
-    if (!_initialized) return;
-    try {
-      await _plugin.cancel(notificationIdFor(transactionId));
-    } catch (_) {}
+    debugPrint('Nao foi possivel agendar o lembrete $id');
   }
 
   NotificationDetails _details() => const NotificationDetails(
