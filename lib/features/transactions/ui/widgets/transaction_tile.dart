@@ -42,7 +42,7 @@ class TransactionTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(_subtitle()),
-          if (transaction.reminderEnabled)
+          if (transaction.isExpense && transaction.reminderEnabled)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(

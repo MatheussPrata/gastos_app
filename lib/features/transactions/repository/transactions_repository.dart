@@ -351,7 +351,7 @@ class TransactionsRepository {
         amount: transaction.amount,
         isExpense: transaction.isExpense,
         dueDate: transaction.date,
-        enabled: transaction.reminderEnabled,
+        enabled: transaction.isExpense && transaction.reminderEnabled,
         now: DateTime.now(),
       );
     } catch (_) {

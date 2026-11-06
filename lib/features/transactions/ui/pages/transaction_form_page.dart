@@ -97,7 +97,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           : transaction.paymentMethod;
       _date = transaction.date;
       _notesController.text = transaction.notes ?? '';
-      _reminderEnabled = transaction.reminderEnabled;
+      _reminderEnabled = transaction.isExpense && transaction.reminderEnabled;
       if (transaction.isInstallment && transaction.totalInstallments > 1) {
         _isInstallment = true;
         _installments = transaction.totalInstallments;
@@ -116,6 +116,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
     final isInstallment = _isExpense && _isInstallment;
     final installments = isInstallment ? _installments : 1;
+    final reminderEnabled = _isExpense && _reminderEnabled;
     final notes = _notesController.text.trim();
     final now = DateTime.now();
     final repository = ref.read(transactionsRepositoryProvider);
@@ -139,7 +140,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           installmentNumber: isInstallment ? existing.installmentNumber : 1,
           totalInstallments: installments,
           notes: notes.isEmpty ? null : notes,
-          reminderEnabled: _reminderEnabled,
+          reminderEnabled: reminderEnabled,
         ));
       } else {
         final userId = ref.read(currentUserProvider)?.id ?? 'guest';
@@ -156,7 +157,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           installmentNumber: 1,
           totalInstallments: installments,
           notes: notes.isEmpty ? null : notes,
-          reminderEnabled: _reminderEnabled,
+          reminderEnabled: reminderEnabled,
           createdAt: now,
           updatedAt: now,
         );
@@ -361,9 +362,10 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             ),
             const SizedBox(height: 16),
             _buildDateField(),
-            const SizedBox(height: 8),
-            _buildReminderSection(),
+            // Lembrete de pagamento so faz sentido para gastos.
             if (_isExpense) ...[
+              const SizedBox(height: 8),
+              _buildReminderSection(),
               const SizedBox(height: 8),
               _buildInstallmentSection(),
             ],
@@ -416,7 +418,11 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       onSelectionChanged: (selection) {
         setState(() {
           _isExpense = selection.first;
-          if (!_isExpense) _isInstallment = false;
+          if (!_isExpense) {
+            _isInstallment = false;
+            // Entradas nao tem lembrete de pagamento.
+            _reminderEnabled = false;
+          }
         });
       },
     );
