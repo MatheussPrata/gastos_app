@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
+import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
 
 class TransactionTile extends StatelessWidget {
   final Transaction transaction;
@@ -35,7 +36,34 @@ class TransactionTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text(_subtitle()),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_subtitle()),
+          if (transaction.reminderAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.notifications_active_outlined,
+                      size: 13, color: Colors.orange),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Lembrete ${ReminderSchedule.describe(transaction.reminderAt!)}',
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.orange),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

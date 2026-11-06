@@ -24,6 +24,9 @@ class Transaction with _$Transaction {
     String? ownerId,
     @Default(false) bool partnerSynced,
     @Default(false) bool isSynced,
+
+    /// Data/hora do lembrete de pagamento; nulo quando nao ha lembrete.
+    DateTime? reminderAt,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _Transaction;

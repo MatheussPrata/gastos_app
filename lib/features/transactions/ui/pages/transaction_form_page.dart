@@ -18,6 +18,7 @@ import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category, RecurringTransaction;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
+import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
 
 const List<int> _newCategoryColors = [
   0xFFFF6B6B,
@@ -59,6 +60,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   bool _isRecurring = false;
   String _frequency = 'monthly';
   bool _isSaving = false;
+  DateTime? _reminderAt;
 
   @override
   void initState() {
@@ -92,6 +94,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           : transaction.paymentMethod;
       _date = transaction.date;
       _notesController.text = transaction.notes ?? '';
+      _reminderAt = transaction.reminderAt;
       if (transaction.isInstallment && transaction.totalInstallments > 1) {
         _isInstallment = true;
         _installments = transaction.totalInstallments;
@@ -133,6 +136,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           installmentNumber: isInstallment ? existing.installmentNumber : 1,
           totalInstallments: installments,
           notes: notes.isEmpty ? null : notes,
+          reminderAt: _reminderAt,
         ));
       } else {
         final userId = ref.read(currentUserProvider)?.id ?? 'guest';
@@ -149,6 +153,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           installmentNumber: 1,
           totalInstallments: installments,
           notes: notes.isEmpty ? null : notes,
+          reminderAt: _reminderAt,
           createdAt: now,
           updatedAt: now,
         );
@@ -353,6 +358,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             ),
             const SizedBox(height: 16),
             _buildDateField(),
+            const SizedBox(height: 8),
+            _buildReminderSection(),
             if (_isExpense) ...[
               const SizedBox(height: 8),
               _buildInstallmentSection(),
@@ -470,6 +477,77 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         child: Text(DateFormatter.formatDayMonthYear(_date)),
       ),
     );
+  }
+
+  Widget _buildReminderSection() {
+    final reminder = _reminderAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CheckboxListTile(
+          value: reminder != null,
+          onChanged: (value) async {
+            if (value ?? false) {
+              final picked = await _pickReminderDateTime();
+              setState(() => _reminderAt = picked);
+            } else {
+              setState(() => _reminderAt = null);
+            }
+          },
+          title: const Text('Lembrar de pagar'),
+          subtitle: Text(
+            reminder == null
+                ? 'Receba uma notificação no dia escolhido'
+                : ReminderSchedule.describe(reminder),
+          ),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+        if (reminder != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () async {
+                final picked = await _pickReminderDateTime();
+                if (picked != null) setState(() => _reminderAt = picked);
+              },
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Alterar data e hora'),
+            ),
+          ),
+        if (reminder != null && ReminderSchedule.isSchedulable(reminder, DateTime.now()) == false)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'Esta data já passou: nenhuma notificação será enviada.',
+              style: TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<DateTime?> _pickReminderDateTime() async {
+    // Sugere o dia do vencimento as 09:00, que e quando a maioria das contas
+    // precisa de ser lembrada.
+    final initial = _reminderAt ?? ReminderSchedule.atDefaultTime(_date);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+      helpText: 'Dia do lembrete',
+    );
+    if (date == null || !mounted) return null;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+      helpText: 'Hora do lembrete',
+    );
+    if (time == null) return null;
+
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
   Widget _buildInstallmentSection() {

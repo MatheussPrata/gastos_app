@@ -91,6 +91,10 @@ class Transactions extends Table {
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 
+  /// Quando definido, o aparelho mostra um lembrete nesta data/hora.
+  /// Nulo significa que a transacao nao tem lembrete.
+  DateTimeColumn get reminderAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -277,7 +281,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -301,6 +305,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 5) {
         await m.createTable(pendingDeletions);
+      }
+      if (from < 6) {
+        await m.addColumn(transactions, transactions.reminderAt);
       }
         },
       );

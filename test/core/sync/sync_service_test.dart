@@ -326,6 +326,99 @@ void main() {
     });
   });
 
+  group('lembretes', () {
+    test('envia reminderAt no push', () async {
+      final reminder = DateTime(2026, 11, 20, 9);
+      await db.into(db.transactions).insert(
+            TransactionsCompanion.insert(
+              id: 'tx-rem',
+              userId: 'user-1',
+              amount: 88,
+              description: 'Conta de luz',
+              date: DateTime(2026, 11, 20),
+              createdAt: DateTime(2026, 11, 6),
+              updatedAt: DateTime(2026, 11, 6),
+              reminderAt: Value(reminder),
+            ),
+          );
+
+      Map<String, dynamic>? sent;
+      when(() => dio.post(any(), data: any(named: 'data')))
+          .thenAnswer((invocation) async {
+        sent = invocation.namedArguments[#data] as Map<String, dynamic>;
+        return _ok(
+          {'data': {'synced': true, 'failedIds': <String>[]}},
+          ApiEndpoints.sync,
+        );
+      });
+
+      await service.push();
+
+      final json = (sent!['transactions'] as List).first as Map;
+      expect(json['reminderAt'], reminder.toIso8601String());
+    });
+
+    test('restaura reminderAt vindo do servidor', () async {
+      when(() => dio.get(any())).thenAnswer(
+        (_) async => _ok(
+          {
+            'data': {
+              'transactions': [
+                {
+                  'id': 'tx-rem',
+                  'amount': 88,
+                  'description': 'Conta de luz',
+                  'date': '2026-11-20T00:00:00.000Z',
+                  'reminderAt': '2026-11-20T09:00:00.000Z',
+                  'createdAt': '2026-11-06T00:00:00.000Z',
+                  'updatedAt': '2026-11-06T00:00:00.000Z',
+                }
+              ],
+            }
+          },
+          ApiEndpoints.sync,
+        ),
+      );
+
+      await service.restore();
+
+      final tx = await (db.select(db.transactions)
+            ..where((t) => t.id.equals('tx-rem')))
+          .getSingle();
+      expect(tx.reminderAt, isNotNull);
+      expect(tx.reminderAt!.toUtc().hour, 9);
+    });
+
+    test('transacao sem lembrete continua valida', () async {
+      when(() => dio.get(any())).thenAnswer(
+        (_) async => _ok(
+          {
+            'data': {
+              'transactions': [
+                {
+                  'id': 'tx-plain',
+                  'amount': 10,
+                  'description': 'Sem lembrete',
+                  'date': '2026-11-06T00:00:00.000Z',
+                  'createdAt': '2026-11-06T00:00:00.000Z',
+                  'updatedAt': '2026-11-06T00:00:00.000Z',
+                }
+              ],
+            }
+          },
+          ApiEndpoints.sync,
+        ),
+      );
+
+      await service.restore();
+
+      final tx = await (db.select(db.transactions)
+            ..where((t) => t.id.equals('tx-plain')))
+          .getSingle();
+      expect(tx.reminderAt, isNull);
+    });
+  });
+
   group('deletions', () {
     test('envia lapides e as remove quando o servidor confirma', () async {
       await service.tombstone('transaction', 'tx-1');

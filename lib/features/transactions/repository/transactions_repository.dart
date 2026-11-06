@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 
 final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) {
@@ -45,6 +46,7 @@ class TransactionsRepository {
         ownerId: t.ownerId,
         partnerSynced: t.partnerSynced,
         isSynced: t.isSynced,
+        reminderAt: t.reminderAt,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
       );
@@ -68,6 +70,7 @@ class TransactionsRepository {
       notes: Value(t.notes),
       ownerId: Value(t.ownerId),
       partnerSynced: Value(t.partnerSynced),
+      reminderAt: Value(t.reminderAt),
       createdAt: Value(t.createdAt),
       updatedAt: Value(t.updatedAt),
       isSynced: Value(synced),
@@ -184,6 +187,11 @@ class TransactionsRepository {
       created.add(single);
     }
 
+    // O lembrete e agendado no aparelho para cada parcela criada.
+    for (final transaction in created) {
+      unawaited(_scheduleReminder(transaction));
+    }
+
     unawaited(syncPendingTransactions());
     return created;
   }
@@ -194,11 +202,13 @@ class TransactionsRepository {
     await _db
         .update(_db.transactions)
         .replace(_toCompanion(updated, synced: false));
+    unawaited(_scheduleReminder(updated));
     unawaited(syncPendingTransactions());
     return updated;
   }
 
   Future<void> deleteTransaction(String id) async {
+    await TransactionReminderService.instance.cancel(id);
     await (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
     // A eliminacao e enviada na proxima sincronizacao (funciona offline).
     await _sync.tombstone('transaction', id);
@@ -330,6 +340,21 @@ class TransactionsRepository {
   /// Envia as transacoes pendentes (e o resto dos dados) para o servidor.
   Future<void> syncPendingTransactions() async {
     await _sync.push();
+  }
+
+  /// Agenda ou cancela o lembrete de [transaction] no aparelho.
+  Future<void> _scheduleReminder(Transaction transaction) async {
+    try {
+      await TransactionReminderService.instance.schedule(
+        transactionId: transaction.id,
+        description: transaction.description,
+        amount: transaction.amount,
+        isExpense: transaction.isExpense,
+        reminderAt: transaction.reminderAt,
+      );
+    } catch (_) {
+      // O lembrete nunca deve impedir a gravacao da transacao.
+    }
   }
 
   // ----------------------------------------------------------------- helpers
