@@ -42,13 +42,14 @@ class NotificationService {
     try {
       await _plugin.initialize(settings);
       _initialized = true;
-      await _requestPermissions();
+      // O pedido de permissao e feito pela interface, com contexto.
     } catch (_) {
       _initialized = false;
     }
   }
 
-  Future<void> _requestPermissions() async {
+  /// Pede permissao para as notificacoes (Android 13+).
+  Future<void> requestPermissions() async {
     try {
       await _plugin
           .resolvePlatformSpecificImplementation<

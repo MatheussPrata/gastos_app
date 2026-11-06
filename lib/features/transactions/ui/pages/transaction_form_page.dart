@@ -18,6 +18,8 @@ import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category, RecurringTransaction;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
+import 'package:gastos_app/core/notifications/notification_permission_service.dart';
+import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
 
@@ -482,9 +484,64 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
   Widget _buildReminderSection() {
     final leadDays = TransactionReminderService.instance.leadDays;
+    final permissions = ref.watch(notificationPermissionsProvider);
+    final status = permissions.valueOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildReminderSwitch(leadDays),
+        if (status != null && !status.canNotify)
+          _PermissionWarning(
+            status: status.status,
+            onOpenSettings: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              await NotificationPermissionService.instance
+                  .openSystemSettings();
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Ative as notificações nas configurações do aparelho.',
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildReminderSwitch(int leadDays) {
     return SwitchListTile(
       value: _reminderEnabled,
-      onChanged: (value) => setState(() => _reminderEnabled = value),
+      onChanged: (value) async {
+        if (!value) {
+          setState(() => _reminderEnabled = false);
+          return;
+        }
+
+        // Liga o lembrete e, se o sistema ainda nao autorizou, pede agora:
+        // e o momento em que o utilizador entende por que o pedido aparece.
+        final permissions = await NotificationPermissionService.instance
+            .request();
+        if (!mounted) return;
+
+        setState(() => _reminderEnabled = true);
+        ref.invalidate(notificationPermissionsProvider);
+
+        if (!permissions.canNotify) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                permissions.status ==
+                        NotificationPermissionStatus.permanentlyDenied
+                    ? 'Notificações bloqueadas. Ative nas configurações.'
+                    : 'Notificações negadas. O lembrete não vai aparecer.',
+              ),
+            ),
+          );
+        }
+      },
       title: const Text('Lembrar de pagar'),
       subtitle: Text(
         _reminderEnabled
@@ -551,6 +608,70 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                 setState(() => _frequency = value ?? 'monthly'),
           ),
       ],
+    );
+  }
+}
+
+/// Aviso mostrado quando as notificacoes estao bloqueadas no aparelho.
+class _PermissionWarning extends StatelessWidget {
+  const _PermissionWarning({
+    required this.status,
+    required this.onOpenSettings,
+  });
+
+  final NotificationPermissionStatus status;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = status == NotificationPermissionStatus.permanentlyDenied ||
+        status == NotificationPermissionStatus.denied;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withAlpha(28),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withAlpha(90)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.notifications_off_outlined,
+              color: Colors.orange, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Notificações desativadas',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  blocked
+                      ? 'O lembrete não vai aparecer enquanto as notificações '
+                          'estiverem bloqueadas para este app.'
+                      : 'Este aparelho não permite notificações para o app.',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (blocked)
+                  TextButton(
+                    onPressed: onOpenSettings,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Abrir configurações'),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
