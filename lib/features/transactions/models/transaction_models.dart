@@ -25,8 +25,9 @@ class Transaction with _$Transaction {
     @Default(false) bool partnerSynced,
     @Default(false) bool isSynced,
 
-    /// Data/hora do lembrete de pagamento; nulo quando nao ha lembrete.
-    DateTime? reminderAt,
+    /// Avisa antes e no dia do vencimento; a antecedencia vem das
+    /// configuracoes de notificacoes.
+    @Default(false) bool reminderEnabled,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _Transaction;

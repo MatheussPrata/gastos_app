@@ -46,7 +46,7 @@ class TransactionsRepository {
         ownerId: t.ownerId,
         partnerSynced: t.partnerSynced,
         isSynced: t.isSynced,
-        reminderAt: t.reminderAt,
+        reminderEnabled: t.reminderEnabled,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
       );
@@ -70,7 +70,7 @@ class TransactionsRepository {
       notes: Value(t.notes),
       ownerId: Value(t.ownerId),
       partnerSynced: Value(t.partnerSynced),
-      reminderAt: Value(t.reminderAt),
+      reminderEnabled: Value(t.reminderEnabled),
       createdAt: Value(t.createdAt),
       updatedAt: Value(t.updatedAt),
       isSynced: Value(synced),
@@ -350,7 +350,9 @@ class TransactionsRepository {
         description: transaction.description,
         amount: transaction.amount,
         isExpense: transaction.isExpense,
-        reminderAt: transaction.reminderAt,
+        dueDate: transaction.date,
+        enabled: transaction.reminderEnabled,
+        now: DateTime.now(),
       );
     } catch (_) {
       // O lembrete nunca deve impedir a gravacao da transacao.

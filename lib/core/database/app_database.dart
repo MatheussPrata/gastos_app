@@ -91,9 +91,10 @@ class Transactions extends Table {
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 
-  /// Quando definido, o aparelho mostra um lembrete nesta data/hora.
-  /// Nulo significa que a transacao nao tem lembrete.
-  DateTimeColumn get reminderAt => dateTime().nullable()();
+  /// Quando verdadeiro, o aparelho avisa antes e no dia do vencimento.
+  /// A antecedencia vem das configuracoes de notificacoes.
+  BoolColumn get reminderEnabled =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -281,7 +282,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -307,7 +308,31 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(pendingDeletions);
       }
       if (from < 6) {
-        await m.addColumn(transactions, transactions.reminderAt);
+        // A v6 adicionava reminder_at; a v6 nunca chegou a um aparelho real,
+        // por isso a coluna e criada aqui como texto solto para a migracao
+        // seguinte poder converte-la.
+        await customStatement(
+          'ALTER TABLE transactions ADD COLUMN reminder_at INTEGER',
+        );
+      }
+      if (from < 7) {
+        await m.addColumn(transactions, transactions.reminderEnabled);
+        if (from >= 6) {
+          // A versao 6 guardava uma data/hora exata por transacao. Passa a
+          // ser um simples "avisar" e a antecedencia vem das configuracoes.
+          // Quem tinha lembrete continua com lembrete ligado.
+          await customStatement(
+            'UPDATE transactions SET reminder_enabled = 1 '
+            'WHERE reminder_at IS NOT NULL',
+          );
+          try {
+            await customStatement(
+              'ALTER TABLE transactions DROP COLUMN reminder_at',
+            );
+          } catch (_) {
+            // SQLite antigo: a coluna fica, mas deixa de ser usada.
+          }
+        }
       }
         },
       );
