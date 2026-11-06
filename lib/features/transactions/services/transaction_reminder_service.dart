@@ -54,7 +54,8 @@ class TransactionReminderService {
       try {
         await _plugin.initialize(settings);
         _initialized = true;
-        await _requestPermissions();
+        // A permissao nao e pedida aqui: quem decide e a interface, para
+        // explicar antes de mostrar o dialogo do sistema.
       } catch (_) {
         _initialized = false;
         return;
@@ -101,7 +102,11 @@ class TransactionReminderService {
     }
   }
 
-  Future<void> _requestPermissions() async {
+  /// Pede as permissoes necessarias para os lembretes chegarem.
+  ///
+  /// Chamado pela interface quando o utilizador liga um lembrete ou toca em
+  /// "Permitir" nas configuracoes.
+  Future<void> requestPermissions() async {
     try {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
