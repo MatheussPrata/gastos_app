@@ -1,18 +1,19 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
-import 'package:gastos_app/core/api/dio_client.dart';
-import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 
 class RecurringRepository {
-  final DioClient _dioClient;
   final db.AppDatabase _db;
+  final SyncService _sync;
 
   RecurringRepository({
-    DioClient? dioClient,
     db.AppDatabase? database,
-  })  : _dioClient = dioClient ?? DioClient(),
-        _db = database ?? db.AppDatabase();
+    SyncService? syncService,
+  })  : _db = database ?? db.AppDatabase(),
+        _sync = syncService ?? SyncService();
 
   Future<List<RecurringTransaction>> getRecurring(
       {bool forceRefresh = false}) async {
@@ -20,7 +21,7 @@ class RecurringRepository {
 
     final recurring = localResults.map(_toModel).toList();
 
-    if (forceRefresh || recurring.isEmpty) {
+    if (forceRefresh) {
       _syncWithServer();
     }
 
@@ -79,7 +80,7 @@ class RecurringRepository {
           isSynced: const Value(false),
         ));
 
-    _syncRecurring(recurring);
+    unawaited(_sync.push());
     return recurring;
   }
 
@@ -107,66 +108,20 @@ class RecurringRepository {
           isSynced: const Value(false),
         ));
 
-    _syncRecurring(recurring);
+    unawaited(_sync.push());
     return recurring;
   }
 
   Future<void> deleteRecurring(String id) async {
     await (_db.delete(_db.recurringTransactions)..where((r) => r.id.equals(id)))
         .go();
-    _deleteFromServer(id);
+    await _sync.tombstone('recurring', id);
+    unawaited(_sync.push());
   }
 
+  /// A base local e a fonte da verdade; envio e restauracao passam pelo
+  /// [SyncService].
   Future<void> _syncWithServer() async {
-    try {
-      final response = await _dioClient.dio.get(ApiEndpoints.recurring);
-      if (response.statusCode == 200) {
-        final data = response.data['data'] as List? ?? [];
-        for (final json in data) {
-          final r = RecurringTransaction.fromJson(json as Map<String, dynamic>);
-          await _db
-              .into(_db.recurringTransactions)
-              .insertOnConflictUpdate(db.RecurringTransactionsCompanion(
-                id: Value(r.id),
-                userId: Value(r.userId),
-                description: Value(r.description),
-                amount: Value(r.amount),
-                type: Value(r.type),
-                categoryId: Value(r.categoryId),
-                subcategoryId: Value(r.subcategoryId),
-                creditCardId: Value(r.creditCardId),
-                frequency: Value(r.frequency),
-                dayOfMonth: Value(r.dayOfMonth),
-                startDate: Value(r.startDate),
-                endDate: Value(r.endDate),
-                isActive: Value(r.isActive),
-                nextDueDate: Value(r.nextDueDate),
-                lastGeneratedAt: Value(r.lastGeneratedAt),
-                createdAt: Value(r.createdAt),
-                isSynced: const Value(true),
-              ));
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _syncRecurring(RecurringTransaction recurring) async {
-    try {
-      await _dioClient.dio.post(
-        ApiEndpoints.recurring,
-        data: recurring.toJson(),
-      );
-      await (_db.update(_db.recurringTransactions)
-            ..where((r) => r.id.equals(recurring.id)))
-          .write(
-        const db.RecurringTransactionsCompanion(isSynced: Value(true)),
-      );
-    } catch (_) {}
-  }
-
-  Future<void> _deleteFromServer(String id) async {
-    try {
-      await _dioClient.dio.delete('${ApiEndpoints.recurringById}$id');
-    } catch (_) {}
+    await _sync.push();
   }
 }

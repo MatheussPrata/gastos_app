@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/auth/models/auth_models.dart';
 import 'package:gastos_app/features/auth/repository/auth_repository.dart';
 
@@ -169,6 +170,9 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _repository.logout();
+    // Limpa a base local: sem isto, os dados do utilizador anterior seriam
+    // enviados para a conta seguinte que entrasse no aparelho.
+    await db.AppDatabase().clearAllData();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 

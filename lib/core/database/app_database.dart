@@ -196,6 +196,20 @@ class BudgetAlerts extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Tombstones for records deleted while offline.
+///
+/// A row here means "delete this id on the server on the next sync".
+/// Without it, a restore would resurrect everything the user deleted.
+class PendingDeletions extends Table {
+  TextColumn get id => text()();
+  TextColumn get entityType => text()();
+  TextColumn get remoteId => text()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Connections table (for sharing with partner)
 class Connections extends Table {
   TextColumn get id => text()();
@@ -252,14 +266,18 @@ class Sessions extends Table {
   BudgetPlans,
   BudgetAlerts,
   Connections,
+  PendingDeletions,
   PasswordResetTokens,
   Sessions,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Base em memoria (ou executor alternativo) para testes.
+  AppDatabase.forTesting(QueryExecutor executor) : super(executor);
+
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -281,6 +299,9 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(budgetPlans, budgetPlans.scope);
         await m.addColumn(budgetAlerts, budgetAlerts.scope);
       }
+      if (from < 5) {
+        await m.createTable(pendingDeletions);
+      }
         },
       );
 
@@ -297,6 +318,7 @@ class AppDatabase extends _$AppDatabase {
       await delete(creditCards).go();
       await delete(appSettings).go();
       await delete(connections).go();
+      await delete(pendingDeletions).go();
       await delete(users).go();
       await delete(sessions).go();
       await delete(passwordResetTokens).go();

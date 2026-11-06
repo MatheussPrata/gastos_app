@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/core/sync/sync_provider.dart';
 import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
@@ -35,6 +36,8 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
 
   Future<void> _silentSync() async {
     try {
+      // Restaura num aparelho vazio e envia o que ficou pendente.
+      await runStartupSync(ref);
       await runSharingSync(ref);
     } catch (_) {
       // Offline or not configured: local data continues to work.
