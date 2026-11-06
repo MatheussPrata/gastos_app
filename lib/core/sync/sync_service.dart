@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 /// Resultado de uma sincronizacao/restauracao com o servidor.
 class SyncOutcome {
@@ -384,6 +385,9 @@ class SyncService {
         data['recurringTransactions'], userId, blocked);
     pulled += await _restorePlans(data['budgetPlans'], userId);
 
+    // Num aparelho novo os lembretes tem de ser reagendados localmente.
+    if (pulled > 0) await _rescheduleRestoredReminders();
+
     return SyncOutcome(pulled: pulled);
   }
 
@@ -513,6 +517,7 @@ class SyncService {
               notes: Value(json['notes']?.toString()),
               ownerId: Value(json['ownerId']?.toString()),
               partnerSynced: Value(json['partnerSynced'] as bool? ?? false),
+              reminderAt: Value(_optionalDate(json['reminderAt'])),
               createdAt: Value(createdAt),
               updatedAt: Value(updatedAt),
               isSynced: const Value(true),
@@ -630,6 +635,31 @@ class SyncService {
     return count;
   }
 
+  /// Reagenda no sistema operativo os lembretes restaurados do servidor.
+  Future<void> _rescheduleRestoredReminders() async {
+    final now = DateTime.now();
+    // A coluna e nullable; filtra em Dart para nao depender de comparacao
+    // com nulo no SQL.
+    final all = await _db.select(_db.transactions).get();
+    final rows = all.where((row) {
+      final reminder = row.reminderAt;
+      return reminder != null && reminder.isAfter(now);
+    });
+    for (final row in rows) {
+      try {
+        await TransactionReminderService.instance.schedule(
+          transactionId: row.id,
+          description: row.description,
+          amount: row.amount,
+          isExpense: row.isExpense,
+          reminderAt: row.reminderAt,
+        );
+      } catch (_) {
+        // Um lembrete que falha nao impede o restauro dos dados.
+      }
+    }
+  }
+
   // --------------------------------------------------------------- helpers
 
   Map<String, dynamic> _transactionToJson(db.Transaction t) => {
@@ -650,6 +680,7 @@ class SyncService {
         'notes': t.notes,
         'ownerId': t.ownerId,
         'partnerSynced': t.partnerSynced,
+        'reminderAt': t.reminderAt?.toIso8601String(),
         'createdAt': t.createdAt.toIso8601String(),
         'updatedAt': t.updatedAt.toIso8601String(),
       };

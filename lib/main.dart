@@ -5,6 +5,7 @@ import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/planning/services/notification_service.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 /// App entry point
 void main() async {
@@ -15,6 +16,9 @@ void main() async {
 
   // Configure budget alert notifications (asks permission on Android 13+).
   await NotificationService.instance.initialize();
+
+  // Prepara o fuso horario dos lembretes de pagamento.
+  await TransactionReminderService.instance.initialize();
 
   // Initialize database (optional - can be lazy)
   // AppDatabase(); // Singleton, will initialize on first access
