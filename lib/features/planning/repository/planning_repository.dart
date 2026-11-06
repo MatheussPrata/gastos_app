@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
-import 'package:gastos_app/core/api/dio_client.dart';
-import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 
@@ -20,18 +20,18 @@ final planningRepositoryProvider = Provider<PlanningRepository>((ref) {
 class PlanningRepository {
   final db.AppDatabase _db;
   final FlutterSecureStorage _storage;
-  final DioClient _dioClient;
   final Uuid _uuid;
+  final SyncService _sync;
 
   PlanningRepository({
     db.AppDatabase? database,
     FlutterSecureStorage? storage,
-    DioClient? dioClient,
     Uuid? uuid,
+    SyncService? syncService,
   })  : _db = database ?? db.AppDatabase(),
         _storage = storage ?? const FlutterSecureStorage(),
-        _dioClient = dioClient ?? DioClient(),
-        _uuid = uuid ?? const Uuid();
+        _uuid = uuid ?? const Uuid(),
+        _sync = syncService ?? SyncService();
 
   // ---------------------------------------------------------------- mapping
 
@@ -503,73 +503,15 @@ class PlanningRepository {
 
   // ------------------------------------------------------------------- sync
 
+  /// O envio passa pelo [SyncService], que agrupa planos e alertas numa
+  /// unica requisicao e trata eliminacoes pendentes.
   Future<void> _syncPlan(BudgetPlan plan) async {
-    if (await _isGuestMode()) return;
-    try {
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.sync,
-        data: {
-          'budgetPlans': [_planToSyncJson(plan)]
-        },
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        await (_db.update(_db.budgetPlans)
-              ..where((row) => row.id.equals(plan.id)))
-            .write(const db.BudgetPlansCompanion(isSynced: Value(true)));
-      }
-    } catch (_) {
-      // Offline: keep isSynced = false and retry later.
-    }
+    await _sync.push();
   }
 
   Future<void> _syncAlerts(List<BudgetAlert> alerts) async {
-    if (await _isGuestMode()) return;
-    try {
-      final response = await _dioClient.dio.post(
-        ApiEndpoints.sync,
-        data: {
-          'budgetAlerts': alerts.map(_alertToSyncJson).toList(),
-        },
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        for (final alert in alerts) {
-          await (_db.update(_db.budgetAlerts)
-                ..where((row) => row.id.equals(alert.id)))
-              .write(const db.BudgetAlertsCompanion(isSynced: Value(true)));
-        }
-      }
-    } catch (_) {
-      // Offline: keep isSynced = false and retry later.
-    }
+    await _sync.push();
   }
-
-  Map<String, dynamic> _planToSyncJson(BudgetPlan plan) => {
-        'id': plan.id,
-        'userId': plan.userId,
-        'month': plan.month.toIso8601String(),
-        'scope': plan.scope.name,
-        'incomeMode': plan.incomeMode.name,
-        'manualIncome': plan.manualIncome,
-        'monthlyBudget': plan.monthlyBudget,
-        'categories': plan.categories.map((c) => c.toJson()).toList(),
-        'notifications': plan.notifications.toJson(),
-        'createdAt': plan.createdAt.toIso8601String(),
-        'updatedAt': plan.updatedAt.toIso8601String(),
-      };
-
-  Map<String, dynamic> _alertToSyncJson(BudgetAlert alert) => {
-        'id': alert.id,
-        'planId': alert.planId,
-        'categoryId': alert.categoryId,
-        'categoryName': alert.categoryName,
-        'scope': alert.scope.name,
-        'threshold': alert.threshold,
-        'spentAmount': alert.spentAmount,
-        'allocatedAmount': alert.allocatedAmount,
-        'triggeredAt': alert.triggeredAt.toIso8601String(),
-        'read': alert.read,
-        'dismissed': alert.dismissed,
-      };
 
   Future<bool> _isGuestMode() async {
     try {

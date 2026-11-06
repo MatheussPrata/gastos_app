@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
-import 'package:gastos_app/core/api/dio_client.dart';
-import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 
 final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) {
@@ -14,19 +12,17 @@ final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) {
 });
 
 class TransactionsRepository {
-  final DioClient _dioClient;
   final db.AppDatabase _db;
-  final FlutterSecureStorage _storage;
   final Uuid _uuid;
+  final SyncService _sync;
 
   TransactionsRepository({
-    DioClient? dioClient,
     db.AppDatabase? database,
-    FlutterSecureStorage? storage,
-  })  : _dioClient = dioClient ?? DioClient(),
-        _db = database ?? db.AppDatabase(),
-        _storage = storage ?? const FlutterSecureStorage(),
-        _uuid = const Uuid();
+    SyncService? syncService,
+    Uuid? uuid,
+  })  : _db = database ?? db.AppDatabase(),
+        _sync = syncService ?? SyncService(),
+        _uuid = uuid ?? const Uuid();
 
   // ---------------------------------------------------------------- mapping
 
@@ -77,28 +73,6 @@ class TransactionsRepository {
       isSynced: Value(synced),
     );
   }
-
-  Map<String, dynamic> _toSyncJson(Transaction t) => {
-        'id': t.id,
-        'userId': t.userId,
-        'amount': t.amount,
-        'description': t.description,
-        'date': t.date.toIso8601String(),
-        'categoryId': t.categoryId,
-        'subcategoryId': t.subcategoryId,
-        'creditCardId': t.creditCardId,
-        'paymentMethod': t.paymentMethod,
-        'isExpense': t.isExpense,
-        'isInstallment': t.isInstallment,
-        'installmentNumber': t.installmentNumber,
-        'totalInstallments': t.totalInstallments,
-        'installmentGroupId': t.installmentGroupId,
-        'notes': t.notes,
-        'ownerId': t.ownerId,
-        'partnerSynced': t.partnerSynced,
-        'createdAt': t.createdAt.toIso8601String(),
-        'updatedAt': t.updatedAt.toIso8601String(),
-      };
 
   // ------------------------------------------------------------------ reads
 
@@ -226,7 +200,9 @@ class TransactionsRepository {
 
   Future<void> deleteTransaction(String id) async {
     await (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
-    unawaited(_deleteFromServer(id));
+    // A eliminacao e enviada na proxima sincronizacao (funciona offline).
+    await _sync.tombstone('transaction', id);
+    unawaited(_sync.push());
   }
 
   // ---------------------------------------------------------------- stats
@@ -351,44 +327,9 @@ class TransactionsRepository {
 
   // ------------------------------------------------------------------ sync
 
+  /// Envia as transacoes pendentes (e o resto dos dados) para o servidor.
   Future<void> syncPendingTransactions() async {
-    if (await _isGuestMode()) return;
-
-    try {
-      final unsynced = await (_db.select(_db.transactions)
-            ..where((t) => t.isSynced.equals(false)))
-          .get();
-      if (unsynced.isEmpty) return;
-
-      final payload = unsynced.map((t) => _toSyncJson(_toModel(t))).toList();
-      final response = await _dioClient.dio
-          .post(ApiEndpoints.sync, data: {'transactions': payload});
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        for (final t in unsynced) {
-          await (_db.update(_db.transactions)..where((r) => r.id.equals(t.id)))
-              .write(const db.TransactionsCompanion(isSynced: Value(true)));
-        }
-      }
-    } catch (_) {
-      // Offline or server error: keep isSynced = false and retry later.
-    }
-  }
-
-  Future<void> _deleteFromServer(String id) async {
-    if (await _isGuestMode()) return;
-    try {
-      await _dioClient.dio.delete('${ApiEndpoints.transactionsById}$id');
-    } catch (_) {}
-  }
-
-  Future<bool> _isGuestMode() async {
-    try {
-      final value = await _storage.read(key: StorageKeys.isGuestMode);
-      return value == 'true';
-    } catch (_) {
-      return false;
-    }
+    await _sync.push();
   }
 
   // ----------------------------------------------------------------- helpers

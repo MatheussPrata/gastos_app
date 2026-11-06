@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/app_info.dart';
+import 'package:gastos_app/core/sync/sync_provider.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
@@ -159,16 +160,32 @@ class SettingsDrawer extends ConsumerWidget {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.cloud_upload),
-                    title: const Text('Backup no Google Drive'),
-                    subtitle: const Text('Fazer backup dos dados'),
+                    leading: const Icon(Icons.cloud_sync),
+                    title: const Text('Sincronizar agora'),
+                    subtitle: const Text(
+                        'Enviar dados locais e restaurar do servidor'),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () {},
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      try {
+                        final result = await runFullRestore(ref);
+                        messenger.showSnackBar(
+                          SnackBar(content: Text(result.summary)),
+                        );
+                      } catch (e) {
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(e.toString()),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.sync),
-                    title: const Text('Sincronizar agora'),
+                    title: const Text('Sincronizar com o parceiro'),
                     subtitle:
                         const Text('Enviar dados locais e receber do parceiro'),
                     trailing: const Icon(Icons.chevron_right),

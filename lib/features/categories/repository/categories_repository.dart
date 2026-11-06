@@ -1,8 +1,9 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_app/core/api/dio_client.dart';
-import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 
 final categoriesRepositoryProvider = Provider<CategoriesRepository>((ref) {
@@ -10,14 +11,14 @@ final categoriesRepositoryProvider = Provider<CategoriesRepository>((ref) {
 });
 
 class CategoriesRepository {
-  final DioClient _dioClient;
   final db.AppDatabase _db;
+  final SyncService _sync;
 
   CategoriesRepository({
-    DioClient? dioClient,
     db.AppDatabase? database,
-  })  : _dioClient = dioClient ?? DioClient(),
-        _db = database ?? db.AppDatabase();
+    SyncService? syncService,
+  })  : _db = database ?? db.AppDatabase(),
+        _sync = syncService ?? SyncService();
 
   /// Get all categories
   Future<List<Category>> getCategories({bool forceRefresh = false}) async {
@@ -66,7 +67,7 @@ class CategoriesRepository {
       isSynced: const Value(false),
     ));
 
-    _syncCategory(category);
+    unawaited(_sync.push());
     return category;
   }
 
@@ -83,14 +84,15 @@ class CategoriesRepository {
       isSynced: const Value(false),
     ));
 
-    _syncCategory(category);
+    unawaited(_sync.push());
     return category;
   }
 
   /// Delete category
   Future<void> deleteCategory(String id) async {
     await (_db.delete(_db.categories)..where((c) => c.id.equals(id))).go();
-    _deleteFromServer(id);
+    await _sync.tombstone('category', id);
+    unawaited(_sync.push());
   }
 
   /// Seed default categories if empty
@@ -117,48 +119,16 @@ class CategoriesRepository {
         isDefault: Value(cat.isDefault),
         isExpenseDefault: Value(cat.isExpenseDefault),
         sortOrder: Value(cat.sortOrder),
-        isSynced: const Value(true),
+        // As categorias padrao tambem sobem para o servidor: sao elas que
+        // dao nome/cor aos gastos restaurados noutro aparelho.
+        isSynced: const Value(false),
       ));
     }
   }
 
+  /// A lista local e a fonte da verdade; o servidor e populado pelo
+  /// [SyncService.push] e consultado apenas na restauracao.
   Future<void> _syncWithServer() async {
-    try {
-      final response = await _dioClient.dio.get(ApiEndpoints.categories);
-      if (response.statusCode == 200) {
-        final data = response.data['data'] as List? ?? [];
-        for (final json in data) {
-          final cat = Category.fromJson(json as Map<String, dynamic>);
-          await _db.into(_db.categories).insertOnConflictUpdate(db.CategoriesCompanion(
-            id: Value(cat.id),
-            name: Value(cat.name),
-            color: Value(cat.color),
-            icon: Value(cat.icon),
-            isDefault: Value(cat.isDefault),
-            isExpenseDefault: Value(cat.isExpenseDefault),
-            sortOrder: Value(cat.sortOrder),
-            isSynced: const Value(true),
-          ));
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _syncCategory(Category category) async {
-    try {
-      await _dioClient.dio.post(
-        ApiEndpoints.categories,
-        data: category.toJson(),
-      );
-      await (_db.update(_db.categories)..where((c) => c.id.equals(category.id))).write(
-        const db.CategoriesCompanion(isSynced: Value(true)),
-      );
-    } catch (_) {}
-  }
-
-  Future<void> _deleteFromServer(String id) async {
-    try {
-      await _dioClient.dio.delete('${ApiEndpoints.categoriesById}$id');
-    } catch (_) {}
+    await _sync.push();
   }
 }

@@ -17,7 +17,9 @@ class ApiEndpoints {
   static const String live = '/live';
 
   // Sync endpoints
+  /// POST envia os dados pendentes; GET restaura os dados do utilizador.
   static const String sync = '/sync';
+  static const String syncDeletions = '/sync/deletions';
   static const String syncStatus = '/sync/status';
   static const String syncPartner = '/sync/partner';
 
