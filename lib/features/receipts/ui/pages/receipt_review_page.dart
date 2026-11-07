@@ -612,13 +612,6 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
             _selectedCategoryId = match.id;
           }
 
-          final summaries = ReceiptsRepository.getCategorySummaries(
-            widget.initialReceipt.copyWith(
-              totalAmount: _totalAmount,
-              items: _items,
-            ),
-          );
-
           return Column(
             children: [
               Expanded(
@@ -626,12 +619,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
                   children: [
                     _buildGeneralInfoCard(categories),
-                    const SizedBox(height: 12),
-                    _buildCategorySummaries(summaries),
                     const SizedBox(height: 16),
                     _buildItemsHeader(),
                     const SizedBox(height: 8),
-                    _buildCategorizedItemsList(),
+                    _buildFlatItemsList(),
                   ],
                 ),
               ),
@@ -784,255 +775,127 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     );
   }
 
-  Widget _buildCategorySummaries(List<ReceiptCategorySummary> summaries) {
-    if (summaries.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Divisão por Setor',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            Text(
-              '${summaries.length} categorias identificadas',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: summaries.map((s) {
-            final color = ReceiptItemCategorizer.getColor(s.category);
-            final icon = ReceiptItemCategorizer.getIcon(s.category);
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: color.withAlpha(25),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withAlpha(80)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: color),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${s.category}: ',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      color: color,
-                    ),
-                  ),
-                  Text(
-                    '${CurrencyFormatter.format(s.totalAmount)} (${s.percentage}%)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: color,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
   Widget _buildItemsHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          'Itens por Categoria (${_items.length})',
+          'Itens Comprados (${_items.length})',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         TextButton.icon(
           icon: const Icon(Icons.add, size: 18),
-          label: const Text('Adicionar'),
+          label: const Text('Adicionar item'),
           onPressed: _showAddItemDialog,
         ),
       ],
     );
   }
 
-  Widget _buildCategorizedItemsList() {
+  Widget _buildFlatItemsList() {
     if (_items.isEmpty) {
-      return const Center(
-        child: Padding(
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: const Padding(
           padding: EdgeInsets.all(24),
-          child: Text('Nenhum item na lista'),
+          child: Center(child: Text('Nenhum item na lista')),
         ),
       );
     }
 
-    // Agrupa os itens pelas categorias preservando a ordem
-    final grouped = <String, List<({int originalIndex, ReceiptItem item})>>{};
-    for (var i = 0; i < _items.length; i++) {
-      final item = _items[i];
-      grouped.putIfAbsent(item.category, () => []).add((originalIndex: i, item: item));
-    }
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final item = _items[index];
+          final unit = item.unit.isNotEmpty ? item.unit.toUpperCase() : 'UN';
+          final qtyFormatted = item.quantity == item.quantity.truncateToDouble()
+              ? item.quantity.toInt().toString()
+              : (unit == 'KG'
+                  ? item.quantity.toStringAsFixed(3)
+                  : item.quantity.toStringAsFixed(2));
 
-    // Ordena as categorias de acordo com availableCategories
-    final sortedCategories = grouped.keys.toList()
-      ..sort((a, b) {
-        final idxA = ReceiptItemCategorizer.availableCategories.indexOf(a);
-        final idxB = ReceiptItemCategorizer.availableCategories.indexOf(b);
-        if (idxA != -1 && idxB != -1) return idxA.compareTo(idxB);
-        if (idxA != -1) return -1;
-        if (idxB != -1) return 1;
-        return a.compareTo(b);
-      });
-
-    return Column(
-      children: sortedCategories.map((category) {
-        final categoryItems = grouped[category]!;
-        final color = ReceiptItemCategorizer.getColor(category);
-        final icon = ReceiptItemCategorizer.getIcon(category);
-        final totalCategory = categoryItems.fold(0.0, (acc, entry) => acc + entry.item.totalPrice);
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: color.withAlpha(50)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Cabeçalho da Categoria
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(20),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, size: 18, color: color),
-                    const SizedBox(width: 8),
-                    Text(
-                      category,
+          return InkWell(
+            onTap: () => _showEditItemDialog(index),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: Colors.grey.shade200,
+                    child: Text(
+                      '${index + 1}',
                       style: TextStyle(
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: color,
+                        color: Colors.grey.shade700,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: color.withAlpha(40),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${categoryItems.length} ${categoryItems.length == 1 ? "item" : "itens"}',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      CurrencyFormatter.format(totalCategory),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Itens pertencentes a essa categoria
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: categoryItems.length,
-                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.withAlpha(30)),
-                itemBuilder: (context, idx) {
-                  final entry = categoryItems[idx];
-                  final item = entry.item;
-                  final originalIndex = entry.originalIndex;
-
-                  return InkWell(
-                    onTap: () => _showEditItemDialog(originalIndex),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  '${item.quantity.toStringAsFixed(item.unit == "KG" ? 3 : 1)} ${item.unit} × ${CurrencyFormatter.format(item.unitPrice)}',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
                           ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                CurrencyFormatter.format(item.totalPrice),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13.5,
-                                  color: AppColors.expense,
-                                ),
-                              ),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.blueGrey),
-                                    tooltip: 'Editar item',
-                                    visualDensity: VisualDensity.compact,
-                                    onPressed: () => _showEditItemDialog(originalIndex),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
-                                    tooltip: 'Remover',
-                                    visualDensity: VisualDensity.compact,
-                                    onPressed: () => _removeItem(originalIndex),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$qtyFormatted $unit ${item.unitPrice > 0 ? "× ${CurrencyFormatter.format(item.unitPrice)}" : ""}',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    CurrencyFormatter.format(item.totalPrice),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13.5,
+                      color: AppColors.expense,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            size: 18, color: Colors.blueGrey),
+                        tooltip: 'Editar',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _showEditItemDialog(index),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            size: 18, color: Colors.grey),
+                        tooltip: 'Remover',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _removeItem(index),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }).toList(),
+            ),
+          );
+        },
+      ),
     );
   }
 }

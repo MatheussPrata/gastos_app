@@ -6,8 +6,6 @@ import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/receipts/provider/receipts_provider.dart';
-import 'package:gastos_app/features/receipts/repository/receipts_repository.dart';
-import 'package:gastos_app/features/receipts/services/receipt_item_categorizer.dart';
 
 class ReceiptDetailPage extends ConsumerWidget {
   final String? receiptId;
@@ -68,20 +66,12 @@ class ReceiptDetailPage extends ConsumerWidget {
             );
           }
 
-          final summaries = ReceiptsRepository.getCategorySummaries(receipt);
-          final groupedItems = <String, List<ReceiptItem>>{};
-          for (final item in receipt.items) {
-            groupedItems.putIfAbsent(item.category, () => []).add(item);
-          }
-
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _buildHeaderCard(context, receipt),
               const SizedBox(height: 16),
-              _buildCategorySummaries(context, summaries),
-              const SizedBox(height: 20),
-              _buildGroupedItems(context, groupedItems),
+              _buildItemsCard(context, receipt),
             ],
           );
         },
@@ -189,164 +179,164 @@ class ReceiptDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildCategorySummaries(
-    BuildContext context,
-    List<ReceiptCategorySummary> summaries,
-  ) {
-    if (summaries.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Gastos por Categoria nesta Compra',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  Widget _buildItemsCard(BuildContext context, Receipt receipt) {
+    if (receipt.items.isEmpty) {
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'Nenhum item individual registrado nesta compra.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
         ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: summaries.map((s) {
-            final color = ReceiptItemCategorizer.getColor(s.category);
-            final icon = ReceiptItemCategorizer.getIcon(s.category);
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: color.withAlpha(25),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withAlpha(80)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 18, color: color),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        s.category,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: color,
-                        ),
-                      ),
-                      Text(
-                        '${CurrencyFormatter.format(s.totalAmount)} (${s.percentage}%)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: color,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGroupedItems(
-    BuildContext context,
-    Map<String, List<ReceiptItem>> grouped,
-  ) {
-    final categories = grouped.keys.toList()
-      ..sort((a, b) {
-        final totalA = grouped[a]!.fold(0.0, (acc, i) => acc + i.totalPrice);
-        final totalB = grouped[b]!.fold(0.0, (acc, i) => acc + i.totalPrice);
-        return totalB.compareTo(totalA);
-      });
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Itens Separados por Setor',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        for (final cat in categories) ...[
-          _buildCategorySection(cat, grouped[cat]!),
-          const SizedBox(height: 14),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCategorySection(String category, List<ReceiptItem> items) {
-    final color = ReceiptItemCategorizer.getColor(category);
-    final icon = ReceiptItemCategorizer.getIcon(category);
-    final sectionTotal = items.fold(0.0, (acc, i) => acc + i.totalPrice);
+      );
+    }
 
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: color.withAlpha(25),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  category,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: color,
-                  ),
+                const Row(
+                  children: [
+                    Icon(Icons.receipt_long, size: 20, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text(
+                      'Itens Comprados',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                Text(
-                  CurrencyFormatter.format(sectionTotal),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: color,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${receipt.items.length} ${receipt.items.length == 1 ? "item" : "itens"}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+          const Divider(height: 1),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
+            itemCount: receipt.items.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final item = items[index];
-              return ListTile(
-                dense: true,
-                title: Text(
-                  item.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                subtitle: Text(
-                  '${item.quantity.toStringAsFixed(item.unit == "KG" ? 3 : 1)} ${item.unit} x ${CurrencyFormatter.format(item.unitPrice)}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-                trailing: Text(
-                  CurrencyFormatter.format(item.totalPrice),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+              final item = receipt.items[index];
+              final unit =
+                  item.unit.isNotEmpty ? item.unit.toUpperCase() : 'UN';
+              final qtyFormatted = item.quantity == item.quantity.truncateToDouble()
+                  ? item.quantity.toInt().toString()
+                  : (unit == 'KG'
+                      ? item.quantity.toStringAsFixed(3)
+                      : item.quantity.toStringAsFixed(2));
+
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 13,
+                      backgroundColor: Colors.grey.shade200,
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$qtyFormatted $unit ${item.unitPrice > 0 ? "× ${CurrencyFormatter.format(item.unitPrice)}" : ""}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      CurrencyFormatter.format(item.totalPrice),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.expense,
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
+          ),
+          const Divider(height: 1),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(16)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total da Compra',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  CurrencyFormatter.format(receipt.totalAmount),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.expense,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
