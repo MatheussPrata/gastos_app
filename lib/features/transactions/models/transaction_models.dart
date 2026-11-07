@@ -102,54 +102,59 @@ class RecurringTransaction with _$RecurringTransaction {
 /// Available payment methods for a transaction
 class PaymentMethods {
   static const String money = 'Dinheiro';
-  static const String pix = 'PIX';
   static const String creditCard = 'Cartão de Crédito';
   static const String debitCard = 'Cartão de Débito';
-  static const String bankTransfer = 'Transferência';
-  static const String other = 'Outro';
+  static const String pix = 'PIX';
+  static const String boleto = 'Boleto';
 
   static const List<String> all = [
     money,
-    pix,
     creditCard,
     debitCard,
-    bankTransfer,
-    other,
+    pix,
+    boleto,
   ];
 }
 
-/// Helper model for monthly totals calculation
-class MonthlyStats {
-  final int year;
-  final int month;
-  final double totalIncome;
-  final double totalExpense;
+@freezed
+class MonthlyStats with _$MonthlyStats {
+  const factory MonthlyStats({
+    required String month,
+    required double income,
+    required double expense,
+    required double balance,
+  }) = _MonthlyStats;
 
-  const MonthlyStats({
-    required this.year,
-    required this.month,
-    required this.totalIncome,
-    required this.totalExpense,
-  });
-
-  double get balance => totalIncome - totalExpense;
+  factory MonthlyStats.fromJson(Map<String, dynamic> json) =>
+      _$MonthlyStatsFromJson(json);
 }
 
-/// Helper model for category expenses
-class CategoryExpense {
-  final String categoryId;
-  final String categoryName;
-  final int categoryColor;
-  final String categoryIcon;
-  final double totalAmount;
-  final double percentage;
-
-  const CategoryExpense({
-    required this.categoryId,
-    required this.categoryName,
-    required this.categoryColor,
-    required this.categoryIcon,
-    required this.totalAmount,
-    required this.percentage,
+/// Monthly income/expense plus the expense breakdown by category.
+///
+/// Not persisted, so it does not need freezed/json code.
+class MonthlyCategoryStats {
+  const MonthlyCategoryStats({
+    required this.month,
+    required this.income,
+    required this.expense,
+    required this.categories,
   });
+
+  final String month;
+  final double income;
+  final double expense;
+  final List<CategoryExpense> categories;
+}
+
+@freezed
+class CategoryExpense with _$CategoryExpense {
+  const factory CategoryExpense({
+    required String categoryId,
+    required String categoryName,
+    required int categoryColor,
+    required double total,
+  }) = _CategoryExpense;
+
+  factory CategoryExpense.fromJson(Map<String, dynamic> json) =>
+      _$CategoryExpenseFromJson(json);
 }
