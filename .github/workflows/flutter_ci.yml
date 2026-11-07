@@ -44,15 +44,24 @@ jobs:
 
       - name: Build APK (release assinado)
         run: |
+          set -o pipefail
           flutter build apk --release \
             --build-name="1.3.${{ github.run_number }}" \
             --build-number="${{ github.run_number }}" \
-            --verbose
+            --verbose 2>&1 | tee build_log.txt
         env:
           KEYSTORE_PATH: "release.jks"
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Dump build log on failure
+        if: failure()
+        run: |
+          echo "### Build Failure Log" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          tail -n 120 build_log.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
