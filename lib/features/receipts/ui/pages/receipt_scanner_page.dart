@@ -185,18 +185,19 @@ class _ReceiptScannerPageState extends ConsumerState<ReceiptScannerPage> {
         title: const Text('Escanear Cupom Fiscal'),
         actions: [
           if (_controller != null) ...[
-            IconButton(
-              icon: ValueListenableBuilder<TorchState>(
-                valueListenable: _controller!.torchState,
-                builder: (context, state, child) {
-                  return Icon(
-                    state == TorchState.on ? Icons.flash_on : Icons.flash_off,
-                    color: state == TorchState.on ? Colors.amber : null,
-                  );
-                },
-              ),
-              tooltip: 'Lanterna',
-              onPressed: () => _controller!.toggleTorch(),
+            ValueListenableBuilder<MobileScannerState>(
+              valueListenable: _controller!,
+              builder: (context, state, child) {
+                final isOn = state.torchState == TorchState.on;
+                return IconButton(
+                  icon: Icon(
+                    isOn ? Icons.flash_on : Icons.flash_off,
+                    color: isOn ? Colors.amber : null,
+                  ),
+                  tooltip: 'Lanterna',
+                  onPressed: () => _controller!.toggleTorch(),
+                );
+              },
             ),
             IconButton(
               icon: const Icon(Icons.flip_camera_ios),

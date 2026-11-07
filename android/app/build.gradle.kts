@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.gastos_app"
-        minSdk = flutter.minSdkVersion
+        minSdk = 21
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName

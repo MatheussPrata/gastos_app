@@ -6,6 +6,7 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
@@ -13,7 +14,7 @@ import 'package:gastos_app/features/planning/repository/planning_repository.dart
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/receipts/repository/receipts_repository.dart';
 import 'package:gastos_app/features/receipts/services/receipt_item_categorizer.dart';
-import 'package:gastos_app/features/transactions/models/transaction_models.dart';
+import 'package:gastos_app/features/transactions/models/transaction_models.dart' hide Category;
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 
 class ReceiptReviewPage extends ConsumerStatefulWidget {
@@ -338,7 +339,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesProvider);
+    final categoriesAsync = ref.watch(categoriesListProvider);
 
     return Scaffold(
       appBar: AppBar(

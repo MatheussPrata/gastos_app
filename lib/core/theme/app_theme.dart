@@ -49,7 +49,7 @@ ThemeData buildLightTheme(Color seedColor) {
       elevation: 0,
       scrolledUnderElevation: 1,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -143,7 +143,7 @@ ThemeData buildLightTheme(Color seedColor) {
         borderRadius: BorderRadius.all(Radius.circular(12)),
       ),
     ),
-    dialogTheme: const DialogThemeData(
+    dialogTheme: const DialogTheme(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(20)),
       ),
@@ -179,7 +179,7 @@ ThemeData buildDarkTheme(Color seedColor) {
       elevation: 0,
       scrolledUnderElevation: 1,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -274,7 +274,7 @@ ThemeData buildDarkTheme(Color seedColor) {
         borderRadius: BorderRadius.all(Radius.circular(12)),
       ),
     ),
-    dialogTheme: DialogThemeData(
+    dialogTheme: DialogTheme(
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(20)),
       ),
