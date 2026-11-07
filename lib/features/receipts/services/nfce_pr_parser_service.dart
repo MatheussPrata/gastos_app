@@ -453,7 +453,7 @@ class NfcePrParserService {
         'qtd': 1.0,
         'un': 'UN',
         'unitPrice': 28.90,
-        'category': ReceiptItemCategorizer.mercearia,
+        'category': ReceiptItemCategorizer.alimentacao,
       },
       {
         'name': 'REFRIGERANTE COCA-COLA 2L',

@@ -44,11 +44,11 @@ class ReceiptDetailPage extends ConsumerWidget {
               }
               return IconButton(
                 icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Editar Transação',
+                tooltip: 'Editar Cupom e Itens',
                 onPressed: () {
                   context.push(
-                    RouteNames.transactionForm,
-                    extra: {'id': receipt.transactionId, 'isEditing': true},
+                    RouteNames.receiptReview,
+                    extra: receipt,
                   );
                 },
               );

@@ -23,13 +23,13 @@ class ReceiptsRepository {
         _sync = syncService,
         _uuid = uuid ?? const Uuid();
 
-  /// Salva o cupom fiscal, seus itens e cria a transação macro correspondente.
+  /// Salva ou atualiza o cupom fiscal, seus itens e cria/atualiza a transação macro correspondente.
   Future<({Transaction transaction, Receipt receipt})> saveReceiptWithTransaction({
     required Receipt receipt,
     required String? categoryId,
     required String userId,
   }) async {
-    final transactionId = _uuid.v4();
+    final transactionId = receipt.transactionId.isNotEmpty ? receipt.transactionId : _uuid.v4();
     final receiptId = receipt.id.isNotEmpty ? receipt.id : _uuid.v4();
     final now = DateTime.now();
 
@@ -44,7 +44,7 @@ class ReceiptsRepository {
       isExpense: true,
       notes: 'Cupom fiscal NFC-e PR',
       receiptId: receiptId,
-      createdAt: now,
+      createdAt: receipt.createdAt,
       updatedAt: now,
     );
 
@@ -64,8 +64,8 @@ class ReceiptsRepository {
     );
 
     await _db.transaction(() async {
-      // 1. Insere a transação
-      await _db.into(_db.transactions).insert(
+      // 1. Insere ou atualiza a transação
+      await _db.into(_db.transactions).insertOnConflictUpdate(
             db.TransactionsCompanion(
               id: Value(txModel.id),
               userId: Value(txModel.userId),
@@ -83,8 +83,8 @@ class ReceiptsRepository {
             ),
           );
 
-      // 2. Insere o cupom fiscal
-      await _db.into(_db.receipts).insert(
+      // 2. Insere ou atualiza o cupom fiscal
+      await _db.into(_db.receipts).insertOnConflictUpdate(
             db.ReceiptsCompanion(
               id: Value(finalReceipt.id),
               transactionId: Value(transactionId),
@@ -99,7 +99,12 @@ class ReceiptsRepository {
             ),
           );
 
-      // 3. Insere todos os itens
+      // 3. Remove os itens anteriores para gravar a lista atualizada
+      await (_db.delete(_db.receiptItems)
+            ..where((t) => t.receiptId.equals(receiptId)))
+          .go();
+
+      // 4. Insere todos os itens
       for (final item in finalReceipt.items) {
         await _db.into(_db.receiptItems).insert(
               db.ReceiptItemsCompanion(
@@ -134,12 +139,12 @@ class ReceiptsRepository {
 
     if (row == null) return null;
 
-    final itemRows = await (_db.select(_db.receiptItems)
+    final itemsRows = await (_db.select(_db.receiptItems)
           ..where((i) => i.receiptId.equals(row.id))
           ..orderBy([(i) => OrderingTerm.asc(i.sortOrder)]))
         .get();
 
-    final items = itemRows
+    final items = itemsRows
         .map(
           (i) => ReceiptItem(
             id: i.id,
@@ -166,12 +171,12 @@ class ReceiptsRepository {
       paymentMethod: row.paymentMethod,
       accessKey: row.accessKey,
       rawUrl: row.rawUrl,
-      createdAt: row.createdAt,
       items: items,
+      createdAt: row.createdAt,
     );
   }
 
-  /// Busca um cupom fiscal pelo seu id direto.
+  /// Busca um cupom fiscal pelo id próprio.
   Future<Receipt?> getReceiptById(String receiptId) async {
     final row = await (_db.select(_db.receipts)
           ..where((r) => r.id.equals(receiptId)))
@@ -179,12 +184,12 @@ class ReceiptsRepository {
 
     if (row == null) return null;
 
-    final itemRows = await (_db.select(_db.receiptItems)
+    final itemsRows = await (_db.select(_db.receiptItems)
           ..where((i) => i.receiptId.equals(row.id))
           ..orderBy([(i) => OrderingTerm.asc(i.sortOrder)]))
         .get();
 
-    final items = itemRows
+    final items = itemsRows
         .map(
           (i) => ReceiptItem(
             id: i.id,
@@ -211,41 +216,35 @@ class ReceiptsRepository {
       paymentMethod: row.paymentMethod,
       accessKey: row.accessKey,
       rawUrl: row.rawUrl,
-      createdAt: row.createdAt,
       items: items,
+      createdAt: row.createdAt,
     );
   }
 
-  /// Agrupa os itens da compra por categoria calculando subtotais e percentuais.
+  /// Calcula o resumo de gastos por categoria dos itens do cupom.
   static List<ReceiptCategorySummary> getCategorySummaries(Receipt receipt) {
     if (receipt.items.isEmpty) return const [];
 
     final map = <String, double>{};
-    final countMap = <String, int>{};
-    var total = 0.0;
-
+    final counts = <String, int>{};
     for (final item in receipt.items) {
       map[item.category] = (map[item.category] ?? 0.0) + item.totalPrice;
-      countMap[item.category] = (countMap[item.category] ?? 0) + 1;
-      total += item.totalPrice;
+      counts[item.category] = (counts[item.category] ?? 0) + 1;
     }
 
-    if (total == 0) total = receipt.totalAmount;
+    final total = receipt.totalAmount > 0
+        ? receipt.totalAmount
+        : map.values.fold(0.0, (acc, val) => acc + val);
 
-    final summaries = map.entries.map((entry) {
-      final category = entry.key;
-      final amount = (entry.value * 100).roundToDouble() / 100;
-      final count = countMap[category] ?? 0;
-      final pct = total > 0 ? (amount / total) * 100 : 0.0;
+    return map.entries.map((e) {
+      final percentage = total > 0 ? (e.value / total) * 100 : 0.0;
       return ReceiptCategorySummary(
-        category: category,
-        totalAmount: amount,
-        itemCount: count,
-        percentage: (pct * 10).roundToDouble() / 10,
+        category: e.key,
+        totalAmount: e.value,
+        itemCount: counts[e.key] ?? 1,
+        percentage: double.parse(percentage.toStringAsFixed(1)),
       );
     }).toList()
       ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
-
-    return summaries;
   }
 }

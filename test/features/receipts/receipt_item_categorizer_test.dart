@@ -3,7 +3,7 @@ import 'package:gastos_app/features/receipts/services/receipt_item_categorizer.d
 
 void main() {
   group('ReceiptItemCategorizer', () {
-    test('categoriza itens de acougue', () {
+    test('categoriza itens de acougue e abreviacoes', () {
       expect(
         ReceiptItemCategorizer.categorize('PICANHA BOVINA RESFRIADA KG'),
         ReceiptItemCategorizer.acougue,
@@ -16,15 +16,50 @@ void main() {
         ReceiptItemCategorizer.categorize('LINGUICA TOSCANA SADIA 1KG'),
         ReceiptItemCategorizer.acougue,
       );
+      expect(
+        ReceiptItemCategorizer.categorize('ACEM BOV RESF KG'),
+        ReceiptItemCategorizer.acougue,
+      );
     });
 
-    test('categoriza itens de limpeza', () {
+    test('categoriza itens de alimentacao, bolacha/biscoito e abreviacoes', () {
+      expect(
+        ReceiptItemCategorizer.categorize('ARROZ T1 TIO JOAO 5KG'),
+        ReceiptItemCategorizer.alimentacao,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('FEIJAO CARIOCA CAMIL 1KG'),
+        ReceiptItemCategorizer.alimentacao,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('BISC RECH PASSATEMPO CHO 130G'),
+        ReceiptItemCategorizer.alimentacao,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('BOLACHA AGUA E SAL MARILAN'),
+        ReceiptItemCategorizer.alimentacao,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('MAC INST NISSIN MIOJO 85G'),
+        ReceiptItemCategorizer.alimentacao,
+      );
+    });
+
+    test('categoriza itens de limpeza e abreviacoes', () {
       expect(
         ReceiptItemCategorizer.categorize('DETERGENTE LIQUIDO YPE 500ML'),
         ReceiptItemCategorizer.limpeza,
       );
       expect(
+        ReceiptItemCategorizer.categorize('DET LIMP YPE NEUTRO 500ML'),
+        ReceiptItemCategorizer.limpeza,
+      );
+      expect(
         ReceiptItemCategorizer.categorize('SABAO EM PO OMO LAVAGEM PERFEITA'),
+        ReceiptItemCategorizer.limpeza,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('SAB EM PO OMO 1.6KG'),
         ReceiptItemCategorizer.limpeza,
       );
       expect(
@@ -34,6 +69,25 @@ void main() {
       expect(
         ReceiptItemCategorizer.categorize('AGUA SANITARIA QBOA 2L'),
         ReceiptItemCategorizer.limpeza,
+      );
+    });
+
+    test('categoriza itens de higiene e abreviacoes', () {
+      expect(
+        ReceiptItemCategorizer.categorize('SHAMP SEDA CERAMIDAS 325ML'),
+        ReceiptItemCategorizer.higiene,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('CR DENT COLGATE TOTAL 90G'),
+        ReceiptItemCategorizer.higiene,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('PAPEL HIGIENICO NEVE 12UN'),
+        ReceiptItemCategorizer.higiene,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('SABONETE DOVE ORIGINAL 90G'),
+        ReceiptItemCategorizer.higiene,
       );
     });
 
@@ -63,6 +117,10 @@ void main() {
       );
       expect(
         ReceiptItemCategorizer.categorize('ALFACE CRESPA UN'),
+        ReceiptItemCategorizer.hortifruti,
+      );
+      expect(
+        ReceiptItemCategorizer.categorize('CEBOLA NACIONAL KG'),
         ReceiptItemCategorizer.hortifruti,
       );
     });
