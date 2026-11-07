@@ -23,12 +23,17 @@ class TransactionTile extends StatelessWidget {
     final color = isExpense ? AppColors.expense : AppColors.income;
     final sign = isExpense ? '-' : '+';
 
+    final hasReceipt = transaction.receiptId != null &&
+        transaction.receiptId!.isNotEmpty;
+
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: color.withAlpha(38),
         child: Icon(
-          isExpense ? Icons.arrow_downward : Icons.arrow_upward,
+          hasReceipt
+              ? Icons.receipt_long
+              : (isExpense ? Icons.arrow_downward : Icons.arrow_upward),
           color: color,
         ),
       ),
@@ -42,6 +47,25 @@ class TransactionTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(_subtitle()),
+          if (hasReceipt)
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.qr_code, size: 12, color: AppColors.primary),
+                  SizedBox(width: 4),
+                  Text(
+                    'Cupom fiscal • Ver itens',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (transaction.isExpense && transaction.reminderEnabled)
             Padding(
               padding: const EdgeInsets.only(top: 2),

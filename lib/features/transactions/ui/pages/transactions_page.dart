@@ -17,7 +17,16 @@ class TransactionsPage extends ConsumerWidget {
     final transactionsAsync = ref.watch(transactionsListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Transações')),
+      appBar: AppBar(
+        title: const Text('Transações'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Ler cupom fiscal',
+            onPressed: () => context.push(RouteNames.receiptScanner),
+          ),
+        ],
+      ),
       body: transactionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erro ao carregar: $e')),
@@ -32,10 +41,23 @@ class TransactionsPage extends ConsumerWidget {
               final transaction = transactions[index];
               return TransactionTile(
                 transaction: transaction,
-                onTap: () => context.push(
-                  RouteNames.transactionForm,
-                  extra: {'id': transaction.id, 'isEditing': true},
-                ),
+                onTap: () {
+                  if (transaction.receiptId != null &&
+                      transaction.receiptId!.isNotEmpty) {
+                    context.push(
+                      RouteNames.receiptDetail,
+                      extra: {
+                        'receiptId': transaction.receiptId,
+                        'transactionId': transaction.id,
+                      },
+                    );
+                  } else {
+                    context.push(
+                      RouteNames.transactionForm,
+                      extra: {'id': transaction.id, 'isEditing': true},
+                    );
+                  }
+                },
                 onDelete: () => _confirmDelete(context, ref, transaction),
               );
             },

@@ -52,6 +52,10 @@ dependencies:
   uuid: ^4.4.0
   equatable: ^2.0.5
 
+  # Receipt Scanner & Parser
+  mobile_scanner: ^5.2.3
+  html: ^0.15.4
+
   # Connectivity
   connectivity_plus: ^6.0.3
 
