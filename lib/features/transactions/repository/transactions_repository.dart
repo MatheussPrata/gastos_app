@@ -109,7 +109,26 @@ class TransactionsRepository {
     }
 
     query
-      ..limit(limit, offset: offset)
+      ..orderBy([
+        (t) => OrderingTerm.desc(t.date),
+        (t) => OrderingTerm.desc(t.createdAt),
+      ])
+      ..limit(limit, offset: offset);
+
+    final results = await query.get();
+
+    unawaited(syncPendingTransactions());
+
+    return results.map(_toModel).toList();
+  }
+
+  Future<List<Transaction>> getTransactionsForMonth(DateTime month) async {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
+
+    final query = _db.select(_db.transactions)
+      ..where((t) => t.date.isBiggerOrEqualValue(start))
+      ..where((t) => t.date.isSmallerThanValue(end))
       ..orderBy([
         (t) => OrderingTerm.desc(t.date),
         (t) => OrderingTerm.desc(t.createdAt),
@@ -223,10 +242,10 @@ class TransactionsRepository {
       final income = e['income'] ?? 0;
       final expense = e['expense'] ?? 0;
       return MonthlyStats(
-        year: int.parse(k.split('-')[0]),
-        month: int.parse(k.split('-')[1]),
-        totalIncome: income,
-        totalExpense: expense,
+        month: k,
+        income: income,
+        expense: expense,
+        balance: income - expense,
       );
     }).toList();
   }
@@ -250,35 +269,28 @@ class TransactionsRepository {
     final categories = await _db.select(_db.categories).get();
     final nameMap = {for (final c in categories) c.id: c.name};
     final colorMap = {for (final c in categories) c.id: c.color};
-    final iconMap = {for (final c in categories) c.id: c.icon};
-
-    final totalExpense = totals.values.fold(0.0, (a, b) => a + b);
 
     final list = totals.entries.map((e) {
-      final amt = e.value;
       return CategoryExpense(
         categoryId: e.key,
         categoryName: nameMap[e.key] ?? 'Sem categoria',
         categoryColor: colorMap[e.key] ?? 0xFFB8B8B8,
-        categoryIcon: iconMap[e.key] ?? 'category',
-        totalAmount: amt,
-        percentage: totalExpense > 0 ? (amt / totalExpense) * 100 : 0.0,
+        total: e.value,
       );
     }).toList()
-      ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+      ..sort((a, b) => b.total.compareTo(a.total));
 
     return list;
   }
 
   /// Monthly income/expense with expenses broken down by category.
-  Future<List<Map<String, dynamic>>> getMonthlyCategoryStats({
+  Future<List<MonthlyCategoryStats>> getMonthlyCategoryStats({
     int months = 12,
   }) async {
     final all = await _db.select(_db.transactions).get();
     final categories = await _db.select(_db.categories).get();
     final nameMap = {for (final c in categories) c.id: c.name};
     final colorMap = {for (final c in categories) c.id: c.color};
-    final iconMap = {for (final c in categories) c.id: c.icon};
 
     final income = <String, double>{};
     final expense = <String, double>{};
@@ -303,7 +315,6 @@ class TransactionsRepository {
         keys.length > months ? keys.sublist(keys.length - months) : keys;
 
     return selected.map((key) {
-      final monthExpense = expense[key] ?? 0;
       final categoryList = (byCategory[key] ?? const <String, double>{})
           .entries
           .map(
@@ -311,21 +322,18 @@ class TransactionsRepository {
               categoryId: entry.key,
               categoryName: nameMap[entry.key] ?? 'Sem categoria',
               categoryColor: colorMap[entry.key] ?? 0xFFB8B8B8,
-              categoryIcon: iconMap[entry.key] ?? 'category',
-              totalAmount: entry.value,
-              percentage:
-                  monthExpense > 0 ? (entry.value / monthExpense) * 100 : 0.0,
+              total: entry.value,
             ),
           )
           .toList()
-        ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+        ..sort((a, b) => b.total.compareTo(a.total));
 
-      return {
-        'month': key,
-        'income': income[key] ?? 0,
-        'expense': monthExpense,
-        'categories': categoryList,
-      };
+      return MonthlyCategoryStats(
+        month: key,
+        income: income[key] ?? 0,
+        expense: expense[key] ?? 0,
+        categories: categoryList,
+      );
     }).toList();
   }
 
