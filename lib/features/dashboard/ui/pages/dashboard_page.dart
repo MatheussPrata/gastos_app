@@ -48,6 +48,13 @@ class DashboardPage extends ConsumerWidget {
           ),
         ),
         title: Text('Olá, ${user?.username ?? 'Usuário'}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Ler cupom fiscal',
+            onPressed: () => context.push(RouteNames.receiptScanner),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -213,10 +220,23 @@ class DashboardPage extends ConsumerWidget {
             final transaction = transactions[index];
             return TransactionTile(
               transaction: transaction,
-              onTap: () => context.push(
-                RouteNames.transactionForm,
-                extra: {'id': transaction.id, 'isEditing': true},
-              ),
+              onTap: () {
+                if (transaction.receiptId != null &&
+                    transaction.receiptId!.isNotEmpty) {
+                  context.push(
+                    RouteNames.receiptDetail,
+                    extra: {
+                      'receiptId': transaction.receiptId,
+                      'transactionId': transaction.id,
+                    },
+                  );
+                } else {
+                  context.push(
+                    RouteNames.transactionForm,
+                    extra: {'id': transaction.id, 'isEditing': true},
+                  );
+                }
+              },
               onDelete: () => _confirmDelete(context, ref, transaction),
             );
           },

@@ -28,6 +28,9 @@ class Transaction with _$Transaction {
     /// Avisa antes e no dia do vencimento; a antecedencia vem das
     /// configuracoes de notificacoes.
     @Default(false) bool reminderEnabled,
+
+    /// ID do cupom fiscal vinculado (NFC-e), se houver.
+    String? receiptId,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _Transaction;
@@ -98,54 +101,55 @@ class RecurringTransaction with _$RecurringTransaction {
 
 /// Available payment methods for a transaction
 class PaymentMethods {
+  static const String money = 'Dinheiro';
+  static const String pix = 'PIX';
+  static const String creditCard = 'Cartão de Crédito';
+  static const String debitCard = 'Cartão de Débito';
+  static const String bankTransfer = 'Transferência';
+  static const String other = 'Outro';
+
   static const List<String> all = [
-    'Dinheiro',
-    'Cartão de Crédito',
-    'Cartão de Débito',
-    'PIX',
-    'Boleto',
+    money,
+    pix,
+    creditCard,
+    debitCard,
+    bankTransfer,
+    other,
   ];
 }
 
-@freezed
-class MonthlyStats with _$MonthlyStats {
-  const factory MonthlyStats({
-    required String month,
-    required double income,
-    required double expense,
-    required double balance,
-  }) = _MonthlyStats;
+/// Helper model for monthly totals calculation
+class MonthlyStats {
+  final int year;
+  final int month;
+  final double totalIncome;
+  final double totalExpense;
 
-  factory MonthlyStats.fromJson(Map<String, dynamic> json) =>
-      _$MonthlyStatsFromJson(json);
-}
-
-/// Monthly income/expense plus the expense breakdown by category.
-///
-/// Not persisted, so it does not need freezed/json code.
-class MonthlyCategoryStats {
-  const MonthlyCategoryStats({
+  const MonthlyStats({
+    required this.year,
     required this.month,
-    required this.income,
-    required this.expense,
-    required this.categories,
+    required this.totalIncome,
+    required this.totalExpense,
   });
 
-  final String month;
-  final double income;
-  final double expense;
-  final List<CategoryExpense> categories;
+  double get balance => totalIncome - totalExpense;
 }
 
-@freezed
-class CategoryExpense with _$CategoryExpense {
-  const factory CategoryExpense({
-    required String categoryId,
-    required String categoryName,
-    required int categoryColor,
-    required double total,
-  }) = _CategoryExpense;
+/// Helper model for category expenses
+class CategoryExpense {
+  final String categoryId;
+  final String categoryName;
+  final int categoryColor;
+  final String categoryIcon;
+  final double totalAmount;
+  final double percentage;
 
-  factory CategoryExpense.fromJson(Map<String, dynamic> json) =>
-      _$CategoryExpenseFromJson(json);
+  const CategoryExpense({
+    required this.categoryId,
+    required this.categoryName,
+    required this.categoryColor,
+    required this.categoryIcon,
+    required this.totalAmount,
+    required this.percentage,
+  });
 }

@@ -9,6 +9,10 @@ import 'package:gastos_app/features/auth/ui/pages/reset_password_page.dart';
 import 'package:gastos_app/features/categories/ui/pages/categories_page.dart';
 import 'package:gastos_app/features/categories/ui/pages/category_form_page.dart';
 import 'package:gastos_app/features/navigation/ui/pages/main_shell_page.dart';
+import 'package:gastos_app/features/receipts/models/receipt_models.dart';
+import 'package:gastos_app/features/receipts/ui/pages/receipt_detail_page.dart';
+import 'package:gastos_app/features/receipts/ui/pages/receipt_review_page.dart';
+import 'package:gastos_app/features/receipts/ui/pages/receipt_scanner_page.dart';
 import 'package:gastos_app/features/recurring/ui/pages/recurring_form_page.dart';
 import 'package:gastos_app/features/recurring/ui/pages/recurring_page.dart';
 import 'package:gastos_app/features/settings/ui/pages/notification_settings_page.dart';
@@ -31,6 +35,9 @@ class RouteNames {
   static const String recurringForm = '/recurring/form';
   static const String sharing = '/sharing';
   static const String notificationSettings = '/settings/notifications';
+  static const String receiptScanner = '/receipt/scanner';
+  static const String receiptReview = '/receipt/review';
+  static const String receiptDetail = '/receipt/detail';
 }
 
 /// GoRouter provider with auth state listening
@@ -142,6 +149,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.notificationSettings,
         builder: (context, state) => const NotificationSettingsPage(),
+      ),
+      GoRoute(
+        path: RouteNames.receiptScanner,
+        builder: (context, state) => const ReceiptScannerPage(),
+      ),
+      GoRoute(
+        path: RouteNames.receiptReview,
+        builder: (context, state) {
+          final receipt = state.extra as Receipt;
+          return ReceiptReviewPage(initialReceipt: receipt);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.receiptDetail,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return ReceiptDetailPage(
+            receiptId: extra?['receiptId'] as String?,
+            transactionId: extra?['transactionId'] as String?,
+          );
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

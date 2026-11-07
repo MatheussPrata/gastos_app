@@ -96,6 +96,9 @@ class Transactions extends Table {
   BoolColumn get reminderEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  /// ID do cupom fiscal vinculado (NFC-e), se houver.
+  TextColumn get receiptId => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -259,6 +262,40 @@ class Sessions extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Fiscal receipts table (NFC-e / Cupom Fiscal)
+class Receipts extends Table {
+  TextColumn get id => text()();
+  TextColumn get transactionId => text()();
+  TextColumn get establishmentName => text()();
+  TextColumn get establishmentCnpj => text().withDefault(const Constant(''))();
+  DateTimeColumn get issueDate => dateTime()();
+  RealColumn get totalAmount => real()();
+  TextColumn get paymentMethod => text().withDefault(const Constant(''))();
+  TextColumn get accessKey => text().nullable()();
+  TextColumn get rawUrl => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Items within a fiscal receipt
+class ReceiptItems extends Table {
+  TextColumn get id => text()();
+  TextColumn get receiptId => text()();
+  TextColumn get name => text()();
+  TextColumn get code => text().nullable()();
+  RealColumn get quantity => real().withDefault(const Constant(1.0))();
+  TextColumn get unit => text().withDefault(const Constant('UN'))();
+  RealColumn get unitPrice => real().withDefault(const Constant(0.0))();
+  RealColumn get totalPrice => real().withDefault(const Constant(0.0))();
+  TextColumn get category => text().withDefault(const Constant('Outros'))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(tables: [
   Users,
   Categories,
@@ -274,6 +311,8 @@ class Sessions extends Table {
   PendingDeletions,
   PasswordResetTokens,
   Sessions,
+  Receipts,
+  ReceiptItems,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -282,7 +321,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -299,47 +338,54 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(budgetPlans);
             await m.createTable(budgetAlerts);
           }
-      if (from < 4) {
-        // Existing plans/alerts become individual by default.
-        await m.addColumn(budgetPlans, budgetPlans.scope);
-        await m.addColumn(budgetAlerts, budgetAlerts.scope);
-      }
-      if (from < 5) {
-        await m.createTable(pendingDeletions);
-      }
-      if (from < 6) {
-        // A v6 adicionava reminder_at; a v6 nunca chegou a um aparelho real,
-        // por isso a coluna e criada aqui como texto solto para a migracao
-        // seguinte poder converte-la.
-        await customStatement(
-          'ALTER TABLE transactions ADD COLUMN reminder_at INTEGER',
-        );
-      }
-      if (from < 7) {
-        await m.addColumn(transactions, transactions.reminderEnabled);
-        if (from >= 6) {
-          // A versao 6 guardava uma data/hora exata por transacao. Passa a
-          // ser um simples "avisar" e a antecedencia vem das configuracoes.
-          // Quem tinha lembrete continua com lembrete ligado.
-          await customStatement(
-            'UPDATE transactions SET reminder_enabled = 1 '
-            'WHERE reminder_at IS NOT NULL',
-          );
-          try {
-            await customStatement(
-              'ALTER TABLE transactions DROP COLUMN reminder_at',
-            );
-          } catch (_) {
-            // SQLite antigo: a coluna fica, mas deixa de ser usada.
+          if (from < 4) {
+            // Existing plans/alerts become individual by default.
+            await m.addColumn(budgetPlans, budgetPlans.scope);
+            await m.addColumn(budgetAlerts, budgetAlerts.scope);
           }
-        }
-      }
+          if (from < 5) {
+            await m.createTable(pendingDeletions);
+          }
+          if (from < 6) {
+            // A v6 adicionava reminder_at; a v6 nunca chegou a um aparelho real,
+            // por isso a coluna e criada aqui como texto solto para a migracao
+            // seguinte poder converte-la.
+            await customStatement(
+              'ALTER TABLE transactions ADD COLUMN reminder_at INTEGER',
+            );
+          }
+          if (from < 7) {
+            await m.addColumn(transactions, transactions.reminderEnabled);
+            if (from >= 6) {
+              // A versao 6 guardava uma data/hora exata por transacao. Passa a
+              // ser um simples "avisar" e a antecedencia vem das configuracoes.
+              // Quem tinha lembrete continua com lembrete ligado.
+              await customStatement(
+                'UPDATE transactions SET reminder_enabled = 1 '
+                'WHERE reminder_at IS NOT NULL',
+              );
+              try {
+                await customStatement(
+                  'ALTER TABLE transactions DROP COLUMN reminder_at',
+                );
+              } catch (_) {
+                // SQLite antigo: a coluna fica, mas deixa de ser usada.
+              }
+            }
+          }
+          if (from < 8) {
+            await m.createTable(receipts);
+            await m.createTable(receiptItems);
+            await m.addColumn(transactions, transactions.receiptId);
+          }
         },
       );
 
   // Clear all data (for logout)
   Future<void> clearAllData() {
     return transaction(() async {
+      await delete(receiptItems).go();
+      await delete(receipts).go();
       await delete(budgetAlerts).go();
       await delete(budgetPlans).go();
       await delete(transactions).go();
