@@ -8,6 +8,7 @@ import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/settings/ui/widgets/theme_color_picker.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
+import 'package:gastos_app/features/credit_cards/ui/pages/credit_cards_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -103,6 +104,16 @@ class SettingsPage extends ConsumerWidget {
           Card(
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.credit_card_outlined),
+                  title: const Text('Cartões de crédito'),
+                  subtitle: const Text('Gerenciar faturas, limites e datas'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CreditCardsPage()),
+                  ),
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.category_outlined),
                   title: const Text('Categorias de gastos'),

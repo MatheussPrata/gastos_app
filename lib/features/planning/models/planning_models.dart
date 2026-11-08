@@ -261,3 +261,20 @@ class IncomeAttribution {
   final String userId;
   final double amount;
 }
+
+/// Category spending in a month that does not have an active budget allocation.
+class UnbudgetedCategoryExpense {
+  const UnbudgetedCategoryExpense({
+    required this.categoryId,
+    required this.categoryName,
+    required this.categoryColor,
+    required this.categoryIcon,
+    required this.spentAmount,
+  });
+
+  final String categoryId;
+  final String categoryName;
+  final int categoryColor;
+  final String categoryIcon;
+  final double spentAmount;
+}

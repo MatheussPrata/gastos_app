@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gastos_app/features/categories/repository/categories_repository.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 
@@ -299,4 +300,43 @@ final unreadAlertsProvider = Provider<List<BudgetAlert>>((ref) {
 /// Number of unread alerts, used for the tab badge.
 final unreadAlertCountProvider = Provider<int>((ref) {
   return ref.watch(unreadAlertsProvider).length;
+});
+
+/// Expenses in categories that are not allocated in the current budget plan.
+final unbudgetedExpensesProvider =
+    FutureProvider<List<UnbudgetedCategoryExpense>>((ref) async {
+  final plan = ref.watch(monthPlanningProvider).valueOrNull;
+  if (plan == null) return const [];
+
+  final planRepo = ref.watch(planningRepositoryProvider);
+  final catRepo = ref.watch(categoriesRepositoryProvider);
+
+  final spent =
+      await planRepo.getSpentByCategory(plan.month, scope: plan.scope);
+  final budgetedIds = {
+    for (final c in plan.categories)
+      if (c.isActive && c.percentage > 0) c.categoryId
+  };
+
+  final allCategories = await catRepo.getCategories();
+  final catMap = {for (final c in allCategories) c.id: c};
+
+  final unbudgeted = <UnbudgetedCategoryExpense>[];
+  for (final entry in spent.entries) {
+    if (entry.value <= 0) continue;
+    if (budgetedIds.contains(entry.key)) continue;
+
+    final cat = catMap[entry.key];
+    unbudgeted.add(UnbudgetedCategoryExpense(
+      categoryId: entry.key,
+      categoryName:
+          cat?.name ?? (entry.key == 'none' ? 'Sem categoria' : 'Outros'),
+      categoryColor: cat?.color ?? 0xFFB8B8B8,
+      categoryIcon: cat?.icon ?? 'category',
+      spentAmount: entry.value,
+    ));
+  }
+
+  unbudgeted.sort((a, b) => b.spentAmount.compareTo(a.spentAmount));
+  return unbudgeted;
 });

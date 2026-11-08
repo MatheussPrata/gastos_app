@@ -5,6 +5,7 @@ analyzer:
     - "**/*.gr.dart"
     - build/**
     - android/**
+    - archive/**
   errors:
     avoid_print: warning
     prefer_const_constructors: warning

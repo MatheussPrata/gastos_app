@@ -22,6 +22,8 @@ import 'package:gastos_app/core/notifications/notification_permission_service.da
 import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
+import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
+import 'package:gastos_app/features/credit_cards/ui/pages/credit_card_form_page.dart';
 
 const List<int> _newCategoryColors = [
   0xFFFF6B6B,
@@ -56,6 +58,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
 
   bool _isExpense = true;
   String? _categoryId;
+  String? _creditCardId;
   String _paymentMethod = PaymentMethods.all.first;
   DateTime _date = DateTime.now();
   bool _isInstallment = false;
@@ -92,6 +95,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       _descriptionController.text = transaction.description;
       _amountController.text = FormHelper.formatBRL(transaction.amount);
       _categoryId = transaction.categoryId;
+      _creditCardId = transaction.creditCardId;
       _paymentMethod = transaction.paymentMethod.isEmpty
           ? PaymentMethods.all.first
           : transaction.paymentMethod;
@@ -134,6 +138,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           amount: amount,
           date: _date,
           categoryId: _categoryId,
+          creditCardId: _paymentMethod == 'Cartão de Crédito' ? _creditCardId : null,
           paymentMethod: _paymentMethod,
           isExpense: _isExpense,
           isInstallment: isInstallment,
@@ -151,6 +156,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           description: _descriptionController.text.trim(),
           date: _date,
           categoryId: _categoryId,
+          creditCardId: _paymentMethod == 'Cartão de Crédito' ? _creditCardId : null,
           paymentMethod: _paymentMethod,
           isExpense: _isExpense,
           isInstallment: isInstallment,
@@ -360,6 +366,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
               onChanged: (value) =>
                   setState(() => _paymentMethod = value ?? _paymentMethod),
             ),
+            if (_isExpense && _paymentMethod == 'Cartão de Crédito')
+              _buildCreditCardSelector(),
             const SizedBox(height: 16),
             _buildDateField(),
             // Lembrete de pagamento so faz sentido para gastos.
@@ -614,6 +622,97 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                 setState(() => _frequency = value ?? 'monthly'),
           ),
       ],
+    );
+  }
+
+  Widget _buildCreditCardSelector() {
+    final cardsAsync = ref.watch(creditCardsProvider);
+
+    return cardsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (cards) {
+        if (cards.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Nenhum cartão cadastrado.',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const CreditCardFormPage()),
+                  ),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Cadastrar Cartão'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final isValidSelection =
+            _creditCardId != null && cards.any((c) => c.id == _creditCardId);
+        final selectedValue = isValidSelection ? _creditCardId : null;
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String?>(
+                value: selectedValue,
+                decoration: const InputDecoration(
+                  labelText: 'Qual Cartão de Crédito?',
+                  prefixIcon: Icon(Icons.credit_card),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Selecione o cartão (opcional)'),
+                  ),
+                  for (final card in cards)
+                    DropdownMenuItem<String?>(
+                      value: card.id,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: card.cardColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(card.displayName),
+                        ],
+                      ),
+                    ),
+                ],
+                onChanged: (val) => setState(() => _creditCardId = val),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const CreditCardFormPage()),
+                  ),
+                  icon: const Icon(Icons.add, size: 14),
+                  label:
+                      const Text('Novo Cartão', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

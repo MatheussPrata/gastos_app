@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
+import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/categories/repository/categories_repository.dart';
 import 'package:gastos_app/features/categories/utils/category_icons.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/planning/ui/widgets/category_budget_dialog.dart';
 import 'package:gastos_app/features/planning/ui/widgets/notification_settings_dialog.dart';
 
@@ -27,6 +30,7 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
   late BudgetPlan _draft;
   late IncomeMode _incomeMode;
   bool _isSaving = false;
+  Map<String, double> _spentByCategory = {};
 
   @override
   void initState() {
@@ -43,6 +47,13 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
           ? CurrencyFormatter.format(widget.plan.monthlyBudget)
           : '',
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSpending();
+      if (_draft.categories.isEmpty) {
+        _autoLoadCategories();
+      }
+    });
   }
 
   @override
@@ -63,6 +74,126 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
   double _maxFor(CategoryBudget category) {
     final others = _allocatedPercentage - category.percentage;
     return (100 - others).clamp(0, 100).toDouble();
+  }
+
+  Future<void> _loadSpending() async {
+    try {
+      final repo = ref.read(planningRepositoryProvider);
+      final spent =
+          await repo.getSpentByCategory(_draft.month, scope: _draft.scope);
+      if (mounted) {
+        setState(() => _spentByCategory = spent);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _autoLoadCategories() async {
+    try {
+      final categoriesRepo = ref.read(categoriesRepositoryProvider);
+      final allCategories = await categoriesRepo.getCategories();
+      final expenseCategories =
+          allCategories.where((c) => c.isExpenseDefault).toList();
+
+      if (expenseCategories.isNotEmpty &&
+          mounted &&
+          _draft.categories.isEmpty) {
+        setState(() {
+          _draft = _draft.copyWith(
+            categories: [
+              for (var i = 0; i < expenseCategories.length; i++)
+                CategoryBudget(
+                  categoryId: expenseCategories[i].id,
+                  categoryName: expenseCategories[i].name,
+                  categoryColor: expenseCategories[i].color,
+                  categoryIcon: expenseCategories[i].icon,
+                  percentage: 0,
+                  sortOrder: i,
+                ),
+            ],
+          );
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _addCategoryDialog() async {
+    try {
+      final categoriesRepo = ref.read(categoriesRepositoryProvider);
+      final allCategories = await categoriesRepo.getCategories();
+      final expenseCategories =
+          allCategories.where((c) => c.isExpenseDefault).toList();
+
+      final existingIds = _draft.categories.map((c) => c.categoryId).toSet();
+      final available =
+          expenseCategories.where((c) => !existingIds.contains(c.id)).toList();
+
+      if (!mounted) return;
+
+      if (available.isEmpty) {
+        _showError('Todas as suas categorias já foram adicionadas ao orçamento.');
+        return;
+      }
+
+      final selected = await showDialog<Category>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Adicionar Categoria ao Orçamento'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: available.length,
+              itemBuilder: (_, index) {
+                final cat = available[index];
+                final color =
+                    cat.color == 0 ? Colors.grey : Color(cat.color);
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: color.withOpacity(0.18),
+                    child:
+                        Icon(categoryIcon(cat.icon), color: color, size: 20),
+                  ),
+                  title: Text(cat.name),
+                  onTap: () => Navigator.of(ctx).pop(cat),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
+      );
+
+      if (selected != null && mounted) {
+        setState(() {
+          _draft = _draft.upsertCategory(
+            CategoryBudget(
+              categoryId: selected.id,
+              categoryName: selected.name,
+              categoryColor: selected.color,
+              categoryIcon: selected.icon,
+              percentage: 0,
+              sortOrder: _draft.categories.length,
+            ),
+          );
+        });
+      }
+    } catch (e) {
+      _showError('Erro ao carregar categorias: $e');
+    }
+  }
+
+  void _removeCategory(String categoryId) {
+    setState(() {
+      final updated = _draft.categories
+          .where((c) => c.categoryId != categoryId)
+          .toList();
+      _draft = _draft.copyWith(categories: updated);
+    });
   }
 
   Future<void> _save() async {
@@ -210,7 +341,17 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
               }),
             ),
             const SizedBox(height: 24),
-            const _SectionLabel('Distribuição por categoria'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const _SectionLabel('Distribuição por categoria'),
+                TextButton.icon(
+                  onPressed: _addCategoryDialog,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Adicionar'),
+                ),
+              ],
+            ),
             _DistributionSummary(
               allocatedPercentage: _allocatedPercentage,
               unallocatedPercentage: _unallocatedPercentage,
@@ -224,22 +365,35 @@ class _BudgetSetupPageState extends ConsumerState<BudgetSetupPage> {
                 category: category,
                 monthlyBudget: _draft.monthlyBudget,
                 maxPercentage: _maxFor(category),
+                spentAmount: _spentByCategory[category.categoryId] ?? 0.0,
                 onChanged: (value) => setState(() {
                   _draft = _draft.upsertCategory(
                     category.copyWith(percentage: value),
                   );
                 }),
                 onEdit: () => _editCategory(category),
+                onDelete: () => _removeCategory(category.categoryId),
               ),
             if (_draft.categories.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
-                  'Nenhuma categoria de despesa encontrada. Cadastre categorias '
-                  'em uma transação para distribuí-las aqui.',
+                  'Nenhuma categoria no orçamento ainda. Toque em "Adicionar" acima para incluir categorias.',
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
               ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _addCategoryDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Adicionar Categoria ao Orçamento'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _isSaving ? null : _save,
@@ -265,15 +419,12 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        label,
-        style: Theme.of(context)
-            .textTheme
-            .titleSmall
-            ?.copyWith(fontWeight: FontWeight.w700),
-      ),
+    return Text(
+      label,
+      style: Theme.of(context)
+          .textTheme
+          .titleSmall
+          ?.copyWith(fontWeight: FontWeight.w700),
     );
   }
 }
@@ -283,40 +434,37 @@ class _ActualIncomePreview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final month = ref.watch(selectedPlanMonthProvider);
-    final scope = ref.watch(selectedBudgetScopeProvider);
-    final incomeAsync = ref.watch(
-      actualIncomeForMonthProvider(
-        (month: DateTime(month.year, month.month), scope: scope),
-      ),
-    );
+    final incomeAsync = ref.watch(monthlyIncomeProvider);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.secondary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.2)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_graph, color: AppColors.secondary),
-          const SizedBox(width: 12),
+          const Icon(Icons.info_outline, size: 20, color: AppColors.secondary),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Receitas reais do mês',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  'Renda calculada a partir dos seus lançamentos de entrada:',
+                  style: TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  incomeAsync.when(
-                    loading: () => 'Carregando...',
-                    error: (_, __) => 'Não foi possível calcular',
-                    data: CurrencyFormatter.format,
+                  incomeAsync.isLoading
+                      ? '...'
+                      : CurrencyFormatter.format(incomeAsync.valueOrNull ?? 0),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.secondary,
                   ),
-                  style: const TextStyle(fontSize: 16),
                 ),
               ],
             ),
@@ -397,15 +545,19 @@ class _CategorySliderTile extends StatelessWidget {
     required this.category,
     required this.monthlyBudget,
     required this.maxPercentage,
+    required this.spentAmount,
     required this.onChanged,
     required this.onEdit,
+    required this.onDelete,
   });
 
   final CategoryBudget category;
   final double monthlyBudget;
   final double maxPercentage;
+  final double spentAmount;
   final ValueChanged<double> onChanged;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -451,6 +603,15 @@ class _CategorySliderTile extends StatelessWidget {
                     color: color,
                   ),
                 ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 16),
+                  color: Colors.grey.shade400,
+                  tooltip: 'Remover do orçamento',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: onDelete,
+                ),
               ],
             ),
           ),
@@ -492,6 +653,40 @@ class _CategorySliderTile extends StatelessWidget {
               ),
             ],
           ),
+          if (spentAmount > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 38, right: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Gasto atual no mês: ${CurrencyFormatter.format(spentAmount)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: spentAmount > amount && amount > 0
+                          ? AppColors.expense
+                          : Colors.grey.shade600,
+                      fontWeight: spentAmount > amount && amount > 0
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                    ),
+                  ),
+                  if (amount > 0)
+                    Text(
+                      spentAmount <= amount
+                          ? 'Sobra ${CurrencyFormatter.format(amount - spentAmount)}'
+                          : 'Excede ${CurrencyFormatter.format(spentAmount - amount)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: spentAmount <= amount
+                            ? AppColors.secondary
+                            : AppColors.expense,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );

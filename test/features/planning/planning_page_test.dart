@@ -92,6 +92,11 @@ void main() {
   }
 
   testWidgets('mostra resumo, categorias e reserva', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
@@ -109,6 +114,11 @@ void main() {
   });
 
   testWidgets('abre o diálogo de edição da categoria', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
@@ -126,6 +136,11 @@ void main() {
   });
 
   testWidgets('permite digitar o valor em reais', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 

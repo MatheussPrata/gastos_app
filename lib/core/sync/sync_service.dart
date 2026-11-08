@@ -157,6 +157,27 @@ class SyncService {
       ];
     }
 
+    final creditCards = await _db.select(_db.creditCards).get();
+    final unsyncedCreditCards =
+        creditCards.where((c) => !c.isSynced).toList(growable: false);
+    if (unsyncedCreditCards.isNotEmpty) {
+      payload['creditCards'] = [
+        for (final c in unsyncedCreditCards)
+          {
+            'id': c.id,
+            'name': c.name,
+            'color': c.color,
+            'lastFourDigits': c.lastFourDigits,
+            'brand': c.brand,
+            'limitAmount': c.limitAmount,
+            'closingDay': c.closingDay,
+            'dueDay': c.dueDay,
+            'isActive': c.isActive,
+            'sortOrder': c.sortOrder,
+          }
+      ];
+    }
+
     final transactions = await (_db.select(_db.transactions)
           ..where((t) => t.isSynced.equals(false)))
         .get();
@@ -207,6 +228,7 @@ class SyncService {
 
       await _markCategoriesSynced(unsyncedCategories, failedIds);
       await _markSubcategoriesSynced(unsyncedSubcategories, failedIds);
+      await _markCreditCardsSynced(unsyncedCreditCards, failedIds);
       await _markTransactionsSynced(transactions, failedIds);
       await _markRecurringSynced(recurring, failedIds);
       await _markPlansSynced(plans, failedIds);
@@ -214,6 +236,7 @@ class SyncService {
       final sent = [
         ...unsyncedCategories.map((c) => c.id),
         ...unsyncedSubcategories.map((s) => s.id),
+        ...unsyncedCreditCards.map((c) => c.id),
         ...transactions.map((t) => t.id),
         ...recurring.map((r) => r.id),
         ...plans.map((p) => p.id),
@@ -247,6 +270,15 @@ class SyncService {
       if (failedIds.contains(s.id)) continue;
       await (_db.update(_db.subcategories)..where((r) => r.id.equals(s.id)))
           .write(const db.SubcategoriesCompanion(isSynced: Value(true)));
+    }
+  }
+
+  Future<void> _markCreditCardsSynced(
+      List<db.CreditCard> rows, Set<String> failedIds) async {
+    for (final c in rows) {
+      if (failedIds.contains(c.id)) continue;
+      await (_db.update(_db.creditCards)..where((r) => r.id.equals(c.id)))
+          .write(const db.CreditCardsCompanion(isSynced: Value(true)));
     }
   }
 
@@ -379,6 +411,7 @@ class SyncService {
     var pulled = 0;
     pulled += await _restoreCategories(data['categories'], userId, blocked);
     pulled += await _restoreSubcategories(data['subcategories'], userId, blocked);
+    pulled += await _restoreCreditCards(data['creditCards'], userId, blocked);
     pulled +=
         await _restoreTransactions(data['transactions'], userId, blocked);
     pulled += await _restoreRecurring(
@@ -455,6 +488,53 @@ class SyncService {
               id: Value(id),
               categoryId: Value(categoryId),
               name: Value(json['name']?.toString() ?? ''),
+              sortOrder: Value((json['sortOrder'] is num)
+                  ? (json['sortOrder'] as num).toInt()
+                  : 0),
+              isSynced: const Value(true),
+            ),
+          );
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _restoreCreditCards(
+      dynamic raw, String userId, Set<String> blocked) async {
+    if (raw is! List) return 0;
+    final local = {
+      for (final row in await _db.select(_db.creditCards).get()) row.id: row
+    };
+    var count = 0;
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = Map<String, dynamic>.from(item);
+      final id = json['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      if (blocked.contains('credit_card:$id') ||
+          blocked.contains('creditCard:$id')) continue;
+
+      final existing = local[id];
+      if (existing != null && !existing.isSynced) continue;
+
+      await _db.into(_db.creditCards).insertOnConflictUpdate(
+            db.CreditCardsCompanion(
+              id: Value(id),
+              name: Value(json['name']?.toString() ?? ''),
+              color: Value((json['color'] is num)
+                  ? (json['color'] as num).toInt()
+                  : 0),
+              lastFourDigits:
+                  Value(json['lastFourDigits']?.toString() ?? ''),
+              brand: Value(json['brand']?.toString() ?? ''),
+              limitAmount: Value(_toDouble(json['limitAmount'])),
+              closingDay: Value((json['closingDay'] is num)
+                  ? (json['closingDay'] as num).toInt()
+                  : 1),
+              dueDay: Value((json['dueDay'] is num)
+                  ? (json['dueDay'] as num).toInt()
+                  : 1),
+              isActive: Value(json['isActive'] ?? true),
               sortOrder: Value((json['sortOrder'] is num)
                   ? (json['sortOrder'] as num).toInt()
                   : 0),
