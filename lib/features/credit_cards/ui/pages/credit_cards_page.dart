@@ -80,6 +80,7 @@ class CreditCardsPage extends ConsumerWidget {
                 return CreditCardVisual(
                   card: item.card,
                   spent: item.spent,
+                  invoiceTotal: item.invoiceTotal,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => CreditCardDetailPage(card: item.card),

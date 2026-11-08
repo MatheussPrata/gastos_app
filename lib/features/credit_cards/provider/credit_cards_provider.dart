@@ -50,6 +50,13 @@ final cardSpentForMonthProvider = FutureProvider.family<double,
   return repo.getCardSpentForMonth(params.cardId, params.month);
 });
 
+/// Total invoice amount set for a card and month.
+final cardInvoiceAmountProvider = FutureProvider.family<double,
+    ({String cardId, DateTime month})>((ref, params) async {
+  final repo = ref.watch(creditCardsRepositoryProvider);
+  return repo.getCardInvoiceAmount(params.cardId, params.month);
+});
+
 /// Transactions made on a credit card.
 final cardTransactionsProvider = FutureProvider.family<List<db.Transaction>,
     ({String cardId, DateTime? month})>((ref, params) async {
@@ -57,9 +64,14 @@ final cardTransactionsProvider = FutureProvider.family<List<db.Transaction>,
   return repo.getCardTransactions(params.cardId, month: params.month);
 });
 
-typedef CardWithSpent = ({CreditCardItem card, double spent});
+typedef CardWithSpent = ({
+  CreditCardItem card,
+  double spent,
+  double invoiceTotal,
+  double difference,
+});
 
-/// All cards with their spending for the reference month.
+/// All cards with their spending and invoice info for the reference month.
 final cardsWithSpentProvider =
     FutureProvider.family<List<CardWithSpent>, DateTime>((ref, month) async {
   final cards = ref.watch(creditCardsProvider).valueOrNull ?? [];
@@ -68,7 +80,14 @@ final cardsWithSpentProvider =
   final results = <CardWithSpent>[];
   for (final card in cards) {
     final spent = await repo.getCardSpentForMonth(card.id, month);
-    results.add((card: card, spent: spent));
+    final invoiceTotal = await repo.getCardInvoiceAmount(card.id, month);
+    final diff = invoiceTotal > spent ? (invoiceTotal - spent) : 0.0;
+    results.add((
+      card: card,
+      spent: spent,
+      invoiceTotal: invoiceTotal,
+      difference: diff,
+    ));
   }
   return results;
 });

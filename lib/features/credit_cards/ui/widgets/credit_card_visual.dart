@@ -7,12 +7,14 @@ class CreditCardVisual extends StatelessWidget {
     super.key,
     required this.card,
     this.spent = 0.0,
+    this.invoiceTotal = 0.0,
     this.showDetails = true,
     this.onTap,
   });
 
   final CreditCardItem card;
   final double spent;
+  final double invoiceTotal;
   final bool showDetails;
   final VoidCallback? onTap;
 
@@ -25,8 +27,9 @@ class CreditCardVisual extends StatelessWidget {
     final lighterColor =
         hsl.withLightness((hsl.lightness + 0.12).clamp(0.0, 1.0)).toColor();
 
-    final available = card.availableLimit(spent);
-    final percent = card.limitUsedPercent(spent);
+    final effectiveSpent = invoiceTotal > 0 ? invoiceTotal : spent;
+    final available = card.availableLimit(effectiveSpent);
+    final percent = card.limitUsedPercent(effectiveSpent);
 
     return InkWell(
       onTap: onTap,
@@ -52,7 +55,7 @@ class CreditCardVisual extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Name & Brand
+            // Header: Name & Card Icon
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -69,45 +72,10 @@ class CreditCardVisual extends StatelessWidget {
                     ),
                   ),
                 ),
-                Text(
-                  card.brand.isNotEmpty ? card.brand.toUpperCase() : 'CARTÃO',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Chip and Digits
-            Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade300,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.amber.shade600, width: 0.8),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.memory, size: 16, color: Colors.black54),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Text(
-                  card.lastFourDigits.isNotEmpty
-                      ? '•••• •••• •••• ${card.lastFourDigits}'
-                      : '•••• •••• •••• ••••',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 15,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.w500,
-                  ),
+                const Icon(
+                  Icons.credit_card,
+                  color: Colors.white70,
+                  size: 24,
                 ),
               ],
             ),
@@ -122,7 +90,7 @@ class CreditCardVisual extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Fatura Atual',
+                        invoiceTotal > 0 ? 'Fatura Total' : 'Fatura Atual',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.75),
                           fontSize: 11,
@@ -130,7 +98,7 @@ class CreditCardVisual extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        CurrencyFormatter.format(spent),
+                        CurrencyFormatter.format(effectiveSpent),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -180,7 +148,7 @@ class CreditCardVisual extends StatelessWidget {
                             : Colors.white,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
               ],
 
               // Dates: Closing and Due

@@ -29,8 +29,7 @@ class CreditCardItem {
 
   Color get cardColor => color == 0 ? const Color(0xFF6200EE) : Color(color);
 
-  String get displayName =>
-      lastFourDigits.isNotEmpty ? '$name (*$lastFourDigits)' : name;
+  String get displayName => name;
 
   double availableLimit(double spent) {
     if (limitAmount <= 0) return 0;

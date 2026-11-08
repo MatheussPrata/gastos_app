@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
-import 'package:gastos_app/features/recurring/repository/recurring_repository.dart';
 import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 
 /// Formulario de transacao recorrente (criar/editar).

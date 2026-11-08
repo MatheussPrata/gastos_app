@@ -264,10 +264,55 @@ class PlanningRepository {
     );
 
     final totals = <String, double>{};
+    final cardSpent = <String, double>{};
+
     for (final transaction in rows) {
       final key = transaction.categoryId ?? 'none';
       totals[key] = (totals[key] ?? 0) + transaction.amount;
+
+      if (transaction.creditCardId != null &&
+          transaction.creditCardId!.isNotEmpty) {
+        cardSpent[transaction.creditCardId!] =
+            (cardSpent[transaction.creditCardId!] ?? 0) + transaction.amount;
+      }
     }
+
+    // Se o valor total da fatura informado pelo usuário for maior que os gastos
+    // lançados para o cartão, a diferença é atribuída à categoria "nao_informada".
+    final cards = await (_db.select(_db.creditCards)
+          ..where((c) => c.isActive.equals(true)))
+        .get();
+
+    final prefix = 'card_invoice_';
+    final suffix = '_${month.year}_${month.month}';
+    final settings = await _db.select(_db.appSettings).get();
+    final invoiceMap = <String, double>{};
+
+    for (final s in settings) {
+      if (s.key.startsWith(prefix) && s.key.endsWith(suffix)) {
+        final cardId = s.key.substring(
+          prefix.length,
+          s.key.length - suffix.length,
+        );
+        final val = double.tryParse(s.value) ?? 0.0;
+        if (val > 0) invoiceMap[cardId] = val;
+      }
+    }
+
+    double totalDifference = 0.0;
+    for (final card in cards) {
+      final invoice = invoiceMap[card.id] ?? 0.0;
+      final spent = cardSpent[card.id] ?? 0.0;
+      if (invoice > spent) {
+        totalDifference += (invoice - spent);
+      }
+    }
+
+    if (totalDifference > 0) {
+      totals['nao_informada'] =
+          (totals['nao_informada'] ?? 0) + totalDifference;
+    }
+
     return totals;
   }
 

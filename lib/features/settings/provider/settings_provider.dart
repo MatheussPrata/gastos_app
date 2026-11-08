@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gastos_app/features/settings/models/settings_models.dart';
 import 'package:gastos_app/features/settings/repository/settings_repository.dart';
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) => SettingsRepository());

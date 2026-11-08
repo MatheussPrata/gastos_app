@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
+import 'package:gastos_app/features/credit_cards/repository/credit_cards_repository.dart';
+import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 
 class CreditCardFormPage extends ConsumerStatefulWidget {
   const CreditCardFormPage({super.key, this.card});
@@ -22,10 +23,9 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _limitController;
-  late final TextEditingController _digitsController;
+  late final TextEditingController _invoiceController;
 
   late int _selectedColor;
-  late String _selectedBrand;
   late int _closingDay;
   late int _dueDay;
   bool _isSaving = false;
@@ -42,15 +42,6 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
     0xFF5C6BC0, // Slate
   ];
 
-  static const List<String> _brands = [
-    'Mastercard',
-    'Visa',
-    'Elo',
-    'American Express',
-    'Hipercard',
-    'Outro',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -61,22 +52,31 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
           ? FormHelper.formatBRL(card.limitAmount)
           : '',
     );
-    _digitsController =
-        TextEditingController(text: card?.lastFourDigits ?? '');
+    _invoiceController = TextEditingController();
 
     _selectedColor = card?.color ?? _cardColors.first;
-    _selectedBrand = (card?.brand.isNotEmpty ?? false)
-        ? card!.brand
-        : _brands.first;
     _closingDay = card?.closingDay ?? 25;
     _dueDay = card?.dueDay ?? 5;
+
+    if (card != null) {
+      _loadCurrentInvoice(card.id);
+    }
+  }
+
+  Future<void> _loadCurrentInvoice(String cardId) async {
+    final now = DateTime.now();
+    final repo = ref.read(creditCardsRepositoryProvider);
+    final inv = await repo.getCardInvoiceAmount(cardId, now);
+    if (inv > 0 && mounted) {
+      _invoiceController.text = FormHelper.formatBRL(inv);
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _limitController.dispose();
-    _digitsController.dispose();
+    _invoiceController.dispose();
     super.dispose();
   }
 
@@ -85,13 +85,14 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
 
     setState(() => _isSaving = true);
     final limit = FormHelper.parseBRL(_limitController.text);
+    final invoice = FormHelper.parseBRL(_invoiceController.text);
 
     final card = CreditCardItem(
       id: widget.card?.id ?? const Uuid().v4(),
       name: _nameController.text.trim(),
       color: _selectedColor,
-      lastFourDigits: _digitsController.text.trim(),
-      brand: _selectedBrand,
+      lastFourDigits: '',
+      brand: '',
       limitAmount: limit,
       closingDay: _closingDay,
       dueDay: _dueDay,
@@ -105,6 +106,18 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
       } else {
         await ref.read(creditCardsProvider.notifier).createCard(card);
       }
+
+      final repo = ref.read(creditCardsRepositoryProvider);
+      final now = DateTime.now();
+      await repo.setCardInvoiceAmount(card.id, now, invoice);
+
+      ref
+        ..invalidate(cardsWithSpentProvider)
+        ..invalidate(cardInvoiceAmountProvider)
+        ..invalidate(unbudgetedExpensesProvider)
+        ..invalidate(monthPlanningProvider)
+        ..invalidate(monthSpentTotalProvider);
+
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -130,7 +143,7 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: 'Nome ou Apelido do Cartão *',
-                hintText: 'Ex: Nubank, Itaú Black, Inter...',
+                hintText: 'Ex: Nubank, Itaú, Inter...',
                 prefixIcon: Icon(Icons.credit_card),
               ),
               textCapitalization: TextCapitalization.words,
@@ -140,55 +153,6 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
                 }
                 return null;
               },
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedBrand,
-                    decoration: const InputDecoration(
-                      labelText: 'Bandeira',
-                      prefixIcon: Icon(Icons.branding_watermark_outlined),
-                    ),
-                    items: [
-                      for (final brand in _brands)
-                        DropdownMenuItem(value: brand, child: Text(brand)),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedBrand = val);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _digitsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Final (4 dígitos)',
-                      hintText: '1234',
-                      prefixIcon: Icon(Icons.pin_outlined),
-                      counterText: '',
-                    ),
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _limitController,
-              decoration: const InputDecoration(
-                labelText: r'Limite Total (R$)',
-                hintText: r'R$ 0,00',
-                prefixIcon: Icon(Icons.attach_money),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [BRLTextInputFormatter()],
             ),
             const SizedBox(height: 16),
 
@@ -228,6 +192,33 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _limitController,
+              decoration: const InputDecoration(
+                labelText: r'Limite Total (R$)',
+                hintText: r'R$ 0,00',
+                prefixIcon: Icon(Icons.attach_money),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [BRLTextInputFormatter()],
+            ),
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _invoiceController,
+              decoration: const InputDecoration(
+                labelText: r'Valor Total da Fatura Atual (R$)',
+                hintText: r'R$ 0,00 (opcional)',
+                prefixIcon: Icon(Icons.receipt_long_outlined),
+                helperText:
+                    'Se maior que as compras lançadas, a diferença fica na categoria "Não informada"',
+                helperMaxLines: 2,
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [BRLTextInputFormatter()],
             ),
             const SizedBox(height: 24),
 

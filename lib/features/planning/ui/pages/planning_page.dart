@@ -5,7 +5,6 @@ import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/utils/category_icons.dart';
-import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/credit_cards/ui/pages/credit_card_detail_page.dart';
 import 'package:gastos_app/features/credit_cards/ui/pages/credit_card_form_page.dart';
@@ -551,8 +550,7 @@ class _CardsPlanningSection extends ConsumerWidget {
             itemBuilder: (context, index) {
               final item = cardsSummary[index];
               return _MiniCardTile(
-                card: item.card,
-                spent: item.spent,
+                item: item,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => CreditCardDetailPage(card: item.card),
@@ -569,20 +567,24 @@ class _CardsPlanningSection extends ConsumerWidget {
 
 class _MiniCardTile extends StatelessWidget {
   const _MiniCardTile({
-    required this.card,
-    required this.spent,
+    required this.item,
     required this.onTap,
   });
 
-  final CreditCardItem card;
-  final double spent;
+  final CardWithSpent item;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final card = item.card;
+    final spent = item.spent;
+    final invoiceTotal = item.invoiceTotal;
+    final displayFatura = invoiceTotal > 0 ? invoiceTotal : spent;
+    final difference = item.difference;
+
     final baseColor = card.cardColor;
-    final available = card.availableLimit(spent);
-    final percent = card.limitUsedPercent(spent);
+    final available = card.availableLimit(displayFatura);
+    final percent = card.limitUsedPercent(displayFatura);
 
     return InkWell(
       onTap: onTap,
@@ -620,7 +622,7 @@ class _MiniCardTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    card.displayName,
+                    card.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -644,13 +646,22 @@ class _MiniCardTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Fatura: ${CurrencyFormatter.format(spent)}',
+                  'Fatura: ${CurrencyFormatter.format(displayFatura)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
                 ),
+                if (difference > 0)
+                  Text(
+                    'Não informado: ${CurrencyFormatter.format(difference)}',
+                    style: TextStyle(
+                      color: Colors.amber.shade200,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 if (card.limitAmount > 0) ...[
                   const SizedBox(height: 4),
                   ClipRRect(
@@ -661,7 +672,9 @@ class _MiniCardTile extends StatelessWidget {
                       backgroundColor: Colors.white.withOpacity(0.25),
                       color: percent >= 100
                           ? Colors.redAccent.shade100
-                          : Colors.white,
+                          : percent >= 80
+                              ? Colors.amberAccent
+                              : Colors.white,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -761,7 +774,6 @@ class _CategoryProgressTile extends StatelessWidget {
         ? Colors.grey
         : Color(progress.categoryColor);
     final statusColor = planningStatusColor(progress.progressPercent);
-    final over = progress.isOverBudget;
     final remaining = progress.remainingAmount;
 
     return Card(

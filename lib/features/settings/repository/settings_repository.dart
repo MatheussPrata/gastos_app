@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
@@ -6,7 +5,6 @@ import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/settings/models/settings_models.dart';
 
 class SettingsRepository {
-  final DioClient _dioClient = DioClient();
   final db.AppDatabase _db = db.AppDatabase();
 
   /// Get app settings

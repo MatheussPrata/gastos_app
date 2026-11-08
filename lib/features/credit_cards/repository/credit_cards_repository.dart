@@ -128,4 +128,57 @@ class CreditCardsRepository {
 
     return query.get();
   }
+
+  /// Returns the total invoice amount defined by the user for a card and month.
+  Future<double> getCardInvoiceAmount(String cardId, DateTime month) async {
+    final key = 'card_invoice_${cardId}_${month.year}_${month.month}';
+    final row = await (_db.select(_db.appSettings)
+          ..where((s) => s.key.equals(key)))
+        .getSingleOrNull();
+    if (row == null) return 0.0;
+    return double.tryParse(row.value) ?? 0.0;
+  }
+
+  /// Saves or clears the total invoice amount for a card and month.
+  Future<void> setCardInvoiceAmount(
+    String cardId,
+    DateTime month,
+    double amount,
+  ) async {
+    final key = 'card_invoice_${cardId}_${month.year}_${month.month}';
+    if (amount <= 0) {
+      await (_db.delete(_db.appSettings)..where((s) => s.key.equals(key))).go();
+    } else {
+      await _db.into(_db.appSettings).insertOnConflictUpdate(
+            db.AppSettingsCompanion(
+              key: Value(key),
+              value: Value(amount.toString()),
+              isSynced: const Value(false),
+            ),
+          );
+    }
+    unawaited(_sync.push());
+  }
+
+  /// Returns a map of {cardId: invoiceAmount} for the given month.
+  Future<Map<String, double>> getAllCardInvoicesForMonth(DateTime month) async {
+    final prefix = 'card_invoice_';
+    final suffix = '_${month.year}_${month.month}';
+    final rows = await _db.select(_db.appSettings).get();
+
+    final result = <String, double>{};
+    for (final row in rows) {
+      if (row.key.startsWith(prefix) && row.key.endsWith(suffix)) {
+        final cardId = row.key.substring(
+          prefix.length,
+          row.key.length - suffix.length,
+        );
+        final val = double.tryParse(row.value) ?? 0.0;
+        if (val > 0) {
+          result[cardId] = val;
+        }
+      }
+    }
+    return result;
+  }
 }

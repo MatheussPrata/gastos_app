@@ -27,6 +27,8 @@ IconData categoryIcon(String name) {
       return Icons.flight;
     case 'work':
       return Icons.work;
+    case 'help_outline':
+      return Icons.help_outline;
     default:
       return Icons.category;
   }

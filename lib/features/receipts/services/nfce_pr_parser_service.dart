@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
-import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/receipts/services/receipt_item_categorizer.dart';
@@ -259,7 +258,7 @@ class NfcePrParserService {
   }
 
   String _extractPaymentMethod(dom.Document doc) {
-    final allText = doc.body?.text?.toLowerCase() ?? '';
+    final allText = doc.body?.text.toLowerCase() ?? '';
 
     if (allText.contains('cartao de credito') ||
         allText.contains('cartão de crédito') ||

@@ -326,6 +326,17 @@ final unbudgetedExpensesProvider =
     if (entry.value <= 0) continue;
     if (budgetedIds.contains(entry.key)) continue;
 
+    if (entry.key == 'nao_informada') {
+      unbudgeted.add(UnbudgetedCategoryExpense(
+        categoryId: 'nao_informada',
+        categoryName: 'Não informada',
+        categoryColor: 0xFF78909C,
+        categoryIcon: 'help_outline',
+        spentAmount: entry.value,
+      ));
+      continue;
+    }
+
     final cat = catMap[entry.key];
     unbudgeted.add(UnbudgetedCategoryExpense(
       categoryId: entry.key,
