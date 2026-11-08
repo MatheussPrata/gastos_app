@@ -69,6 +69,52 @@ typedef CardWithSpent = ({
   double spent,
   double invoiceTotal,
   double difference,
+  bool isPaid,
+});
+
+/// Selected card ID in the credit cards dashboard (null means 'Todos os Cartões').
+final creditCardsSelectedFilterProvider = StateProvider<String?>((ref) => null);
+
+/// Selected reference month for the credit cards dashboard.
+final creditCardsSelectedMonthProvider = StateProvider<DateTime>((ref) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, 1);
+});
+
+/// Whether a specific card invoice is paid.
+final cardInvoicePaidProvider =
+    FutureProvider.family<bool, ({String cardId, DateTime month})>(
+        (ref, params) async {
+  final repo = ref.watch(creditCardsRepositoryProvider);
+  return repo.isInvoicePaid(params.cardId, params.month);
+});
+
+/// All transactions across all cards for the given month cycle.
+final allCardsTransactionsProvider =
+    FutureProvider.family<List<db.Transaction>, DateTime>((ref, month) async {
+  final repo = ref.watch(creditCardsRepositoryProvider);
+  return repo.getAllCardTransactions(month: month);
+});
+
+/// Category spending breakdown for a specific card or all cards.
+final cardCategorySpendingProvider = FutureProvider.family<Map<String, double>,
+    ({String? cardId, DateTime month})>((ref, params) async {
+  final repo = ref.watch(creditCardsRepositoryProvider);
+  return repo.getCardSpentByCategory(
+    cardId: params.cardId,
+    month: params.month,
+  );
+});
+
+/// Invoice forecast for the upcoming 6 months.
+final cardForecastProvider = FutureProvider.family<List<InvoiceForecast>,
+    ({String? cardId, DateTime startMonth})>((ref, params) async {
+  final repo = ref.watch(creditCardsRepositoryProvider);
+  return repo.getFutureInvoicesForecast(
+    cardId: params.cardId,
+    startMonth: params.startMonth,
+    numberOfMonths: 6,
+  );
 });
 
 /// All cards with their spending and invoice info for the reference month.
@@ -81,12 +127,14 @@ final cardsWithSpentProvider =
   for (final card in cards) {
     final spent = await repo.getCardSpentForMonth(card.id, month);
     final invoiceTotal = await repo.getCardInvoiceAmount(card.id, month);
+    final isPaid = await repo.isInvoicePaid(card.id, month);
     final diff = invoiceTotal > spent ? (invoiceTotal - spent) : 0.0;
     results.add((
       card: card,
       spent: spent,
       invoiceTotal: invoiceTotal,
       difference: diff,
+      isPaid: isPaid,
     ));
   }
   return results;

@@ -1,10 +1,16 @@
 # This is a generated file; do not edit or check into version control.
+app_settings=/root/.pub-cache/hosted/pub.dev/app_settings-6.1.1/
 connectivity_plus=/root/.pub-cache/hosted/pub.dev/connectivity_plus-6.1.5/
+flutter_local_notifications=/root/.pub-cache/hosted/pub.dev/flutter_local_notifications-17.2.4/
+flutter_local_notifications_linux=/root/.pub-cache/hosted/pub.dev/flutter_local_notifications_linux-4.0.1/
 flutter_secure_storage=/root/.pub-cache/hosted/pub.dev/flutter_secure_storage-9.2.4/
 flutter_secure_storage_linux=/root/.pub-cache/hosted/pub.dev/flutter_secure_storage_linux-1.2.3/
 flutter_secure_storage_macos=/root/.pub-cache/hosted/pub.dev/flutter_secure_storage_macos-3.1.3/
 flutter_secure_storage_web=/root/.pub-cache/hosted/pub.dev/flutter_secure_storage_web-1.2.1/
 flutter_secure_storage_windows=/root/.pub-cache/hosted/pub.dev/flutter_secure_storage_windows-3.1.2/
+flutter_timezone=/root/.pub-cache/hosted/pub.dev/flutter_timezone-3.0.1/
+mobile_scanner=/root/.pub-cache/hosted/pub.dev/mobile_scanner-5.2.3/
+package_info_plus=/root/.pub-cache/hosted/pub.dev/package_info_plus-8.3.1/
 path_provider=/root/.pub-cache/hosted/pub.dev/path_provider-2.1.5/
 path_provider_android=/root/.pub-cache/hosted/pub.dev/path_provider_android-2.2.15/
 path_provider_foundation=/root/.pub-cache/hosted/pub.dev/path_provider_foundation-2.4.1/

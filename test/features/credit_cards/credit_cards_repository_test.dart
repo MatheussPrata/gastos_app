@@ -104,6 +104,7 @@ void main() {
         id: 'card-xyz',
         name: 'Nubank',
         color: 0xFF8A05BE,
+        closingDay: 25,
       ));
 
       await db.into(db.transactions).insert(TransactionsCompanion.insert(

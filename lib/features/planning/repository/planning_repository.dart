@@ -10,6 +10,7 @@ import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 
 final planningRepositoryProvider = Provider<PlanningRepository>((ref) {
@@ -302,7 +303,18 @@ class PlanningRepository {
     double totalDifference = 0.0;
     for (final card in cards) {
       final invoice = invoiceMap[card.id] ?? 0.0;
-      final spent = cardSpent[card.id] ?? 0.0;
+      final range = CreditCardCycleHelper.invoiceDateRange(
+        invoiceMonth: month,
+        closingDay: card.closingDay,
+      );
+      final cardTxs = await (_db.select(_db.transactions)
+            ..where((t) =>
+                t.creditCardId.equals(card.id) &
+                t.isExpense.equals(true) &
+                t.date.isBiggerOrEqualValue(range.start) &
+                t.date.isSmallerOrEqualValue(range.end)))
+          .get();
+      final spent = cardTxs.fold<double>(0.0, (sum, t) => sum + t.amount);
       if (invoice > spent) {
         totalDifference += (invoice - spent);
       }

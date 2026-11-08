@@ -7,6 +7,7 @@ import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.
 import 'package:gastos_app/features/credit_cards/repository/credit_cards_repository.dart';
 import 'package:gastos_app/features/credit_cards/ui/pages/credit_card_form_page.dart';
 import 'package:gastos_app/features/credit_cards/ui/widgets/credit_card_visual.dart';
+import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/ui/planning_ui_helpers.dart';
 
@@ -163,10 +164,15 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
     final txsAsync = ref.watch(cardTransactionsProvider(
       (cardId: _card.id, month: _selectedMonth),
     ));
+    final paidAsync = ref.watch(cardInvoicePaidProvider(
+      (cardId: _card.id, month: _selectedMonth),
+    ));
 
     final spent = spentAsync.valueOrNull ?? 0.0;
     final invoiceTotal = invoiceAsync.valueOrNull ?? 0.0;
+    final isPaid = paidAsync.valueOrNull ?? false;
     final difference = invoiceTotal > spent ? (invoiceTotal - spent) : 0.0;
+    final bestDay = CreditCardCycleHelper.bestDayToBuy(_card.closingDay);
 
     return Scaffold(
       appBar: AppBar(
@@ -222,6 +228,89 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
                         _selectedMonth.year, _selectedMonth.month + 1, 1);
                   });
                 },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Badges: Melhor dia de compra & Status da Fatura
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.auto_awesome,
+                          size: 16, color: Color(0xFF2E7D32)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Melhor dia: dia $bestDay (fecha dia ${_card.closingDay})',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2E7D32),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () async {
+                  final repo = ref.read(creditCardsRepositoryProvider);
+                  await repo.setInvoicePaid(_card.id, _selectedMonth, !isPaid);
+                  ref
+                    ..invalidate(cardInvoicePaidProvider(
+                      (cardId: _card.id, month: _selectedMonth),
+                    ))
+                    ..invalidate(cardsWithSpentProvider)
+                    ..invalidate(cardForecastProvider);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color:
+                        isPaid ? Colors.green.shade600 : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isPaid
+                          ? Colors.green.shade700
+                          : Colors.orange.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isPaid
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        size: 16,
+                        color: isPaid ? Colors.white : Colors.orange.shade800,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isPaid ? 'Fatura Paga' : 'Marcar Paga',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isPaid ? Colors.white : Colors.orange.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),

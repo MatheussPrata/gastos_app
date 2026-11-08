@@ -22,8 +22,11 @@ import 'package:gastos_app/core/notifications/notification_permission_service.da
 import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
+import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/credit_cards/ui/pages/credit_card_form_page.dart';
+import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
+import 'package:gastos_app/features/planning/ui/planning_ui_helpers.dart';
 
 const List<int> _newCategoryColors = [
   0xFFFF6B6B,
@@ -659,6 +662,9 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         final isValidSelection =
             _creditCardId != null && cards.any((c) => c.id == _creditCardId);
         final selectedValue = isValidSelection ? _creditCardId : null;
+        final CreditCardItem? selectedCard = isValidSelection
+            ? cards.firstWhere((c) => c.id == _creditCardId)
+            : null;
 
         return Padding(
           padding: const EdgeInsets.only(top: 8, bottom: 4),
@@ -709,10 +715,116 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                       const Text('Novo Cartão', style: TextStyle(fontSize: 12)),
                 ),
               ),
+              if (selectedCard != null) _buildCardCycleFeedback(selectedCard),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCardCycleFeedback(CreditCardItem card) {
+    final invoiceMonth =
+        CreditCardCycleHelper.invoiceMonthForDate(_date, card.closingDay);
+    final closing = CreditCardCycleHelper.effectiveClosingDay(
+      _date.year,
+      _date.month,
+      card.closingDay,
+    );
+    final isAfterClosing = _date.day > closing;
+    final bestDay = CreditCardCycleHelper.bestDayToBuy(card.closingDay);
+    final isBestDay = _date.day == bestDay;
+
+    String installmentNotice = '';
+    if (_isInstallment && _installments > 1) {
+      final lastDate = CreditCardCycleHelper.installmentDateForCycle(
+        baseDate: _date,
+        installmentIndex: _installments - 1,
+        closingDay: card.closingDay,
+      );
+      final lastMonth =
+          CreditCardCycleHelper.invoiceMonthForDate(lastDate, card.closingDay);
+      installmentNotice =
+          'Parcelas: 1ª na fatura de ${planningMonthLabel(invoiceMonth)}, última (${_installments}x) em ${planningMonthLabel(lastMonth)}.';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 2, bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isBestDay
+            ? Colors.green.shade50
+            : AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isBestDay
+              ? Colors.green.shade300
+              : AppColors.primary.withOpacity(0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isBestDay ? Icons.auto_awesome : Icons.info_outline,
+                size: 18,
+                color: isBestDay ? AppColors.income : AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Fatura de ${planningMonthLabel(invoiceMonth)} (vence dia ${card.dueDay})',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: isBestDay ? AppColors.income : AppColors.primary,
+                  ),
+                ),
+              ),
+              if (isBestDay)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Melhor dia! 🚀',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isAfterClosing
+                ? 'Fatura fecha dia ${card.closingDay}. Compra em ${DateFormatter.formatDayMonth(_date)} cairá na fatura seguinte (${planningMonthLabel(invoiceMonth)}).'
+                : 'Fatura fecha dia ${card.closingDay}. Compra em ${DateFormatter.formatDayMonth(_date)} cairá na fatura atual (${planningMonthLabel(invoiceMonth)}).',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          if (installmentNotice.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              installmentNotice,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade800,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

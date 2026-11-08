@@ -85,3 +85,23 @@ class CreditCardItem {
     );
   }
 }
+
+/// Represents the forecast of an invoice for a specific month.
+class InvoiceForecast {
+  final DateTime month;
+  final double spent;
+  final double invoiceTotal;
+  final bool isPaid;
+  final int transactionCount;
+
+  const InvoiceForecast({
+    required this.month,
+    required this.spent,
+    required this.invoiceTotal,
+    required this.isPaid,
+    this.transactionCount = 0,
+  });
+
+  /// The effective invoice amount: manual total if positive, else recorded spent.
+  double get effectiveTotal => invoiceTotal > 0 ? invoiceTotal : spent;
+}

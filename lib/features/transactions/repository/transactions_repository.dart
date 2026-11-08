@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
+import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 
@@ -158,13 +159,33 @@ class TransactionsRepository {
       final perInstallment =
           _roundToCents(transaction.amount / transaction.totalInstallments);
 
+      int? closingDay;
+      if (transaction.creditCardId != null &&
+          transaction.creditCardId!.isNotEmpty) {
+        final cardRow = await (_db.select(_db.creditCards)
+              ..where((c) => c.id.equals(transaction.creditCardId!)))
+            .getSingleOrNull();
+        if (cardRow != null) closingDay = cardRow.closingDay;
+      }
+
       for (var i = 1; i <= transaction.totalInstallments; i++) {
+        final DateTime installmentDate;
+        if (closingDay != null) {
+          installmentDate = CreditCardCycleHelper.installmentDateForCycle(
+            baseDate: transaction.date,
+            installmentIndex: i - 1,
+            closingDay: closingDay,
+          );
+        } else {
+          installmentDate = _addMonths(transaction.date, i - 1);
+        }
+
         final installment = transaction.copyWith(
           id: _uuid.v4(),
           amount: perInstallment,
           description:
               '${transaction.description} ($i/${transaction.totalInstallments})',
-          date: _addMonths(transaction.date, i - 1),
+          date: installmentDate,
           isInstallment: true,
           installmentNumber: i,
           totalInstallments: transaction.totalInstallments,
