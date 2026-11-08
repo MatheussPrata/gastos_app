@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/sync/sync_provider.dart';
+import 'package:gastos_app/features/credit_cards/ui/pages/credit_cards_page.dart';
 import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
@@ -19,8 +20,9 @@ class MainShellPage extends ConsumerStatefulWidget {
 
   static const List<Widget> _pages = [
     DashboardPage(),
-    ReportsPage(),
+    CreditCardsPage(),
     PlanningPage(),
+    ReportsPage(),
   ];
 
   @override
@@ -68,17 +70,17 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
             ref.read(bottomNavIndexProvider.notifier).state = index;
           },
           destinations: [
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home),
               label: 'Início',
               tooltip: 'Início',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.bar_chart_outlined),
-              selectedIcon: Icon(Icons.bar_chart),
-              label: 'Relatórios',
-              tooltip: 'Relatórios',
+            const NavigationDestination(
+              icon: Icon(Icons.credit_card_outlined),
+              selectedIcon: Icon(Icons.credit_card),
+              label: 'Cartões',
+              tooltip: 'Cartões de crédito',
             ),
             NavigationDestination(
               icon: Badge(
@@ -93,6 +95,12 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
               ),
               label: 'Planejamento',
               tooltip: 'Planejamento financeiro',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart),
+              label: 'Relatórios',
+              tooltip: 'Relatórios',
             ),
           ],
         ),

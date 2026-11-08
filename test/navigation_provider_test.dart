@@ -14,8 +14,13 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    container.read(bottomNavIndexProvider.notifier).state = AppTab.reports;
+    container.read(bottomNavIndexProvider.notifier).state = AppTab.cards;
+    expect(container.read(bottomNavIndexProvider), AppTab.cards);
 
+    container.read(bottomNavIndexProvider.notifier).state = AppTab.planning;
+    expect(container.read(bottomNavIndexProvider), AppTab.planning);
+
+    container.read(bottomNavIndexProvider.notifier).state = AppTab.reports;
     expect(container.read(bottomNavIndexProvider), AppTab.reports);
   });
 }

@@ -9,6 +9,7 @@ final bottomNavIndexProvider = StateProvider<int>((ref) => AppTab.home);
 /// Stable indexes for the bottom navigation destinations, left to right.
 abstract final class AppTab {
   static const int home = 0;
-  static const int reports = 1;
+  static const int cards = 1;
   static const int planning = 2;
+  static const int reports = 3;
 }

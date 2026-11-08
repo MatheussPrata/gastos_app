@@ -5,17 +5,12 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
-import 'package:gastos_app/features/categories/models/category_models.dart';
-import 'package:gastos_app/features/categories/provider/categories_provider.dart';
-import 'package:gastos_app/features/categories/utils/category_icons.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
-import 'package:gastos_app/features/credit_cards/ui/pages/credit_cards_page.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/settings_drawer.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
-import 'package:gastos_app/features/transactions/models/transaction_models.dart'
-    hide Category;
+import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:gastos_app/features/transactions/ui/widgets/transaction_tile.dart';
 
@@ -34,18 +29,11 @@ const List<String> _monthNames = [
   'Dezembro',
 ];
 
-class DashboardPage extends ConsumerStatefulWidget {
+class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
   @override
-  ConsumerState<DashboardPage> createState() => _DashboardPageState();
-}
-
-class _DashboardPageState extends ConsumerState<DashboardPage> {
-  int _selectedTab = 0; // 0: Transações, 1: Categorias
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
     final transactionsAsync = ref.watch(monthTransactionsProvider);
@@ -63,13 +51,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         title: Text('Olá, ${user?.username ?? 'Usuário'}'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.credit_card),
-            tooltip: 'Cartões de Crédito',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CreditCardsPage()),
-            ),
-          ),
-          IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Ler cupom fiscal',
             onPressed: () => context.push(RouteNames.receiptScanner),
@@ -78,13 +59,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ),
       body: Column(
         children: [
-          _buildMonthSelector(context, selectedMonth),
-          _buildSummaryAndCardImpact(context, transactionsAsync),
-          _buildTabSelector(),
+          _buildMonthSelector(context, ref, selectedMonth),
+          _buildSummary(context, transactionsAsync),
           Expanded(
-            child: _selectedTab == 0
-                ? _buildTransactionsList(context, transactionsAsync)
-                : _buildCategoryBreakdownList(context, transactionsAsync),
+            child: _buildTransactionsList(context, ref, transactionsAsync),
           ),
         ],
       ),
@@ -99,14 +77,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  Widget _buildMonthSelector(BuildContext context, DateTime month) {
+  Widget _buildMonthSelector(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime month,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left),
-            onPressed: () => _changeMonth(-1),
+            onPressed: () => _changeMonth(ref, -1),
             tooltip: 'Mês anterior',
           ),
           Expanded(
@@ -121,7 +103,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            onPressed: () => _changeMonth(1),
+            onPressed: () => _changeMonth(ref, 1),
             tooltip: 'Próximo mês',
           ),
         ],
@@ -129,7 +111,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  void _changeMonth(int delta) {
+  void _changeMonth(WidgetRef ref, int delta) {
     final current = ref.read(selectedMonthProvider);
     ref.read(selectedMonthProvider.notifier).state =
         DateTime(current.year, current.month + delta, 1);
@@ -138,13 +120,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   String _monthLabel(DateTime month) =>
       '${_monthNames[month.month - 1]} ${month.year}';
 
-  Widget _buildSummaryAndCardImpact(
+  Widget _buildSummary(
     BuildContext context,
     AsyncValue<List<Transaction>> transactionsAsync,
   ) {
     return transactionsAsync.when(
       loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Padding(
@@ -154,162 +136,56 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       data: (transactions) {
         var income = 0.0;
         var expense = 0.0;
-        var cardSpent = 0.0;
-
         for (final transaction in transactions) {
           if (transaction.isExpense) {
             expense += transaction.amount;
-            if (transaction.paymentMethod == 'Cartão de Crédito' ||
-                (transaction.creditCardId != null &&
-                    transaction.creditCardId!.isNotEmpty)) {
-              cardSpent += transaction.amount;
-            }
           } else {
             income += transaction.amount;
           }
         }
         final balance = income - expense;
-        final percentOfIncome =
-            income > 0 ? (cardSpent / income * 100) : 0.0;
 
-        Color cardWarningColor;
-        if (percentOfIncome > 50) {
-          cardWarningColor = AppColors.expense;
-        } else if (percentOfIncome > 30) {
-          cardWarningColor = AppColors.warning;
-        } else {
-          cardWarningColor = AppColors.income;
-        }
-
-        return Column(
-          children: [
-            Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _summaryItem('Entradas', income, AppColors.income),
-                        _summaryItem('Saídas', expense, AppColors.expense),
-                      ],
+                    _summaryItem('Entradas', income, AppColors.income),
+                    _summaryItem('Saídas', expense, AppColors.expense),
+                  ],
+                ),
+                const Divider(height: 28),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Saldo do mês',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const Divider(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Saldo do mês',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          CurrencyFormatter.format(balance),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: balance >= 0
-                                ? AppColors.income
-                                : AppColors.expense,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      CurrencyFormatter.format(balance),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color:
+                            balance >= 0 ? AppColors.income : AppColors.expense,
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
-
-            // Card: Comprometimento da Renda no Cartão de Crédito
-            if (cardSpent > 0 || income > 0)
-              InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CreditCardsPage()),
-                ),
-                child: Container(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: AppColors.primary.withOpacity(0.2)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.credit_card,
-                              size: 18, color: AppColors.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              income > 0
-                                  ? '${percentOfIncome.toStringAsFixed(1)}% da renda gasta no cartão de crédito'
-                                  : 'Gasto no cartão: ${CurrencyFormatter.format(cardSpent)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: income > 0
-                                    ? cardWarningColor
-                                    : AppColors.primary,
-                              ),
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right,
-                              size: 18, color: Colors.grey),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      if (income > 0) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: (percentOfIncome / 100).clamp(0.0, 1.0),
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor:
-                                AlwaysStoppedAnimation(cardWarningColor),
-                            minHeight: 6,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Cartão: ${CurrencyFormatter.format(cardSpent)}',
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey.shade700),
-                            ),
-                            Text(
-                              'Renda: ${CurrencyFormatter.format(income)}',
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey.shade700),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        Text(
-                          'Toque para gerenciar faturas e limites dos cartões',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-          ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildSummaryItem(String label, double value, Color color) {
+  Widget _summaryItem(String label, double value, Color color) {
     return Column(
       children: [
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
@@ -326,40 +202,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  Widget _summaryItem(String label, double value, Color color) =>
-      _buildSummaryItem(label, value, color);
-
-  Widget _buildTabSelector() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: ChoiceChip(
-              label: const Center(child: Text('Lançamentos')),
-              selected: _selectedTab == 0,
-              onSelected: (selected) {
-                if (selected) setState(() => _selectedTab = 0);
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: ChoiceChip(
-              label: const Center(child: Text('Por Categoria')),
-              selected: _selectedTab == 1,
-              onSelected: (selected) {
-                if (selected) setState(() => _selectedTab = 1);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTransactionsList(
     BuildContext context,
+    WidgetRef ref,
     AsyncValue<List<Transaction>> transactionsAsync,
   ) {
     return transactionsAsync.when(
@@ -393,178 +238,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   );
                 }
               },
-              onDelete: () => _confirmDelete(context, transaction),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildCategoryBreakdownList(
-    BuildContext context,
-    AsyncValue<List<Transaction>> transactionsAsync,
-  ) {
-    final categoriesAsync = ref.watch(categoriesListProvider);
-
-    return transactionsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erro: $e')),
-      data: (transactions) {
-        final expenseTransactions =
-            transactions.where((t) => t.isExpense).toList();
-
-        if (expenseTransactions.isEmpty) {
-          return const Center(
-            child: Text('Nenhum gasto registrado neste mês.'),
-          );
-        }
-
-        final categoriesList =
-            categoriesAsync.valueOrNull ?? const <Category>[];
-
-        // Group total spent and credit card spent by category
-        final categoryTotals = <String, double>{};
-        final categoryCardSpent = <String, double>{};
-        var totalExpenses = 0.0;
-
-        for (final tx in expenseTransactions) {
-          final catId = tx.categoryId ?? 'none';
-          categoryTotals[catId] = (categoryTotals[catId] ?? 0.0) + tx.amount;
-          totalExpenses += tx.amount;
-
-          final isCard = tx.paymentMethod == 'Cartão de Crédito' ||
-              (tx.creditCardId != null && tx.creditCardId!.isNotEmpty);
-          if (isCard) {
-            categoryCardSpent[catId] =
-                (categoryCardSpent[catId] ?? 0.0) + tx.amount;
-          }
-        }
-
-        final sortedCategories = categoryTotals.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
-
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          itemCount: sortedCategories.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final entry = sortedCategories[index];
-            final catId = entry.key;
-            final catTotal = entry.value;
-            final cardSpent = categoryCardSpent[catId] ?? 0.0;
-            final cardPercent =
-                catTotal > 0 ? (cardSpent / catTotal * 100) : 0.0;
-            final overallPercent =
-                totalExpenses > 0 ? (catTotal / totalExpenses * 100) : 0.0;
-
-            final cat = categoriesList.cast<Category?>().firstWhere(
-                  (c) => c?.id == catId,
-                  orElse: () => null,
-                );
-            final name = cat?.name ?? 'Outros';
-            final iconData = categoryIcon(cat?.icon ?? 'category');
-            final color = cat != null && cat.color != 0
-                ? Color(cat.color)
-                : AppColors.primary;
-
-            return Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: color.withOpacity(0.15),
-                          child: Icon(iconData, size: 20, color: color),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              Text(
-                                '${overallPercent.toStringAsFixed(1)}% do total de gastos',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          CurrencyFormatter.format(catTotal),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: AppColors.expense,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Barra com proporção Cartão vs Outros
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: (cardPercent / 100).clamp(0.0, 1.0),
-                        backgroundColor: Colors.grey.shade200,
-                        valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                        minHeight: 6,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Destaque de % no cartão de crédito
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.credit_card,
-                                size: 14, color: AppColors.primary),
-                            const SizedBox(width: 4),
-                            Text(
-                              cardSpent > 0
-                                  ? '${cardPercent.toStringAsFixed(0)}% no cartão (${CurrencyFormatter.format(cardSpent)})'
-                                  : '0% no cartão',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: cardSpent > 0
-                                    ? AppColors.primary
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (cardPercent < 100)
-                          Text(
-                            '${(100 - cardPercent).toStringAsFixed(0)}% outros (${CurrencyFormatter.format(catTotal - cardSpent)})',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              onDelete: () => _confirmDelete(context, ref, transaction),
             );
           },
         );
@@ -574,6 +248,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Future<void> _confirmDelete(
     BuildContext context,
+    WidgetRef ref,
     Transaction transaction,
   ) async {
     final confirmed = await showDialog<bool>(

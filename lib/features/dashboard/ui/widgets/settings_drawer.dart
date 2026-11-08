@@ -132,10 +132,8 @@ class SettingsDrawer extends ConsumerWidget {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       Navigator.of(context).pop();
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const CreditCardsPage()),
-                      );
+                      ref.read(bottomNavIndexProvider.notifier).state =
+                          AppTab.cards;
                     },
                   ),
                   const Divider(height: 1),

@@ -128,7 +128,7 @@ class _CreditCardsPageState extends ConsumerState<CreditCardsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Painel de Cartões de Crédito'),
+        title: const Text('Cartões de Crédito'),
         actions: [
           IconButton(
             tooltip: 'Novo Cartão',
