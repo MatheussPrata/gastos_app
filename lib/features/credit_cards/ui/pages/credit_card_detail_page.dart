@@ -78,62 +78,159 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
     }
   }
 
-  Future<void> _openInvoiceDialog(double current) async {
+  Future<void> _openInvoiceDialog({
+    required double current,
+    required double spent,
+  }) async {
     final controller = TextEditingController(
       text: current > 0 ? FormHelper.formatBRL(current) : '',
     );
 
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Valor Total da Fatura'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Fatura de ${planningMonthLabel(_selectedMonth)}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Informe o valor total da fatura deste mês. '
-              'Se houver diferença para as compras lançadas, o restante ficará na categoria "Não informada".',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [BRLTextInputFormatter()],
-              decoration: const InputDecoration(
-                labelText: r'Valor da Fatura (R$)',
-                hintText: r'R$ 0,00',
-                prefixIcon: Icon(Icons.receipt_long),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final typedAmount = FormHelper.parseBRL(controller.text);
+          final hasText = controller.text.trim().isNotEmpty;
+          final isBelowSpent =
+              spent > 0 && hasText && typedAmount > 0 && typedAmount < (spent - 0.009);
+          final diff = typedAmount > spent ? (typedAmount - spent) : 0.0;
+          final canSave = !isBelowSpent && typedAmount > 0;
+
+          return AlertDialog(
+            title: const Text('Valor Total da Fatura'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_card.name} • Fatura de ${planningMonthLabel(_selectedMonth)}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Informe o valor total da fatura deste cartão. A fatura deve ser no mínimo o valor das compras já lançadas.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 12),
+                  if (spent > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blueGrey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.receipt, size: 16, color: Colors.blueGrey),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Total já lançado neste cartão: ${CurrencyFormatter.format(spent)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blueGrey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [BRLTextInputFormatter()],
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: r'Valor da Fatura (R$)',
+                      hintText: r'R$ 0,00',
+                      prefixIcon: const Icon(Icons.receipt_long),
+                      errorText: isBelowSpent
+                          ? 'Mínimo de ${CurrencyFormatter.format(spent)} (já lançado)'
+                          : null,
+                    ),
+                  ),
+                  if (isBelowSpent) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.block, size: 16, color: AppColors.expense),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'A fatura não pode ser menor que o total já lançado (${CurrencyFormatter.format(spent)}).',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.expense,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (diff > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.amber.shade200),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline, size: 16, color: Color(0xFF8D6E63)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Diferença de ${CurrencyFormatter.format(diff)} será somada aos gastos na categoria "Não informada".',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF8D6E63)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          if (current > 0)
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: AppColors.expense),
-              onPressed: () {
-                controller.text = '';
-                Navigator.of(ctx).pop(true);
-              },
-              child: const Text('Remover'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Salvar'),
-          ),
-        ],
+            actions: [
+              if (current > 0)
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: AppColors.expense),
+                  onPressed: () {
+                    controller.text = '';
+                    Navigator.of(ctx).pop(true);
+                  },
+                  child: const Text('Remover'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: canSave ? () => Navigator.of(ctx).pop(true) : null,
+                child: const Text('Salvar'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -172,6 +269,8 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
     final invoiceTotal = invoiceAsync.valueOrNull ?? 0.0;
     final isPaid = paidAsync.valueOrNull ?? false;
     final difference = invoiceTotal > spent ? (invoiceTotal - spent) : 0.0;
+    final effectiveInvoice = invoiceTotal > spent ? invoiceTotal : spent;
+    final isInvoiceExceeded = invoiceTotal > 0 && spent > invoiceTotal;
     final bestDay = CreditCardCycleHelper.bestDayToBuy(_card.closingDay);
 
     return Scaffold(
@@ -361,14 +460,17 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 20),
                         tooltip: 'Editar valor da fatura',
-                        onPressed: () => _openInvoiceDialog(invoiceTotal),
+                        onPressed: () => _openInvoiceDialog(
+                          current: invoiceTotal,
+                          spent: spent,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  if (invoiceTotal > 0) ...[
+                  if (invoiceTotal > 0 || spent > 0) ...[
                     Text(
-                      CurrencyFormatter.format(invoiceTotal),
+                      CurrencyFormatter.format(effectiveInvoice),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -383,7 +485,48 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
                         color: Colors.grey.shade700,
                       ),
                     ),
-                    if (difference > 0) ...[
+                    if (isInvoiceExceeded) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade400),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.warning_amber_rounded,
+                                size: 20, color: Color(0xFFE65100)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Lançamentos superaram a fatura',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFE65100),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Os lançamentos (${CurrencyFormatter.format(spent)}) superaram a fatura configurada de ${CurrencyFormatter.format(invoiceTotal)}. O app está considerando o valor real dos lançamentos.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.brown.shade800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (difference > 0) ...[
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -400,11 +543,39 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Diferença: ${CurrencyFormatter.format(difference)} atribuída à categoria "Não informada"',
+                                'Diferença: ${CurrencyFormatter.format(difference)} atribuída à categoria "Não informada" (apenas este valor é somado aos gastos)',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFF8D6E63),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (invoiceTotal > 0 && invoiceTotal == spent) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle_outline,
+                                size: 18, color: Color(0xFF2E7D32)),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '100% da fatura detalhada em compras lançadas.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2E7D32),
                                 ),
                               ),
                             ),
@@ -426,7 +597,10 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
                           ),
                         ),
                         TextButton.icon(
-                          onPressed: () => _openInvoiceDialog(0),
+                          onPressed: () => _openInvoiceDialog(
+                            current: 0,
+                            spent: spent,
+                          ),
                           icon: const Icon(Icons.add, size: 18),
                           label: const Text('Informar Total'),
                         ),
@@ -443,6 +617,38 @@ class _CreditCardDetailPageState extends ConsumerState<CreditCardDetailPage> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
+
+          if (isInvoiceExceeded)
+            Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              color: Colors.amber.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: Colors.amber.shade300),
+              ),
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFFFECB3),
+                  child: Icon(Icons.warning_amber_rounded,
+                      color: Color(0xFFE65100)),
+                ),
+                title: const Text(
+                  'Lançamentos superaram a fatura configurada',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                subtitle: Text(
+                  'Fatura informada: ${CurrencyFormatter.format(invoiceTotal)} • Total lançado: ${CurrencyFormatter.format(spent)}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: TextButton(
+                  onPressed: () => _openInvoiceDialog(
+                    current: invoiceTotal,
+                    spent: spent,
+                  ),
+                  child: const Text('Ajustar'),
+                ),
+              ),
+            ),
 
           if (difference > 0)
             Card(

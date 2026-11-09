@@ -290,7 +290,9 @@ class PlanningRepository {
     final invoiceMap = <String, double>{};
 
     for (final s in settings) {
-      if (s.key.startsWith(prefix) && s.key.endsWith(suffix)) {
+      if (s.key.startsWith(prefix) &&
+          !s.key.startsWith('card_invoice_paid_') &&
+          s.key.endsWith(suffix)) {
         final cardId = s.key.substring(
           prefix.length,
           s.key.length - suffix.length,

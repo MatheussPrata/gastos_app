@@ -127,5 +127,61 @@ void main() {
       expect(spent['cat-padaria'], equals(400.0));
       expect(spent.containsKey('nao_informada'), isFalse);
     });
+
+    test('isolamento por cartão: diferença de um cartão não afeta outro cartão', () async {
+      final month = DateTime(2026, 11, 1);
+
+      await cardsRepo.createCreditCard(const CreditCardItem(
+        id: 'card-1',
+        name: 'Nubank',
+        color: 0xFF8A05BE,
+        closingDay: 25,
+      ));
+
+      await cardsRepo.createCreditCard(const CreditCardItem(
+        id: 'card-2',
+        name: 'Inter',
+        color: 0xFFFF7A00,
+        closingDay: 25,
+      ));
+
+      // Card 1: 300 gastos lançados, fatura de 500 (diferença de 200)
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+        id: 'tx-c1',
+        userId: 'u1',
+        amount: 300.0,
+        description: 'Supermercado',
+        date: DateTime(2026, 11, 10),
+        creditCardId: const Value('card-1'),
+        categoryId: const Value('cat-mercado'),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+      await cardsRepo.setCardInvoiceAmount('card-1', month, 500.0);
+
+      // Card 2: 150 gastos lançados, sem fatura manual informada
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+        id: 'tx-c2',
+        userId: 'u1',
+        amount: 150.0,
+        description: 'Farmácia',
+        date: DateTime(2026, 11, 12),
+        creditCardId: const Value('card-2'),
+        categoryId: const Value('cat-saude'),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+
+      final spent = await planningRepo.getSpentByCategory(month, scope: BudgetScope.individual);
+
+      expect(spent['cat-mercado'], equals(300.0));
+      expect(spent['cat-saude'], equals(150.0));
+      // Apenas a diferença do card-1 (500 - 300 = 200) vai para nao_informada
+      expect(spent['nao_informada'], equals(200.0));
+
+      final totalSpent = spent.values.fold<double>(0, (s, v) => s + v);
+      // Total somado: 300 + 150 + 200 = 650 (exatamente as compras + a diferença de 200)
+      expect(totalSpent, equals(650.0));
+    });
   });
 }

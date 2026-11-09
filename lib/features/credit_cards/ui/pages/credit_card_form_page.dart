@@ -63,12 +63,20 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
     }
   }
 
+  double _currentSpent = 0.0;
+
   Future<void> _loadCurrentInvoice(String cardId) async {
     final now = DateTime.now();
     final repo = ref.read(creditCardsRepositoryProvider);
     final inv = await repo.getCardInvoiceAmount(cardId, now);
-    if (inv > 0 && mounted) {
-      _invoiceController.text = FormHelper.formatBRL(inv);
+    final spent = await repo.getCardSpentForMonth(cardId, now);
+    if (mounted) {
+      setState(() {
+        _currentSpent = spent;
+        if (inv > 0) {
+          _invoiceController.text = FormHelper.formatBRL(inv);
+        }
+      });
     }
   }
 
@@ -209,16 +217,26 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
 
             TextFormField(
               controller: _invoiceController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: r'Valor Total da Fatura Atual (R$)',
                 hintText: r'R$ 0,00 (opcional)',
-                prefixIcon: Icon(Icons.receipt_long_outlined),
-                helperText:
-                    'Se maior que as compras lançadas, a diferença fica na categoria "Não informada"',
+                prefixIcon: const Icon(Icons.receipt_long_outlined),
+                helperText: _currentSpent > 0
+                    ? 'Total já lançado: ${CurrencyFormatter.format(_currentSpent)}. A fatura deve ser igual ou maior.'
+                    : 'Se maior que as compras lançadas, a diferença fica na categoria "Não informada"',
                 helperMaxLines: 2,
               ),
               keyboardType: TextInputType.number,
               inputFormatters: [BRLTextInputFormatter()],
+              validator: (value) {
+                final amount = FormHelper.parseBRL(value ?? '');
+                if (_currentSpent > 0 &&
+                    amount > 0 &&
+                    amount < (_currentSpent - 0.009)) {
+                  return 'Mínimo de ${CurrencyFormatter.format(_currentSpent)} (já lançado no cartão)';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 24),
 
