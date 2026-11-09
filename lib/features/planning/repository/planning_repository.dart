@@ -331,15 +331,35 @@ class PlanningRepository {
   /// Merged view of the plan allocation and the real spending.
   Future<List<CategoryProgress>> getCategoryProgress(BudgetPlan plan) async {
     final spent = await getSpentByCategory(plan.month, scope: plan.scope);
+    final categories = await _db.select(_db.categories).get();
+    final colorMap = {for (final c in categories) c.id: c.color};
+    final nameMap = {for (final c in categories) c.id: c.name};
+    final iconMap = {for (final c in categories) c.id: c.icon};
+
     return plan.categories
         .where((category) => category.isActive)
         .map(
-          (category) => CategoryProgress(
-            budget: category,
-            allocatedAmount: category.amountFor(plan.monthlyBudget),
-            spentAmount: spent[category.categoryId] ?? 0,
-            thresholds: plan.notifications.thresholds,
-          ),
+          (category) {
+            final liveColor = colorMap[category.categoryId];
+            final liveName = nameMap[category.categoryId];
+            final liveIcon = iconMap[category.categoryId];
+            final updatedBudget = (liveColor != null &&
+                    (liveColor != category.categoryColor ||
+                        liveName != category.categoryName))
+                ? category.copyWith(
+                    categoryColor: liveColor,
+                    categoryName: liveName ?? category.categoryName,
+                    categoryIcon: liveIcon ?? category.categoryIcon,
+                  )
+                : category;
+
+            return CategoryProgress(
+              budget: updatedBudget,
+              allocatedAmount: updatedBudget.amountFor(plan.monthlyBudget),
+              spentAmount: spent[category.categoryId] ?? 0,
+              thresholds: plan.notifications.thresholds,
+            );
+          },
         )
         .toList()
       ..sort((a, b) => b.progress.compareTo(a.progress));

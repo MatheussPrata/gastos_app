@@ -33,9 +33,9 @@ class _CategoryFormPageState extends ConsumerState<CategoryFormPage> {
   @override
   void initState() {
     super.initState();
+    final categories =
+        ref.read(categoriesListProvider).value ?? const <Category>[];
     if (widget.isEditing && widget.categoryId != null) {
-      final categories =
-          ref.read(categoriesListProvider).value ?? const <Category>[];
       for (final c in categories) {
         if (c.id == widget.categoryId) {
           _nameController.text = c.name;
@@ -45,6 +45,13 @@ class _CategoryFormPageState extends ConsumerState<CategoryFormPage> {
           break;
         }
       }
+    } else {
+      // Seleciona a primeira cor ainda não utilizada por outra categoria
+      final usedColors = categories.map((c) => c.color).toSet();
+      _color = kCategoryColors.firstWhere(
+        (color) => !usedColors.contains(color),
+        orElse: () => kCategoryColors.first,
+      );
     }
   }
 
@@ -94,6 +101,14 @@ class _CategoryFormPageState extends ConsumerState<CategoryFormPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final categories =
+        ref.watch(categoriesListProvider).value ?? const <Category>[];
+    final colorUsageMap = <int, String>{};
+    for (final c in categories) {
+      if (widget.isEditing && c.id == widget.categoryId) continue;
+      colorUsageMap[c.color] = c.name;
+    }
+    final inUseBy = colorUsageMap[_color];
 
     return Scaffold(
       appBar: AppBar(
@@ -134,6 +149,7 @@ class _CategoryFormPageState extends ConsumerState<CategoryFormPage> {
               runSpacing: 12,
               children: kCategoryColors.map((color) {
                 final selected = color == _color;
+                final usedBy = colorUsageMap[color];
                 return GestureDetector(
                   onTap: () => setState(() => _color = color),
                   child: CircleAvatar(
@@ -141,11 +157,42 @@ class _CategoryFormPageState extends ConsumerState<CategoryFormPage> {
                     backgroundColor: Color(color),
                     child: selected
                         ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
+                        : (usedBy != null
+                            ? Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white70,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            : null),
                   ),
                 );
               }).toList(),
             ),
+            if (inUseBy != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Cor já em uso na categoria "$inUseBy". Escolha outra para distinguir nos gráficos.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
             Text('Ícone', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),

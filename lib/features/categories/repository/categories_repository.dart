@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/categories/utils/category_icons.dart';
 
 final categoriesRepositoryProvider = Provider<CategoriesRepository>((ref) {
   return CategoriesRepository();
@@ -98,7 +99,10 @@ class CategoriesRepository {
   /// Seed default categories if empty
   Future<void> seedDefaultCategories() async {
     final existing = await _db.select(_db.categories).get();
-    if (existing.isNotEmpty) return;
+    if (existing.isNotEmpty) {
+      await ensureUniqueCategoryColors();
+      return;
+    }
 
     final defaults = [
       Category(id: '1', name: 'Alimentação', color: 0xFFFF6B6B, icon: 'restaurant', isDefault: true, isExpenseDefault: true, sortOrder: 0),
@@ -121,6 +125,50 @@ class CategoriesRepository {
         sortOrder: Value(cat.sortOrder),
         // As categorias padrao tambem sobem para o servidor: sao elas que
         // dao nome/cor aos gastos restaurados noutro aparelho.
+        isSynced: const Value(false),
+      ));
+    }
+
+    await ensureUniqueCategoryColors();
+  }
+
+  /// Garante que todas as categorias salvas no SQLite possuam cores distintas.
+  /// Se houver categorias duplicadas com a mesma cor, atribui uma nova cor não utilizada
+  /// a partir de [kCategoryColors] e atualiza a base local.
+  Future<void> ensureUniqueCategoryColors() async {
+    final rows = await (_db.select(_db.categories)
+          ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
+        .get();
+    if (rows.length <= 1) return;
+
+    final usedColors = <int>{};
+    final duplicates = <db.Category>[];
+
+    for (final cat in rows) {
+      if (usedColors.contains(cat.color)) {
+        duplicates.add(cat);
+      } else {
+        usedColors.add(cat.color);
+      }
+    }
+
+    if (duplicates.isEmpty) return;
+
+    for (final dup in duplicates) {
+      int? newColor;
+      for (final candidate in kCategoryColors) {
+        if (!usedColors.contains(candidate)) {
+          newColor = candidate;
+          break;
+        }
+      }
+
+      newColor ??= (dup.color ^ 0x0055AA55) | 0xFF000000;
+      usedColors.add(newColor);
+
+      await (_db.update(_db.categories)..where((c) => c.id.equals(dup.id)))
+          .write(db.CategoriesCompanion(
+        color: Value(newColor),
         isSynced: const Value(false),
       ));
     }

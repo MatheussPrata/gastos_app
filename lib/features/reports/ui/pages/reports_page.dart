@@ -313,6 +313,15 @@ class _CategoryChart extends StatelessWidget {
 
             final total = visible.fold<double>(0, (sum, c) => sum + c.total);
             final highlighted = visible.take(5).toList();
+            final colorMap = _resolveCategoryColors(visible);
+
+            // Filtra fatias menores que 0.5% apenas para o desenho do gráfico circular.
+            // Isso evita artefatos visuais no divisor de 2px e sobreposição de texto em fatias quase nulas (ex: R$ 0,85).
+            // Todas as categorias continuam listadas na legenda abaixo.
+            final chartSlices = visible
+                .where((c) => total > 0 && (c.total / total) >= 0.005)
+                .toList();
+            final renderSlices = chartSlices.isEmpty ? visible : chartSlices;
 
             return Column(
               children: [
@@ -324,26 +333,43 @@ class _CategoryChart extends StatelessWidget {
                       centerSpaceRadius: 52,
                       startDegreeOffset: -90,
                       sections: [
-                        for (final category in visible)
-                          PieChartSectionData(
-                            value: category.total,
-                            color: _categoryColor(category),
-                            radius: 46,
-                            title:
-                                '${(category.total / total * 100).toStringAsFixed(0)}%',
-                            titleStyle: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
+                        for (final category in renderSlices) ...[
+                          () {
+                            final percent = total > 0
+                                ? (category.total / total * 100)
+                                : 0.0;
+                            final showTitle = percent >= 5.0;
+                            final color = colorMap[category.categoryId] ??
+                                _categoryColor(category);
+
+                            return PieChartSectionData(
+                              value: category.total,
+                              color: color,
+                              radius: 46,
+                              showTitle: showTitle,
+                              title: showTitle
+                                  ? '${percent.toStringAsFixed(0)}%'
+                                  : '',
+                              titleStyle: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            );
+                          }(),
+                        ],
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 for (final category in highlighted)
-                  _CategoryLegendItem(category: category, total: total),
+                  _CategoryLegendItem(
+                    category: category,
+                    total: total,
+                    color: colorMap[category.categoryId] ??
+                        _categoryColor(category),
+                  ),
                 if (visible.length > highlighted.length)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -368,14 +394,24 @@ class _CategoryChart extends StatelessWidget {
 }
 
 class _CategoryLegendItem extends StatelessWidget {
-  const _CategoryLegendItem({required this.category, required this.total});
+  const _CategoryLegendItem({
+    required this.category,
+    required this.total,
+    required this.color,
+  });
 
   final CategoryExpense category;
   final double total;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     final percent = total == 0 ? 0.0 : category.total / total * 100;
+    final percentText = percent == 0
+        ? '0%'
+        : percent < 1
+            ? '< 1%'
+            : '${percent.toStringAsFixed(0)}%';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -385,7 +421,7 @@ class _CategoryLegendItem extends StatelessWidget {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: _categoryColor(category),
+              color: color,
               shape: BoxShape.circle,
             ),
           ),
@@ -409,7 +445,7 @@ class _CategoryLegendItem extends StatelessWidget {
                 ),
               ),
               Text(
-                '${percent.toStringAsFixed(0)}%',
+                percentText,
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
               ),
             ],
@@ -473,6 +509,7 @@ class _MonthlyChart extends StatelessWidget {
             }
             final legendCategories = totals.values.toList()
               ..sort((a, b) => b.total.compareTo(a.total));
+            final monthlyColorMap = _resolveCategoryColors(legendCategories);
 
             return Column(
               children: [
@@ -493,7 +530,8 @@ class _MonthlyChart extends StatelessWidget {
                     children: [
                       for (final category in legendCategories.take(6))
                         _ChartLegendDot(
-                          color: _categoryColor(category),
+                          color: monthlyColorMap[category.categoryId] ??
+                              _categoryColor(category),
                           label: category.categoryName,
                         ),
                     ],
@@ -576,7 +614,7 @@ class _MonthlyChart extends StatelessWidget {
                                 width: 8,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              _expenseRod(visible[index]),
+                              _expenseRod(visible[index], monthlyColorMap),
                             ],
                           ),
                       ],
@@ -593,14 +631,21 @@ class _MonthlyChart extends StatelessWidget {
 
   /// Expense bar stacked by category colors. Falls back to a solid red bar
   /// when the month has no categorized expenses.
-  BarChartRodData _expenseRod(MonthlyCategoryStats stat) {
+  BarChartRodData _expenseRod(
+    MonthlyCategoryStats stat,
+    Map<String, Color> colorMap,
+  ) {
     final stack = <BarChartRodStackItem>[];
     var start = 0.0;
     for (final category in stat.categories) {
       if (category.total <= 0) continue;
       final end = start + category.total;
       stack.add(
-        BarChartRodStackItem(start, end, _categoryColor(category)),
+        BarChartRodStackItem(
+          start,
+          end,
+          colorMap[category.categoryId] ?? _categoryColor(category),
+        ),
       );
       start = end;
     }
@@ -673,6 +718,99 @@ class _EmptyChart extends StatelessWidget {
       ),
     );
   }
+}
+
+const List<Color> _chartPalette = [
+  Color(0xFFFF6B6B), // Coral Red
+  Color(0xFF4ECDC4), // Turquoise / Teal
+  Color(0xFFFFB347), // Warm Orange
+  Color(0xFF6BCB77), // Emerald Green
+  Color(0xFF7E57C2), // Deep Purple
+  Color(0xFF29B6F6), // Sky Blue
+  Color(0xFFFFD93D), // Bright Gold / Yellow
+  Color(0xFFEC407A), // Pink / Rose
+  Color(0xFFFF7043), // Tangerine
+  Color(0xFF26A69A), // Mint / Cyan
+  Color(0xFF9CCC65), // Lime
+  Color(0xFF5C6BC0), // Indigo
+  Color(0xFF8D6E63), // Brown / Wood
+  Color(0xFF00ACC1), // Ocean Cyan
+  Color(0xFFD81B60), // Berry Red
+  Color(0xFF3949AB), // Royal Blue
+  Color(0xFF78909C), // Slate
+];
+
+/// Mapeia cada categoria para uma cor única e bem contrastada no gráfico.
+/// Evita que categorias diferentes compartilhem a mesma cor (mesmo que salvas assim no banco).
+@visibleForTesting
+Map<String, Color> resolveCategoryColorsForTesting(
+  List<CategoryExpense> categories,
+) =>
+    _resolveCategoryColors(categories);
+
+Map<String, Color> _resolveCategoryColors(List<CategoryExpense> categories) {
+  final result = <String, Color>{};
+  final usedRgb = <int>{};
+
+  bool isSimilar(Color c1, Color c2) {
+    if (c1.value == c2.value) return true;
+    final r = (c1.red - c2.red).abs();
+    final g = (c1.green - c2.green).abs();
+    final b = (c1.blue - c2.blue).abs();
+    return (r * r + g * g + b * b) < 1400;
+  }
+
+  // Pass 1: Categorias válidas com cor distinta pré-existente
+  for (final cat in categories) {
+    if (cat.categoryId == 'none' ||
+        cat.categoryName.toLowerCase().contains('sem categoria') ||
+        cat.categoryColor == 0 ||
+        cat.categoryColor == 0xFFB8B8B8) {
+      continue;
+    }
+
+    final catColor = Color(cat.categoryColor);
+    final collides = usedRgb.any((rgb) => isSimilar(Color(rgb), catColor));
+    if (!collides) {
+      result[cat.categoryId] = catColor;
+      usedRgb.add(catColor.value);
+    }
+  }
+
+  // Pass 2: Categorias colididas, sem cor ou especiais
+  var paletteIndex = 0;
+  for (final cat in categories) {
+    if (result.containsKey(cat.categoryId)) continue;
+
+    if (cat.categoryId == 'none' ||
+        cat.categoryName.toLowerCase().contains('sem categoria')) {
+      const greyColor = Color(0xFF9E9E9E);
+      if (!usedRgb.any((rgb) => isSimilar(Color(rgb), greyColor))) {
+        result[cat.categoryId] = greyColor;
+        usedRgb.add(greyColor.value);
+        continue;
+      }
+    }
+
+    Color? chosen;
+    while (paletteIndex < _chartPalette.length) {
+      final candidate = _chartPalette[paletteIndex++];
+      if (!usedRgb.any((rgb) => isSimilar(Color(rgb), candidate))) {
+        chosen = candidate;
+        break;
+      }
+    }
+
+    chosen ??= () {
+      final hue = (categories.indexOf(cat) * 137.5) % 360.0;
+      return HSLColor.fromAHSL(1.0, hue, 0.75, 0.55).toColor();
+    }();
+
+    result[cat.categoryId] = chosen;
+    usedRgb.add(chosen.value);
+  }
+
+  return result;
 }
 
 Color _categoryColor(CategoryExpense category) {
