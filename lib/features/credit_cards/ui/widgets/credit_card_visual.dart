@@ -27,7 +27,7 @@ class CreditCardVisual extends StatelessWidget {
     final lighterColor =
         hsl.withLightness((hsl.lightness + 0.12).clamp(0.0, 1.0)).toColor();
 
-    final effectiveSpent = invoiceTotal > 0 ? invoiceTotal : spent;
+    final effectiveSpent = invoiceTotal > spent ? invoiceTotal : spent;
     final available = card.availableLimit(effectiveSpent);
     final percent = card.limitUsedPercent(effectiveSpent);
 
@@ -90,7 +90,7 @@ class CreditCardVisual extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        invoiceTotal > 0 ? 'Fatura Total' : 'Fatura Atual',
+                        invoiceTotal > spent ? 'Fatura Total' : 'Fatura Atual',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.75),
                           fontSize: 11,
