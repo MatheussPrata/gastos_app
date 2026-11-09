@@ -488,9 +488,10 @@ class _DistributionSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
       elevation: 0,
-      color: Colors.grey.shade100,
+      color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade100,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -511,7 +512,9 @@ class _DistributionSummary extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: (allocatedPercentage / 100).clamp(0.0, 1.0),
                 minHeight: 8,
-                backgroundColor: Colors.grey.shade300,
+                backgroundColor: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.grey.shade300,
                 color: AppColors.primary,
               ),
             ),
@@ -521,7 +524,12 @@ class _DistributionSummary extends StatelessWidget {
               children: [
                 Text(
                   'Reserva (${unallocatedPercentage.toStringAsFixed(0)}%)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? Colors.grey.shade300
+                        : Colors.grey.shade700,
+                  ),
                 ),
                 Text(
                   CurrencyFormatter.format(reserveAmount),

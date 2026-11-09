@@ -274,6 +274,7 @@ class _BudgetOverviewCard extends ConsumerWidget {
     final remaining = budget - spent;
     final consumedPercent = budget <= 0 ? 0.0 : spent / budget * 100;
     final statusColor = planningStatusColor(consumedPercent);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -297,50 +298,69 @@ class _BudgetOverviewCard extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
-            // Two-column side by side: Configurado vs Atual
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                children: [
-                  // Coluna 1: O que Configurei
-                  Expanded(
+            // Two fluid cards side-by-side: Meta vs Gasto Real
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Coluna 1: Meta
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.primary.withOpacity(0.08)
+                          : AppColors.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color:
+                            AppColors.primary.withOpacity(isDark ? 0.22 : 0.15),
+                      ),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Text('🎯', style: TextStyle(fontSize: 13)),
-                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.track_changes,
+                              size: 14,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 5),
                             Text(
-                              'O QUE CONFIGUREI',
+                              'Meta',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade700,
-                                letterSpacing: 0.5,
+                                color: isDark
+                                    ? Colors.grey.shade300
+                                    : Colors.grey.shade800,
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          CurrencyFormatter.format(budget),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            CurrencyFormatter.format(budget),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          'Teto total planejado',
+                          'Teto planejado',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -348,74 +368,109 @@ class _BudgetOverviewCard extends ConsumerWidget {
                           'Reserva (${reservePercent.toStringAsFixed(0)}%)',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
                           ),
                         ),
                         Text(
                           CurrencyFormatter.format(reserveAmount),
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    width: 1,
-                    height: 64,
-                    color: Colors.grey.shade300,
-                    margin: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  // Coluna 2: Atual (Real)
-                  Expanded(
+                ),
+                const SizedBox(width: 10),
+                // Coluna 2: Gasto Real
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? statusColor.withOpacity(0.08)
+                          : statusColor.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: statusColor.withOpacity(isDark ? 0.22 : 0.15),
+                      ),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Text('💳', style: TextStyle(fontSize: 13)),
-                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.receipt_long_outlined,
+                              size: 14,
+                              color: statusColor,
+                            ),
+                            const SizedBox(width: 5),
                             Text(
-                              'ATUAL (REAL)',
+                              'Gasto Real',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade700,
-                                letterSpacing: 0.5,
+                                color: isDark
+                                    ? Colors.grey.shade300
+                                    : Colors.grey.shade800,
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          CurrencyFormatter.format(spent),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: statusColor,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            CurrencyFormatter.format(spent),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: statusColor,
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           '${consumedPercent.toStringAsFixed(0)}% do orçamento',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Entradas: ${CurrencyFormatter.format(income)}',
+                          'Entradas:',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(income),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
 
@@ -424,20 +479,29 @@ class _BudgetOverviewCard extends ConsumerWidget {
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: budget <= 0 ? 0 : (spent / budget).clamp(0.0, 1.0),
-                minHeight: 10,
-                backgroundColor: Colors.grey.shade200,
+                minHeight: 8,
+                backgroundColor: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.grey.shade200,
                 color: statusColor,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // Saldo Restante Pill
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: (remaining >= 0 ? AppColors.secondary : AppColors.expense)
-                    .withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
+                color:
+                    (remaining >= 0 ? AppColors.secondary : AppColors.expense)
+                        .withOpacity(isDark ? 0.14 : 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: (remaining >= 0
+                          ? AppColors.secondary
+                          : AppColors.expense)
+                      .withOpacity(isDark ? 0.25 : 0.18),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -497,16 +561,22 @@ class _CardsPlanningSection extends ConsumerWidget {
       ),
       data: (cardsSummary) {
         if (cardsSummary.isEmpty) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return Card(
             margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             elevation: 0,
-            color: Colors.grey.shade100,
+            color: isDark
+                ? Colors.white.withOpacity(0.04)
+                : Colors.grey.shade100,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Icon(Icons.credit_card_outlined,
-                      size: 32, color: Colors.grey.shade500),
+                  Icon(
+                    Icons.credit_card_outlined,
+                    size: 32,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -520,7 +590,11 @@ class _CardsPlanningSection extends ConsumerWidget {
                         Text(
                           'Cadastre seus cartões para acompanhar as faturas.',
                           style: TextStyle(
-                              color: Colors.grey.shade600, fontSize: 12),
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -717,11 +791,14 @@ class _CategoryProgressList extends ConsumerWidget {
         final activeItems = items.where((i) => i.budget.percentage > 0).toList();
 
         if (activeItems.isEmpty) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: Card(
               elevation: 0,
-              color: Colors.grey.shade100,
+              color: isDark
+                  ? Colors.white.withOpacity(0.04)
+                  : Colors.grey.shade100,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -729,7 +806,11 @@ class _CategoryProgressList extends ConsumerWidget {
                     Text(
                       'Nenhuma categoria com teto definido no orçamento.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.grey.shade300
+                            : Colors.grey.shade700,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
@@ -770,6 +851,7 @@ class _CategoryProgressTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final categoryColor = progress.categoryColor == 0
         ? Colors.grey
         : Color(progress.categoryColor);
@@ -781,7 +863,9 @@ class _CategoryProgressTile extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200,
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -825,7 +909,9 @@ class _CategoryProgressTile extends StatelessWidget {
                           'Meta: ${CurrencyFormatter.format(progress.allocatedAmount)} (${progress.budget.percentage.toStringAsFixed(0)}%) • Gasto: ${CurrencyFormatter.format(progress.spentAmount)}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade600,
+                            color: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
                           ),
                         ),
                       ],
@@ -864,7 +950,9 @@ class _CategoryProgressTile extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress.progress.clamp(0.0, 1.0),
                   minHeight: 6,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.grey.shade200,
                   color: statusColor,
                 ),
               ),
@@ -975,13 +1063,17 @@ class _ReserveCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final percent = ref.watch(unallocatedPercentageProvider);
     final amount = ref.watch(reserveAmountProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       elevation: 0,
-      color: Colors.grey.shade100,
+      color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade100,
       child: ListTile(
-        leading: Icon(Icons.savings_outlined, color: Colors.grey.shade700),
+        leading: Icon(
+          Icons.savings_outlined,
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+        ),
         title: const Text(
           'Não alocado / Reserva',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
@@ -1030,11 +1122,15 @@ class _IncomeBreakdown extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (plan.incomeMode == IncomeMode.manual) {
       return Text(
         'Renda informada manualmente: '
         '${CurrencyFormatter.format(plan.manualIncome)}',
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        style: TextStyle(
+          fontSize: 12,
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+        ),
       );
     }
 
@@ -1078,7 +1174,7 @@ class _IncomeBreakdown extends ConsumerWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
               ),
             ),
             const SizedBox(height: 4),
@@ -1090,14 +1186,19 @@ class _IncomeBreakdown extends ConsumerWidget {
                   children: [
                     Text(
                       labelFor(item.userId),
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
                     ),
                     Text(
                       CurrencyFormatter.format(item.amount),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
                   ],
