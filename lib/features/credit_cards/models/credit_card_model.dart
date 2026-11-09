@@ -102,6 +102,6 @@ class InvoiceForecast {
     this.transactionCount = 0,
   });
 
-  /// The effective invoice amount: manual total if positive, else recorded spent.
-  double get effectiveTotal => invoiceTotal > 0 ? invoiceTotal : spent;
+  /// The effective invoice amount: greater between manual total and recorded spent.
+  double get effectiveTotal => invoiceTotal > spent ? invoiceTotal : spent;
 }

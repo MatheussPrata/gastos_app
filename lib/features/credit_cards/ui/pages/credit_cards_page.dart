@@ -354,7 +354,7 @@ class _CreditCardsPageState extends ConsumerState<CreditCardsPage> {
     final invoiceTotal = invoiceAsync.valueOrNull ?? 0.0;
     final isPaid = paidAsync.valueOrNull ?? false;
     final difference = invoiceTotal > spent ? (invoiceTotal - spent) : 0.0;
-    final effectiveInvoice = invoiceTotal > 0 ? invoiceTotal : spent;
+    final effectiveInvoice = invoiceTotal > spent ? invoiceTotal : spent;
     final available = card.availableLimit(effectiveInvoice);
     final bestDay = CreditCardCycleHelper.bestDayToBuy(card.closingDay);
 
@@ -573,7 +573,7 @@ class _CreditCardsPageState extends ConsumerState<CreditCardsPage> {
 
         for (final item in summaries) {
           final effective =
-              item.invoiceTotal > 0 ? item.invoiceTotal : item.spent;
+              item.invoiceTotal > item.spent ? item.invoiceTotal : item.spent;
           totalInvoice += effective;
           totalSpent += item.spent;
           totalDifference += item.difference;

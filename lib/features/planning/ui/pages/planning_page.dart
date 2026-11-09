@@ -653,7 +653,7 @@ class _MiniCardTile extends StatelessWidget {
     final card = item.card;
     final spent = item.spent;
     final invoiceTotal = item.invoiceTotal;
-    final displayFatura = invoiceTotal > 0 ? invoiceTotal : spent;
+    final displayFatura = invoiceTotal > spent ? invoiceTotal : spent;
     final difference = item.difference;
 
     final baseColor = card.cardColor;
