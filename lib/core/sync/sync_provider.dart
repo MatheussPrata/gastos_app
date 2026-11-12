@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
@@ -17,7 +18,10 @@ final syncServiceProvider = Provider<SyncService>((ref) => SyncService());
 Future<SyncOutcome> runStartupSync(WidgetRef ref) async {
   final service = ref.read(syncServiceProvider);
 
-  final restored = await service.restore(onlyIfEmpty: true);
+  // Restaura sempre (nao so quando o banco esta vazio): cartoes e outras
+  // entidades podem faltar mesmo com transacoes locais presentes.
+  // O restore ignora registros locais ainda nao sincronizados.
+  final restored = await service.restore();
   final pushed = await service.push();
 
   if (restored.hasChanges) {
@@ -69,5 +73,7 @@ void _invalidateData(WidgetRef ref) {
     ..invalidate(monthlyIncomeProvider)
     ..invalidate(monthSpentTotalProvider)
     ..invalidate(incomeAttributionProvider)
-    ..invalidate(sharingConnectionProvider);
+    ..invalidate(sharingConnectionProvider)
+    ..invalidate(creditCardsProvider)
+    ..invalidate(allCardsTransactionsProvider);
 }
