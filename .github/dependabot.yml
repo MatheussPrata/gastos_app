@@ -6,6 +6,12 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    # Majors exigem migração manual (Flutter 3.24 quebra com vários deles).
+    # Atualizações de segurança continuam habilitadas pelo Dependabot security updates.
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
     groups:
       patch-minor:
         patterns:
@@ -20,3 +26,7 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
