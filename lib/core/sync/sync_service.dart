@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/storage/secure_storage_config.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 /// Resultado de uma sincronizacao/restauracao com o servidor.
@@ -65,7 +66,7 @@ class SyncService {
     FlutterSecureStorage? storage,
   })  : _dioClient = dioClient ?? DioClient(),
         _db = database ?? db.AppDatabase(),
-        _storage = storage ?? const FlutterSecureStorage();
+        _storage = storage ?? SecureStorageConfig.create();
 
   final DioClient _dioClient;
   final db.AppDatabase _db;

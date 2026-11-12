@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/storage/secure_storage_config.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/sharing/models/sharing_models.dart';
@@ -26,7 +27,7 @@ class SharingRepository {
     FlutterSecureStorage? storage,
   })  : _dioClient = dioClient ?? DioClient(),
         _db = database ?? db.AppDatabase(),
-        _storage = storage ?? const FlutterSecureStorage();
+        _storage = storage ?? SecureStorageConfig.create();
 
   static const String _cacheKey = 'sharing_connection';
 

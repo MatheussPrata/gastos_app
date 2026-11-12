@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/storage/secure_storage_config.dart';
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
@@ -30,7 +31,7 @@ class PlanningRepository {
     Uuid? uuid,
     SyncService? syncService,
   })  : _db = database ?? db.AppDatabase(),
-        _storage = storage ?? const FlutterSecureStorage(),
+        _storage = storage ?? SecureStorageConfig.create(),
         _uuid = uuid ?? const Uuid(),
         _sync = syncService ?? SyncService();
 

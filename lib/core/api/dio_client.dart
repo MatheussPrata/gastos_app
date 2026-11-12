@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/storage/secure_storage_config.dart';
 
 class DioClient {
   static final DioClient _instance = DioClient._internal();
@@ -15,7 +17,7 @@ class DioClient {
   Future<bool>? _refreshFuture;
 
   void init({String baseUrl = 'https://pratadev.duckdns.org/api'}) {
-    _storage = const FlutterSecureStorage();
+    _storage = SecureStorageConfig.create();
     _connectivity = Connectivity();
 
     dio = Dio(BaseOptions(
@@ -34,7 +36,7 @@ class DioClient {
     // certificado é mantida para evitar MITM.
     dio.interceptors.addAll([
       _AuthInterceptor(this),
-      _LoggingInterceptor(),
+      if (kDebugMode) _LoggingInterceptor(),
       _ErrorInterceptor(),
     ]);
   }
@@ -156,24 +158,49 @@ class _AuthInterceptor extends Interceptor {
 }
 
 class _LoggingInterceptor extends Interceptor {
+  static const _sensitiveEndpoints = [
+    '/auth/login',
+    '/auth/register',
+    '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+  ];
+
+  bool _isSensitive(String path) =>
+      _sensitiveEndpoints.any((endpoint) => path.contains(endpoint));
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     print('🌐 REQUEST: ${options.method} ${options.path}');
-    if (options.data != null) print('📤 BODY: ${options.data}');
+    if (options.data != null) {
+      if (_isSensitive(options.path)) {
+        print('📤 BODY: [REDACTED]');
+      } else {
+        print('📤 BODY: ${options.data}');
+      }
+    }
     handler.next(options);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     print('✅ RESPONSE: ${response.statusCode} ${response.requestOptions.path}');
+    if (response.data != null && _isSensitive(response.requestOptions.path)) {
+      print('📥 RESPONSE: [REDACTED]');
+    }
     handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     print('❌ ERROR: ${err.response?.statusCode} ${err.requestOptions.path}');
-    if (err.response?.data != null)
-      print('📥 ERROR BODY: ${err.response?.data}');
+    if (err.response?.data != null) {
+      if (_isSensitive(err.requestOptions.path)) {
+        print('📥 ERROR BODY: [REDACTED]');
+      } else {
+        print('📥 ERROR BODY: ${err.response?.data}');
+      }
+    }
     handler.next(err);
   }
 }

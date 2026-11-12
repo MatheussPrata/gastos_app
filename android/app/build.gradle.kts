@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.gastos_app"
+    namespace = "com.kuanto.gastos"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.gastos_app"
+        applicationId = "com.kuanto.gastos"
         minSdk = 21
         targetSdk = 35
         versionCode = flutter.versionCode

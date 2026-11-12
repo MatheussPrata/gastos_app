@@ -52,3 +52,5 @@ test/*.json
 test/*.goldens.dart
 # Widget Preview related
 .widget_preview/
+archive/
+.flutter-plugins-dependencies

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
+import 'package:gastos_app/core/storage/secure_storage_config.dart';
 import 'package:gastos_app/features/auth/models/auth_models.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -17,7 +18,7 @@ class AuthRepository {
     DioClient? dioClient,
     FlutterSecureStorage? storage,
   })  : _dioClient = dioClient ?? DioClient(),
-        _storage = storage ?? const FlutterSecureStorage();
+        _storage = storage ?? SecureStorageConfig.create();
 
   DioClient get dioClient => _dioClient;
 
