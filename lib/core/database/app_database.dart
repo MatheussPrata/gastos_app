@@ -337,7 +337,11 @@ class Goals extends Table {
   Goals,
 ])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  factory AppDatabase() => _instance;
+
+  static final AppDatabase _instance = AppDatabase._();
+
+  AppDatabase._() : super(_openConnection());
 
   /// Base em memoria (ou executor alternativo) para testes.
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
@@ -434,9 +438,23 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gastos.db'));
+    final backup = File('${file.path}.plaintext.bak');
     final key = await getOrCreateDbKey();
 
-    // Bancos antigos (texto puro) sao migrados uma vez, com backup.
+    // 1. Banco cifrado existente: valida a chave antes de abrir no drift.
+    if (await file.exists() && !await _isPlaintextDatabase(file)) {
+      if (await _canOpenEncrypted(file, key)) {
+        // Chave confirmada: o backup em texto puro pode ser removido.
+        if (await backup.exists()) {
+          await backup.delete();
+        }
+      } else {
+        debugPrint('Banco cifrado nao abriu; tentando recuperar.');
+        await _recoverDatabase(file, backup);
+      }
+    }
+
+    // 2. Banco em texto puro: migra para cifrado (mantem backup ate validar).
     if (await _isPlaintextDatabase(file)) {
       final migrated = await _tryEncryptExisting(file, key);
       if (!migrated) {
@@ -445,6 +463,7 @@ LazyDatabase _openConnection() {
       }
     }
 
+    // 3. Abre o banco cifrado.
     return NativeDatabase(file, setup: (db) {
       db.execute("PRAGMA key = '${_escapeSql(key)}';");
       try {
@@ -457,6 +476,46 @@ LazyDatabase _openConnection() {
       }
     });
   });
+}
+
+/// Confirma que o arquivo abre com a chave atual.
+Future<bool> _canOpenEncrypted(File file, String key) async {
+  try {
+    final db = sqlite3.open(file.path);
+    try {
+      db.execute("PRAGMA key = '${_escapeSql(key)}';");
+      db.select('SELECT count(*) AS c FROM sqlite_master;');
+      return true;
+    } finally {
+      db.dispose();
+    }
+  } catch (error) {
+    debugPrint('Validacao do banco cifrado falhou: $error');
+    return false;
+  }
+}
+
+/// Restaura o backup em texto puro; sem backup, isola o arquivo ruim para
+/// o app voltar a abrir e o sync repor os dados do servidor.
+Future<void> _recoverDatabase(File file, File backup) async {
+  try {
+    if (await backup.exists()) {
+      if (await file.exists()) await file.delete();
+      await backup.copy(file.path);
+      debugPrint('Banco restaurado do backup em texto puro.');
+      return;
+    }
+  } catch (error) {
+    debugPrint('Falha ao restaurar backup: $error');
+  }
+
+  try {
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    await file.rename('${file.path}.corrupt-$stamp');
+    debugPrint('Banco movido para ${file.path}.corrupt-$stamp');
+  } catch (error) {
+    debugPrint('Falha ao mover banco corrompido: $error');
+  }
 }
 
 /// Um banco SQLite em texto puro comeca com o header oficial.
@@ -511,10 +570,7 @@ Future<bool> _tryEncryptExisting(File file, String key) async {
 
     await file.delete();
     await encrypted.rename(file.path);
-    // O backup em texto puro nao pode ficar no aparelho.
-    if (await backup.exists()) {
-      await backup.delete();
-    }
+    // O backup fica ate o proximo inicio validar a chave; ai e removido.
     debugPrint('Banco local migrado para SQLCipher.');
     return true;
   } catch (error) {
