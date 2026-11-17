@@ -1,8 +1,12 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart' show sqlite3;
 import 'dart:io';
+
+import 'package:gastos_app/core/storage/db_key.dart';
 
 part 'app_database.g.dart';
 
@@ -430,6 +434,96 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gastos.db'));
-    return NativeDatabase(file);
+    final key = await getOrCreateDbKey();
+
+    // Bancos antigos (texto puro) sao migrados uma vez, com backup.
+    if (await _isPlaintextDatabase(file)) {
+      final migrated = await _tryEncryptExisting(file, key);
+      if (!migrated) {
+        // Nunca deixa o app sem abrir: mantem o banco antigo funcional.
+        return NativeDatabase(file);
+      }
+    }
+
+    return NativeDatabase(file, setup: (db) {
+      db.execute("PRAGMA key = '${_escapeSql(key)}';");
+      try {
+        final version = db.select('PRAGMA cipher_version;');
+        if (version.isEmpty) {
+          debugPrint('SQLCipher indisponivel: banco NAO esta cifrado.');
+        }
+      } catch (error) {
+        debugPrint('Falha ao verificar SQLCipher: $error');
+      }
+    });
   });
 }
+
+/// Um banco SQLite em texto puro comeca com o header oficial.
+Future<bool> _isPlaintextDatabase(File file) async {
+  if (!await file.exists()) return false;
+  final raf = await file.open();
+  try {
+    final header = await raf.read(16);
+    return header.length == 16 &&
+        String.fromCharCodes(header) == 'SQLite format 3\u0000';
+  } catch (_) {
+    return false;
+  } finally {
+    await raf.close();
+  }
+}
+
+/// Copia o banco em texto puro para um novo arquivo cifrado com SQLCipher.
+Future<bool> _tryEncryptExisting(File file, String key) async {
+  final backup = File('${file.path}.plaintext.bak');
+  final encrypted = File('${file.path}.encrypted');
+  try {
+    if (!await backup.exists()) {
+      await file.copy(backup.path);
+    }
+    if (await encrypted.exists()) {
+      await encrypted.delete();
+    }
+
+    final source = sqlite3.open(file.path);
+    try {
+      source.execute(
+        "ATTACH DATABASE '${_escapeSql(encrypted.path)}' AS encrypted "
+        "KEY '${_escapeSql(key)}';",
+      );
+      source.execute("SELECT sqlcipher_export('encrypted');");
+      source.execute('DETACH DATABASE encrypted;');
+    } finally {
+      source.dispose();
+    }
+
+    // So substitui o original depois de validar o arquivo cifrado.
+    final check = sqlite3.open(encrypted.path);
+    try {
+      check.execute("PRAGMA key = '${_escapeSql(key)}';");
+      final rows = check.select('SELECT count(*) AS c FROM sqlite_master;');
+      final count = (rows.first['c'] as int?) ?? 0;
+      if (count <= 0) return false;
+    } finally {
+      check.dispose();
+    }
+
+    await file.delete();
+    await encrypted.rename(file.path);
+    // O backup em texto puro nao pode ficar no aparelho.
+    if (await backup.exists()) {
+      await backup.delete();
+    }
+    debugPrint('Banco local migrado para SQLCipher.');
+    return true;
+  } catch (error) {
+    debugPrint('Falha ao migrar banco para SQLCipher: $error');
+    try {
+      if (await encrypted.exists()) await encrypted.delete();
+    } catch (_) {}
+    return false;
+  }
+}
+
+String _escapeSql(String value) => value.replaceAll("'", "''");
