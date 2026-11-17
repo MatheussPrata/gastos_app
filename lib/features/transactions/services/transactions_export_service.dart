@@ -43,12 +43,11 @@ Future<void> exportTransactionsCsv({
   final file = File('${dir.path}/$fileName');
   await file.writeAsString(buffer.toString(), encoding: utf8);
 
-  await SharePlus.instance.share(
-    ShareParams(
-      files: [XFile(file.path, mimeType: 'text/csv')],
-      subject: 'Transações Kuanto',
-      fileNameOverrides: [fileName],
-    ),
+  await Share.shareXFiles(
+    [XFile(file.path, mimeType: 'text/csv')],
+    subject: 'Transações Kuanto',
+    text: 'Exportação de transações do Kuanto',
+    fileNameOverrides: [fileName],
   );
 }
 
