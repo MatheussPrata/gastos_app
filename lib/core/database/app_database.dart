@@ -296,6 +296,23 @@ class ReceiptItems extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Metas financeiras (ex.: juntar para uma viagem).
+@DataClassName('Goal')
+class Goals extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  RealColumn get targetAmount => real()();
+  RealColumn get savedAmount => real().withDefault(const Constant(0.0))();
+  DateTimeColumn get targetDate => dateTime().nullable()();
+  IntColumn get color => integer().withDefault(const Constant(0xFF2EC4B6))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(tables: [
   Users,
   Categories,
@@ -313,6 +330,7 @@ class ReceiptItems extends Table {
   Sessions,
   Receipts,
   ReceiptItems,
+  Goals,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -321,7 +339,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -378,6 +396,9 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(receiptItems);
             await m.addColumn(transactions, transactions.receiptId);
           }
+          if (from < 9) {
+            await m.createTable(goals);
+          }
         },
       );
 
@@ -386,6 +407,7 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       await delete(receiptItems).go();
       await delete(receipts).go();
+      await delete(goals).go();
       await delete(budgetAlerts).go();
       await delete(budgetPlans).go();
       await delete(transactions).go();

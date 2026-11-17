@@ -8,6 +8,7 @@ import 'package:gastos_app/features/auth/ui/pages/register_page.dart';
 import 'package:gastos_app/features/auth/ui/pages/reset_password_page.dart';
 import 'package:gastos_app/features/categories/ui/pages/categories_page.dart';
 import 'package:gastos_app/features/categories/ui/pages/category_form_page.dart';
+import 'package:gastos_app/features/goals/ui/pages/goals_page.dart';
 import 'package:gastos_app/features/navigation/ui/pages/main_shell_page.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/receipts/ui/pages/receipt_detail_page.dart';
@@ -33,6 +34,7 @@ class RouteNames {
   static const String categoryForm = '/categories/form';
   static const String recurring = '/recurring';
   static const String recurringForm = '/recurring/form';
+  static const String goals = '/goals';
   static const String sharing = '/sharing';
   static const String notificationSettings = '/settings/notifications';
   static const String receiptScanner = '/receipt/scanner';
@@ -95,7 +97,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // scroll positions are preserved when the user comes back.
       GoRoute(
         path: RouteNames.transactions,
-        builder: (context, state) => const TransactionsPage(),
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return TransactionsPage(
+            categoryId: extra?['categoryId'] as String?,
+            categoryName: extra?['categoryName'] as String?,
+          );
+        },
         routes: [
           GoRoute(
             path: 'form',
@@ -140,6 +148,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
+      ),
+
+      GoRoute(
+        path: RouteNames.goals,
+        builder: (context, state) => const GoalsPage(),
       ),
 
       GoRoute(
