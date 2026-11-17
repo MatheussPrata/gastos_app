@@ -421,6 +421,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       onSelectionChanged: (selection) {
         setState(() {
           _isExpense = selection.first;
+          // A categoria escolhida pode ser do outro tipo.
+          _categoryId = null;
           if (!_isExpense) {
             _isInstallment = false;
             // Entradas nao tem lembrete de pagamento.
@@ -450,12 +452,16 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         onChanged: (_) {},
       ),
       data: (categories) {
+        final filtered =
+            categories.where((c) => c.isExpenseDefault == _isExpense).toList();
+        final hasSelected =
+            filtered.any((c) => c.id == _categoryId);
         return DropdownButtonFormField<String>(
-          value: _categoryId,
+          value: hasSelected ? _categoryId : null,
           decoration: const InputDecoration(labelText: 'Categoria'),
           hint: const Text('Selecione a categoria'),
           items: [
-            for (final category in categories)
+            for (final category in filtered)
               DropdownMenuItem(
                 value: category.id,
                 child: Text(category.name),

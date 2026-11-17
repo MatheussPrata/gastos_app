@@ -49,7 +49,7 @@ jobs:
         run: |
           set -o pipefail
           flutter build apk --release \
-            --build-name="1.3.${{ github.run_number }}" \
+            --build-name="2.0.${{ github.run_number }}" \
             --build-number="${{ github.run_number }}" 2>&1 | tee build_log.txt
         env:
           KEYSTORE_PATH: "release.jks"
