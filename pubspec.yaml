@@ -52,6 +52,7 @@ dependencies:
   uuid: ^4.4.0
   equatable: ^2.0.5
   share_plus: 10.1.2
+  flutter_svg: 2.1.0
 
   # Receipt Scanner & Parser
   mobile_scanner: ^5.2.3
@@ -74,3 +75,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/

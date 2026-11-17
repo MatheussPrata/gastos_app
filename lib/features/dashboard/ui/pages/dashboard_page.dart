@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/notifications/notification_permission_service.dart';
 import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
@@ -47,7 +48,11 @@ class DashboardPage extends ConsumerWidget {
       appBar: AppBar(
         leading: Builder(
           builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
+            icon: SvgPicture.asset(
+              'assets/images/kuanto_logo.svg',
+              width: 28,
+              height: 28,
+            ),
             tooltip: 'Menu',
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),

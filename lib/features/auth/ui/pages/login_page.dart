@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
@@ -75,14 +76,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Logo/Title
-                  Icon(
-                    Icons.account_balance_wallet_rounded,
-                    size: 80,
-                    color: AppColors.primary,
+                  Center(
+                    child: SvgPicture.asset(
+                      'assets/images/kuanto_logo.svg',
+                      width: 112,
+                      height: 112,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Gastos',
+                    'Kuanto',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
