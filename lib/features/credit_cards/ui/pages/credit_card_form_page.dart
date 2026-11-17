@@ -222,8 +222,8 @@ class _CreditCardFormPageState extends ConsumerState<CreditCardFormPage> {
                 hintText: r'R$ 0,00 (opcional)',
                 prefixIcon: const Icon(Icons.receipt_long_outlined),
                 helperText: _currentSpent > 0
-                    ? 'Total já lançado: ${CurrencyFormatter.format(_currentSpent)}. A fatura deve ser igual ou maior.'
-                    : 'Se maior que as compras lançadas, a diferença fica na categoria "Não informada"',
+                    ? 'Total já lançado: ${CurrencyFormatter.format(_currentSpent)}. Informe só a fatura deste mês.'
+                    : 'Informe só a fatura deste mês. Compras parceladas entram como uma parcela por mês.',
                 helperMaxLines: 2,
               ),
               keyboardType: TextInputType.number,

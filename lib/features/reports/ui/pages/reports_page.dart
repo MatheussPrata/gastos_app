@@ -1437,8 +1437,9 @@ class _CardsChart extends ConsumerWidget {
               );
             }
             final maxValue = visible
-                .map((c) =>
-                    c.card.limitAmount > 0 ? c.card.limitAmount : c.invoiceTotal)
+                .map((c) => c.card.limitAmount > 0
+                    ? c.card.limitAmount
+                    : c.spent)
                 .reduce(math.max);
 
             return Column(
@@ -1466,7 +1467,7 @@ class _CardsChart extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              CurrencyFormatter.format(c.invoiceTotal),
+                              CurrencyFormatter.format(c.spent),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -1480,8 +1481,7 @@ class _CardsChart extends ConsumerWidget {
                           child: LinearProgressIndicator(
                             value: maxValue <= 0
                                 ? 0
-                                : (c.invoiceTotal / maxValue)
-                                    .clamp(0.0, 1.0),
+                                : (c.spent / maxValue).clamp(0.0, 1.0),
                             minHeight: 6,
                             backgroundColor:
                                 c.card.cardColor.withOpacity(0.15),
@@ -1493,6 +1493,17 @@ class _CardsChart extends ConsumerWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               'Limite: ${CurrencyFormatter.format(c.card.limitAmount)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
+                        if (c.invoiceTotal > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'Fatura informada: ${CurrencyFormatter.format(c.invoiceTotal)}',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey.shade500,

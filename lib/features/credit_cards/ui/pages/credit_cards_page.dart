@@ -665,7 +665,7 @@ class _CreditCardsPageState extends ConsumerState<CreditCardsPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Diferença: ${CurrencyFormatter.format(difference)} atribuída à categoria "Não informada"',
+                            'Diferença: ${CurrencyFormatter.format(difference)} não lançada nesta fatura (não entra nos gastos)',
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,

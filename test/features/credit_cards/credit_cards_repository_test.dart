@@ -62,7 +62,7 @@ void main() {
   });
 
   group('PlanningRepository - Diferença de fatura na categoria Não informada', () {
-    test('atribui diferença à categoria nao_informada quando fatura > gastos lançados', () async {
+    test('não soma a diferença da fatura aos gastos lançados', () async {
       final month = DateTime(2026, 11, 1);
 
       // Cria cartão
@@ -93,8 +93,9 @@ void main() {
       final spent = await planningRepo.getSpentByCategory(month, scope: BudgetScope.individual);
 
       expect(spent['cat-mercado'], equals(300.0));
-      // Diferença: 500 - 300 = 200
-      expect(spent['nao_informada'], equals(200.0));
+      // A fatura é um valor de conferência; não entra como gasto.
+      expect(spent.containsKey('nao_informada'), isFalse);
+      expect(spent.values.fold<double>(0, (s, v) => s + v), equals(300.0));
     });
 
     test('não gera categoria nao_informada se fatura <= gastos lançados', () async {
@@ -176,12 +177,11 @@ void main() {
 
       expect(spent['cat-mercado'], equals(300.0));
       expect(spent['cat-saude'], equals(150.0));
-      // Apenas a diferença do card-1 (500 - 300 = 200) vai para nao_informada
-      expect(spent['nao_informada'], equals(200.0));
+      expect(spent.containsKey('nao_informada'), isFalse);
 
       final totalSpent = spent.values.fold<double>(0, (s, v) => s + v);
-      // Total somado: 300 + 150 + 200 = 650 (exatamente as compras + a diferença de 200)
-      expect(totalSpent, equals(650.0));
+      // Somente as compras lançadas: 300 + 150 = 450.
+      expect(totalSpent, equals(450.0));
     });
   });
 }

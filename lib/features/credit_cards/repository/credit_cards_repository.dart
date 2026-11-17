@@ -308,37 +308,22 @@ class CreditCardsRepository {
 
     if (cardId != null) {
       final txs = await getCardTransactions(cardId, month: month);
-      var spent = 0.0;
       for (final tx in txs) {
         if (tx.isExpense) {
           final cat = tx.categoryId ?? 'none';
           totals[cat] = (totals[cat] ?? 0.0) + tx.amount;
-          spent += tx.amount;
         }
-      }
-      final invoice = await getCardInvoiceAmount(cardId, month);
-      if (invoice > spent) {
-        final diff = invoice - spent;
-        totals['nao_informada'] = (totals['nao_informada'] ?? 0.0) + diff;
       }
     } else {
       final cards = await getCreditCards();
-      final invoiceMap = await getAllCardInvoicesForMonth(month);
 
       for (final card in cards) {
         final txs = await getCardTransactions(card.id, month: month);
-        var cardSpent = 0.0;
         for (final tx in txs) {
           if (tx.isExpense) {
             final cat = tx.categoryId ?? 'none';
             totals[cat] = (totals[cat] ?? 0.0) + tx.amount;
-            cardSpent += tx.amount;
           }
-        }
-        final invoice = invoiceMap[card.id] ?? 0.0;
-        if (invoice > cardSpent) {
-          final diff = invoice - cardSpent;
-          totals['nao_informada'] = (totals['nao_informada'] ?? 0.0) + diff;
         }
       }
 

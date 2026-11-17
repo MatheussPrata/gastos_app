@@ -11,7 +11,6 @@ import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/storage/secure_storage_config.dart';
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
-import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/services/notification_service.dart';
 
@@ -278,55 +277,6 @@ class PlanningRepository {
         cardSpent[transaction.creditCardId!] =
             (cardSpent[transaction.creditCardId!] ?? 0) + transaction.amount;
       }
-    }
-
-    // Se o valor total da fatura informado pelo usuário for maior que os gastos
-    // lançados para o cartão, a diferença é atribuída à categoria "nao_informada".
-    final cards = await (_db.select(_db.creditCards)
-          ..where((c) => c.isActive.equals(true)))
-        .get();
-
-    final prefix = 'card_invoice_';
-    final suffix = '_${month.year}_${month.month}';
-    final settings = await _db.select(_db.appSettings).get();
-    final invoiceMap = <String, double>{};
-
-    for (final s in settings) {
-      if (s.key.startsWith(prefix) &&
-          !s.key.startsWith('card_invoice_paid_') &&
-          s.key.endsWith(suffix)) {
-        final cardId = s.key.substring(
-          prefix.length,
-          s.key.length - suffix.length,
-        );
-        final val = double.tryParse(s.value) ?? 0.0;
-        if (val > 0) invoiceMap[cardId] = val;
-      }
-    }
-
-    double totalDifference = 0.0;
-    for (final card in cards) {
-      final invoice = invoiceMap[card.id] ?? 0.0;
-      final range = CreditCardCycleHelper.invoiceDateRange(
-        invoiceMonth: month,
-        closingDay: card.closingDay,
-      );
-      final cardTxs = await (_db.select(_db.transactions)
-            ..where((t) =>
-                t.creditCardId.equals(card.id) &
-                t.isExpense.equals(true) &
-                t.date.isBiggerOrEqualValue(range.start) &
-                t.date.isSmallerOrEqualValue(range.end)))
-          .get();
-      final spent = cardTxs.fold<double>(0.0, (sum, t) => sum + t.amount);
-      if (invoice > spent) {
-        totalDifference += (invoice - spent);
-      }
-    }
-
-    if (totalDifference > 0) {
-      totals['nao_informada'] =
-          (totals['nao_informada'] ?? 0) + totalDifference;
     }
 
     return totals;

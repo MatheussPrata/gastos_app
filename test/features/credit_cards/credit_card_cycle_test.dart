@@ -179,7 +179,7 @@ void main() {
       expect(await repo.isInvoicePaid('card-1', month), isFalse);
     });
 
-    test('getCardSpentByCategory agrupa gastos e inclui diferença de fatura', () async {
+    test('getCardSpentByCategory agrupa apenas os gastos lançados', () async {
       final month = DateTime(2026, 11, 1);
 
       await db.into(db.transactions).insert(TransactionsCompanion.insert(
@@ -203,7 +203,43 @@ void main() {
       );
 
       expect(breakdown['cat-mercado'], equals(300.0));
-      expect(breakdown['nao_informada'], equals(200.0));
+      expect(breakdown.containsKey('nao_informada'), isFalse);
+    });
+
+    test('fatura manual de 600 não duplica compra de 6x100', () async {
+      final month = DateTime(2026, 11, 1);
+
+      for (var i = 0; i < 6; i++) {
+        await db.into(db.transactions).insert(TransactionsCompanion.insert(
+          id: 'tx-parc-$i',
+          userId: 'u1',
+          amount: 100.0,
+          description: 'Drone ${i + 1}/6',
+          date: DateTime(2026, 11 + i, 10),
+          creditCardId: const Value('card-1'),
+          categoryId: const Value('cat-eletro'),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ));
+      }
+
+      // Usuário informa a fatura cheia no mês da compra.
+      await repo.setCardInvoiceAmount('card-1', month, 600.0);
+
+      final nov = await repo.getCardSpentByCategory(
+        cardId: 'card-1',
+        month: month,
+      );
+      final dec = await repo.getCardSpentByCategory(
+        cardId: 'card-1',
+        month: DateTime(2026, 12, 1),
+      );
+
+      // Cada mês tem apenas a sua parcela; a fatura não soma de novo.
+      expect(nov['cat-eletro'], equals(100.0));
+      expect(nov.containsKey('nao_informada'), isFalse);
+      expect(dec['cat-eletro'], equals(100.0));
+      expect(dec.containsKey('nao_informada'), isFalse);
     });
 
     test('getFutureInvoicesForecast retorna previsão de faturas futuras', () async {
