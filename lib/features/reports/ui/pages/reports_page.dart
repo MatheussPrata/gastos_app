@@ -71,9 +71,9 @@ class ReportsPage extends ConsumerWidget {
       categoryExpensesProvider((start: range.start, end: range.end)),
     );
 
-    final filteredStats = _filterStats(
+    final filteredStats = _continuousStats(
         monthlyStatsAsync.valueOrNull ?? const [], period, selectedMonth);
-    final filteredCatStats = _filterCatStats(
+    final filteredCatStats = _continuousCatStats(
         monthlyCatStatsAsync.valueOrNull ?? const [], period, selectedMonth);
 
     return Scaffold(
@@ -100,6 +100,7 @@ class ReportsPage extends ConsumerWidget {
               monthTransactions: monthTransactions,
               stats: filteredStats,
               allStats: monthlyStatsAsync.valueOrNull ?? const [],
+              statsLoading: monthlyStatsAsync.isLoading,
             ),
             const _SectionTitle('Saldo ao longo do tempo'),
             _BalanceLineChart(stats: filteredStats),
@@ -148,53 +149,94 @@ String _monthKey(DateTime d) =>
   }
 }
 
-String _startKeyFor(DateTime selectedMonth, ReportPeriod period) {
-  switch (period) {
-    case ReportPeriod.month:
-      return _monthKey(DateTime(selectedMonth.year, selectedMonth.month, 1));
-    case ReportPeriod.quarter:
-      return _monthKey(DateTime(selectedMonth.year, selectedMonth.month - 2, 1));
-    case ReportPeriod.year:
-      return _monthKey(DateTime(selectedMonth.year, 1, 1));
-    case ReportPeriod.all:
-      return '0000-00';
-  }
+DateTime _parseMonthKey(String key) {
+  final parts = key.split('-');
+  final year = int.tryParse(parts.first) ?? DateTime.now().year;
+  final month = parts.length > 1 ? int.tryParse(parts[1]) ?? 1 : 1;
+  return DateTime(year, month, 1);
 }
 
-String _endKeyFor(DateTime selectedMonth, ReportPeriod period) {
-  switch (period) {
-    case ReportPeriod.month:
-    case ReportPeriod.quarter:
-    case ReportPeriod.year:
-      return _monthKey(DateTime(selectedMonth.year, selectedMonth.month, 1));
-    case ReportPeriod.all:
-      return '9999-99';
+/// Meses do período, do início ao fim, sem buracos (inclusive futuros vazios).
+List<String> _monthRange(
+  ReportPeriod period,
+  DateTime selectedMonth, {
+  String? firstDataKey,
+  String? lastDataKey,
+}) {
+  DateTime start;
+  DateTime end;
+
+  if (period == ReportPeriod.all) {
+    if (firstDataKey == null || lastDataKey == null) return const [];
+    start = _parseMonthKey(firstDataKey);
+    end = _parseMonthKey(lastDataKey);
+  } else {
+    final range = _rangeFor(period, selectedMonth);
+    start = DateTime(range.start.year, range.start.month, 1);
+    end = DateTime(range.end.year, range.end.month, 1);
+    // Não desenha meses que ainda não chegaram.
+    final now = DateTime.now();
+    final currentMonth = DateTime(now.year, now.month, 1);
+    if (end.isAfter(currentMonth)) end = currentMonth;
   }
+
+  if (start.isAfter(end)) return const [];
+
+  final months = <String>[];
+  var cursor = start;
+  while (!cursor.isAfter(end)) {
+    months.add(_monthKey(cursor));
+    cursor = DateTime(cursor.year, cursor.month + 1, 1);
+  }
+  return months;
 }
 
-List<MonthlyStats> _filterStats(
+/// Série mensal contínua: meses sem lançamento entram com zero.
+List<MonthlyStats> _continuousStats(
   List<MonthlyStats> stats,
   ReportPeriod period,
   DateTime selectedMonth,
 ) {
-  final start = _startKeyFor(selectedMonth, period);
-  final end = _endKeyFor(selectedMonth, period);
-  final filtered = stats
-      .where((s) => s.month.compareTo(start) >= 0 && s.month.compareTo(end) <= 0)
-      .toList();
-  return filtered;
+  final byMonth = {for (final s in stats) s.month: s};
+  final sorted = [...stats]..sort((a, b) => a.month.compareTo(b.month));
+  final months = _monthRange(
+    period,
+    selectedMonth,
+    firstDataKey: sorted.isEmpty ? null : sorted.first.month,
+    lastDataKey: sorted.isEmpty ? null : sorted.last.month,
+  );
+
+  return [
+    for (final key in months)
+      byMonth[key] ??
+          MonthlyStats(month: key, income: 0, expense: 0, balance: 0),
+  ];
 }
 
-List<MonthlyCategoryStats> _filterCatStats(
+List<MonthlyCategoryStats> _continuousCatStats(
   List<MonthlyCategoryStats> stats,
   ReportPeriod period,
   DateTime selectedMonth,
 ) {
-  final start = _startKeyFor(selectedMonth, period);
-  final end = _endKeyFor(selectedMonth, period);
-  return stats
-      .where((s) => s.month.compareTo(start) >= 0 && s.month.compareTo(end) <= 0)
-      .toList();
+  final byMonth = {for (final s in stats) s.month: s};
+  final sorted = [...stats]..sort((a, b) => a.month.compareTo(b.month));
+  final months = _monthRange(
+    period,
+    selectedMonth,
+    firstDataKey: sorted.isEmpty ? null : sorted.first.month,
+    lastDataKey: sorted.isEmpty ? null : sorted.last.month,
+  );
+
+  return [
+    for (final key in months)
+      byMonth[key] ??
+          MonthlyCategoryStats(
+            month: key,
+            income: 0,
+            expense: 0,
+            categories: const [],
+          ),
+  ];
 }
 
 // ------------------------------------------------------------------ widgets
@@ -295,6 +337,7 @@ class _SummaryCard extends StatelessWidget {
     required this.monthTransactions,
     required this.stats,
     required this.allStats,
+    required this.statsLoading,
   });
 
   final ReportPeriod period;
@@ -302,6 +345,7 @@ class _SummaryCard extends StatelessWidget {
   final AsyncValue<List<Transaction>> monthTransactions;
   final List<MonthlyStats> stats;
   final List<MonthlyStats> allStats;
+  final bool statsLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -322,6 +366,8 @@ class _SummaryCard extends StatelessWidget {
           }
         }
       }
+    } else if (statsLoading) {
+      loading = true;
     } else {
       for (final s in stats) {
         income += s.income;
