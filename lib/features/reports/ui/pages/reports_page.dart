@@ -59,18 +59,22 @@ class ReportsPage extends ConsumerWidget {
     final period = ref.watch(reportPeriodProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
     final monthTransactions = ref.watch(monthTransactionsProvider);
-    final monthlyStats = ref.watch(monthlyStatsProvider);
-    final monthlyCatStats = ref.watch(monthlyCategoryStatsProvider);
+    final monthlyStatsAsync = period == ReportPeriod.all
+        ? ref.watch(monthlyStatsAllProvider)
+        : ref.watch(monthlyStatsProvider);
+    final monthlyCatStatsAsync = period == ReportPeriod.all
+        ? ref.watch(monthlyCategoryStatsAllProvider)
+        : ref.watch(monthlyCategoryStatsProvider);
 
     final range = _rangeFor(period, selectedMonth);
     final categoryExpenses = ref.watch(
       categoryExpensesProvider((start: range.start, end: range.end)),
     );
 
-    final filteredStats = _filterStats(monthlyStats.valueOrNull ?? const [],
-        period, selectedMonth);
+    final filteredStats = _filterStats(
+        monthlyStatsAsync.valueOrNull ?? const [], period, selectedMonth);
     final filteredCatStats = _filterCatStats(
-        monthlyCatStats.valueOrNull ?? const [], period, selectedMonth);
+        monthlyCatStatsAsync.valueOrNull ?? const [], period, selectedMonth);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Relatórios')),
@@ -80,6 +84,8 @@ class ReportsPage extends ConsumerWidget {
             ..invalidate(monthTransactionsProvider)
             ..invalidate(monthlyStatsProvider)
             ..invalidate(monthlyCategoryStatsProvider)
+            ..invalidate(monthlyStatsAllProvider)
+            ..invalidate(monthlyCategoryStatsAllProvider)
             ..invalidate(categoryExpensesProvider);
         },
         child: ListView(
@@ -93,7 +99,7 @@ class ReportsPage extends ConsumerWidget {
               selectedMonth: selectedMonth,
               monthTransactions: monthTransactions,
               stats: filteredStats,
-              allStats: monthlyStats.valueOrNull ?? const [],
+              allStats: monthlyStatsAsync.valueOrNull ?? const [],
             ),
             const _SectionTitle('Saldo ao longo do tempo'),
             _BalanceLineChart(stats: filteredStats),
@@ -138,7 +144,7 @@ String _monthKey(DateTime d) =>
         end: DateTime(selectedMonth.year, 12, 31, 23, 59, 59),
       );
     case ReportPeriod.all:
-      return (start: DateTime(2000, 1, 1), end: DateTime.now());
+      return (start: DateTime(2000, 1, 1), end: DateTime(2100, 1, 1));
   }
 }
 

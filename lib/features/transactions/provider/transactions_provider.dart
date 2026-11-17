@@ -38,6 +38,20 @@ final monthlyCategoryStatsProvider =
   return repository.getMonthlyCategoryStats();
 });
 
+/// Monthly stats for the full history (used by the "Tudo" report period).
+final monthlyStatsAllProvider =
+    FutureProvider<List<MonthlyStats>>((ref) async {
+  final repository = ref.watch(transactionsRepositoryProvider);
+  return repository.getMonthlyStats(months: 600);
+});
+
+/// Monthly income/expense (with category breakdown) for the full history.
+final monthlyCategoryStatsAllProvider =
+    FutureProvider<List<MonthlyCategoryStats>>((ref) async {
+  final repository = ref.watch(transactionsRepositoryProvider);
+  return repository.getMonthlyCategoryStats(months: 600);
+});
+
 /// Expenses grouped by category for a given date range.
 final categoryExpensesProvider = FutureProvider.family<List<CategoryExpense>,
     ({DateTime start, DateTime end})>((ref, params) async {
