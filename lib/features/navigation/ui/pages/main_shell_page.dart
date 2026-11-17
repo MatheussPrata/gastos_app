@@ -63,8 +63,29 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
           index: selectedIndex,
           children: MainShellPage._pages,
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: selectedIndex,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.12),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: NavigationBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  height: 68,
+                  selectedIndex: selectedIndex,
           onDestinationSelected: (index) {
             if (index == selectedIndex) return;
             ref.read(bottomNavIndexProvider.notifier).state = index;
@@ -103,6 +124,10 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
               tooltip: 'Relatórios',
             ),
           ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

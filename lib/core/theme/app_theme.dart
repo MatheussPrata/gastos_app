@@ -4,9 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// App color palette - matching the Kotlin app colors
 class AppColors {
-  // Primary colors from Kotlin app
-  static const Color primary = Color(0xFF1E88E5); // Blue
-  static const Color primaryVariant = Color(0xFF1565C0);
+  // Primary colors (modernized)
+  static const Color primary = Color(0xFF2563EB); // Blue
+  static const Color primaryVariant = Color(0xFF1D4ED8);
   static const Color secondary = Color(0xFF43A047); // Green
   static const Color secondaryVariant = Color(0xFF2E7D32);
   static const Color tertiary = Color(0xFF6750A4); // Purple
@@ -31,28 +31,86 @@ class AppColors {
   ];
 }
 
+/// Design tokens do Kuanto v2 — superfícies e acento menta.
+abstract final class KuantoColors {
+  static const Color mint = Color(0xFF2EC4B6);
+  static const Color deepBlue = Color(0xFF0B2545);
+
+  static const Color background = Color(0xFFF5F7FB);
+  static const Color surface = Color(0xFFFFFFFF);
+
+  static const Color darkBackground = Color(0xFF0A1220);
+  static const Color darkSurface = Color(0xFF121B2B);
+}
+
+/// Aplica números tabulares (valores de R$ alinhados em coluna).
+TextTheme _withTabularFigures(TextTheme t) {
+  TextStyle? f(TextStyle? s) =>
+      s?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+  return t.copyWith(
+    displayLarge: f(t.displayLarge),
+    displayMedium: f(t.displayMedium),
+    displaySmall: f(t.displaySmall),
+    headlineLarge: f(t.headlineLarge),
+    headlineMedium: f(t.headlineMedium),
+    headlineSmall: f(t.headlineSmall),
+    titleLarge: f(t.titleLarge),
+    titleMedium: f(t.titleMedium),
+    titleSmall: f(t.titleSmall),
+    bodyLarge: f(t.bodyLarge),
+    bodyMedium: f(t.bodyMedium),
+    bodySmall: f(t.bodySmall),
+    labelLarge: f(t.labelLarge),
+    labelMedium: f(t.labelMedium),
+    labelSmall: f(t.labelSmall),
+  );
+}
+
 /// Light theme
 ThemeData buildLightTheme(Color seedColor) {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: seedColor,
+    brightness: Brightness.light,
+  ).copyWith(
+    primary: seedColor,
+    secondary: KuantoColors.mint,
+    tertiary: AppColors.tertiary,
+    error: AppColors.expense,
+    surface: KuantoColors.surface,
+  );
+
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: Brightness.light,
-      primary: seedColor,
-      secondary: AppColors.secondary,
-      tertiary: AppColors.tertiary,
-      error: AppColors.expense,
-    ),
-    appBarTheme: const AppBarTheme(
+    colorScheme: scheme,
+    scaffoldBackgroundColor: KuantoColors.background,
+    textTheme:
+        _withTabularFigures(ThemeData(brightness: Brightness.light).textTheme),
+    appBarTheme: AppBarTheme(
       centerTitle: true,
       elevation: 0,
       scrolledUnderElevation: 1,
+      backgroundColor: KuantoColors.background,
+      surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardTheme(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      color: scheme.surface,
+      shadowColor: Colors.black.withOpacity(0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: scheme.primary.withOpacity(0.08),
+      selectedColor: scheme.primary.withOpacity(0.18),
+      side: BorderSide.none,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      labelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: scheme.onSurface,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -163,26 +221,49 @@ ThemeData buildLightTheme(Color seedColor) {
 
 /// Dark theme
 ThemeData buildDarkTheme(Color seedColor) {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: seedColor,
+    brightness: Brightness.dark,
+  ).copyWith(
+    primary: seedColor,
+    secondary: KuantoColors.mint,
+    tertiary: AppColors.tertiary,
+    error: AppColors.expense,
+    surface: KuantoColors.darkSurface,
+  );
+
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: Brightness.dark,
-      primary: seedColor,
-      secondary: AppColors.secondary,
-      tertiary: AppColors.tertiary,
-      error: AppColors.expense,
-    ),
-    appBarTheme: const AppBarTheme(
+    colorScheme: scheme,
+    scaffoldBackgroundColor: KuantoColors.darkBackground,
+    textTheme:
+        _withTabularFigures(ThemeData(brightness: Brightness.dark).textTheme),
+    appBarTheme: AppBarTheme(
       centerTitle: true,
       elevation: 0,
       scrolledUnderElevation: 1,
+      backgroundColor: KuantoColors.darkBackground,
+      surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardTheme(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      color: scheme.surface,
+      shadowColor: Colors.black.withOpacity(0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: scheme.primary.withOpacity(0.12),
+      selectedColor: scheme.primary.withOpacity(0.24),
+      side: BorderSide.none,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      labelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: scheme.onSurface,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -302,14 +383,14 @@ ThemeData get darkTheme => buildDarkTheme(AppColors.primary);
 
 /// Colors available for the primary color customization.
 const List<Color> kThemeSeedColors = [
-  Color(0xFF1E88E5), // Azul
-  Color(0xFF43A047), // Verde
-  Color(0xFF6750A4), // Roxo
-  Color(0xFFFB8C00), // Laranja
-  Color(0xFFD81B60), // Rosa
-  Color(0xFF00897B), // Teal
-  Color(0xFF3949AB), // Índigo
-  Color(0xFF6D4C41), // Marrom
+  Color(0xFF2563EB), // Azul
+  Color(0xFF2EC4B6), // Menta
+  Color(0xFF7C3AED), // Violeta
+  Color(0xFFF97316), // Laranja
+  Color(0xFFDB2777), // Rosa
+  Color(0xFF0D9488), // Teal
+  Color(0xFF4F46E5), // Índigo
+  Color(0xFF78716C), // Pedra
 ];
 
 /// Persists the chosen primary color for the app theme.
