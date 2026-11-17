@@ -10,7 +10,10 @@ import 'package:gastos_app/features/transactions/provider/transactions_provider.
 import 'package:gastos_app/features/transactions/ui/widgets/transaction_tile.dart';
 
 class TransactionsPage extends ConsumerWidget {
-  const TransactionsPage({super.key});
+  const TransactionsPage({super.key, this.categoryId, this.categoryName});
+
+  final String? categoryId;
+  final String? categoryName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,7 +21,7 @@ class TransactionsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transações'),
+        title: Text(categoryName ?? 'Transações'),
         actions: [
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
@@ -31,14 +34,25 @@ class TransactionsPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erro ao carregar: $e')),
         data: (transactions) {
-          if (transactions.isEmpty) {
-            return const Center(child: Text('Nenhuma transação cadastrada'));
+          final filtered = categoryId == null
+              ? transactions
+              : transactions
+                  .where((t) => (t.categoryId ?? 'none') == categoryId)
+                  .toList();
+          if (filtered.isEmpty) {
+            return Center(
+              child: Text(
+                categoryId == null
+                    ? 'Nenhuma transação cadastrada'
+                    : 'Nenhuma transação nesta categoria',
+              ),
+            );
           }
           return ListView.separated(
-            itemCount: transactions.length,
+            itemCount: filtered.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final transaction = transactions[index];
+              final transaction = filtered[index];
               return TransactionTile(
                 transaction: transaction,
                 onTap: () {

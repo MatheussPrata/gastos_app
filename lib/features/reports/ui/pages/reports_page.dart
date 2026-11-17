@@ -3,9 +3,12 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/core/widgets/empty_state.dart';
+import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 
@@ -98,6 +101,8 @@ class ReportsPage extends ConsumerWidget {
             _CategoryChart(categoriesAsync: categoryExpenses),
             const _SectionTitle('Top categorias'),
             _TopCategoriesChart(categoriesAsync: categoryExpenses),
+            const _SectionTitle('Gastos por cartão'),
+            const _CardsChart(),
             const _SectionTitle('Comparativo mensal'),
             _MonthlyChart(stats: filteredCatStats),
           ],
@@ -330,6 +335,17 @@ class _SummaryCard extends StatelessWidget {
       }
     }
 
+    double? projectedExpense;
+    if (period == ReportPeriod.month) {
+      final now = DateTime.now();
+      if (selectedMonth.year == now.year &&
+          selectedMonth.month == now.month &&
+          now.day > 0) {
+        final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+        projectedExpense = expense / now.day * daysInMonth;
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Padding(
@@ -392,6 +408,29 @@ class _SummaryCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (projectedExpense != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Projeção de saídas no mês',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(projectedExpense),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.expense,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
       ),
@@ -792,22 +831,14 @@ class _CategoryChart extends StatelessWidget {
                           final index = section.touchedSectionIndex;
                           if (index < 0 || index >= renderSlices.length) return;
                           final category = renderSlices[index];
-                          final percent = total > 0
-                              ? category.total / total * 100
-                              : 0.0;
-                          final messenger = ScaffoldMessenger.maybeOf(context);
-                          messenger
-                            ?..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              SnackBar(
-                                duration: const Duration(seconds: 2),
-                                content: Text(
-                                  '${category.categoryName}: '
-                                  '${CurrencyFormatter.format(category.total)} '
-                                  '(${percent.toStringAsFixed(0)}%)',
-                                ),
-                              ),
-                            );
+                          if (!context.mounted) return;
+                          context.push(
+                            RouteNames.transactions,
+                            extra: {
+                              'categoryId': category.categoryId,
+                              'categoryName': category.categoryName,
+                            },
+                          );
                         },
                       ),
                       sections: [
@@ -1309,4 +1340,121 @@ String _compactValue(double value) {
     return '${(value / 1000).toStringAsFixed(0)}k';
   }
   return value.toStringAsFixed(0);
+}
+
+/// Gastos por cartão no mês selecionado (barra fatura vs limite).
+class _CardsChart extends ConsumerWidget {
+  const _CardsChart();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final month = ref.watch(selectedMonthProvider);
+    final cardsAsync = ref.watch(
+      cardsWithSpentProvider(DateTime(month.year, month.month)),
+    );
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: cardsAsync.when(
+          loading: () => const SizedBox(
+            height: 120,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => const SizedBox(
+            height: 100,
+            child: Center(child: Text('Erro ao carregar cartões')),
+          ),
+          data: (cards) {
+            if (cards.isEmpty) {
+              return const EmptyState(
+                icon: Icons.credit_card,
+                title: 'Nenhum cartão cadastrado',
+                height: 140,
+              );
+            }
+            final visible = cards
+                .where((c) => c.spent > 0 || c.invoiceTotal > 0)
+                .toList();
+            if (visible.isEmpty) {
+              return const EmptyState(
+                icon: Icons.credit_card_off,
+                title: 'Sem gastos em cartões neste mês',
+                height: 140,
+              );
+            }
+            final maxValue = visible
+                .map((c) =>
+                    c.card.limitAmount > 0 ? c.card.limitAmount : c.invoiceTotal)
+                .reduce(math.max);
+
+            return Column(
+              children: [
+                for (final c in visible)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.credit_card,
+                              size: 14,
+                              color: c.card.cardColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                c.card.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            Text(
+                              CurrencyFormatter.format(c.invoiceTotal),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: maxValue <= 0
+                                ? 0
+                                : (c.invoiceTotal / maxValue)
+                                    .clamp(0.0, 1.0),
+                            minHeight: 6,
+                            backgroundColor:
+                                c.card.cardColor.withOpacity(0.15),
+                            color: c.card.cardColor,
+                          ),
+                        ),
+                        if (c.card.limitAmount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Limite: ${CurrencyFormatter.format(c.card.limitAmount)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
