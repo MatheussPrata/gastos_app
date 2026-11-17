@@ -6,7 +6,9 @@ import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
+import 'package:gastos_app/features/dashboard/ui/widgets/balance_sparkline.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/settings_drawer.dart';
+import 'package:gastos_app/features/dashboard/ui/widgets/upcoming_bills.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
@@ -60,7 +62,8 @@ class DashboardPage extends ConsumerWidget {
       body: Column(
         children: [
           _buildMonthSelector(context, ref, selectedMonth),
-          _buildSummary(context, transactionsAsync),
+          _buildSummary(context, ref, transactionsAsync),
+          const UpcomingBills(),
           Expanded(
             child: _buildTransactionsList(context, ref, transactionsAsync),
           ),
@@ -122,6 +125,7 @@ class DashboardPage extends ConsumerWidget {
 
   Widget _buildSummary(
     BuildContext context,
+    WidgetRef ref,
     AsyncValue<List<Transaction>> transactionsAsync,
   ) {
     return transactionsAsync.when(
@@ -134,6 +138,11 @@ class DashboardPage extends ConsumerWidget {
         child: Text('Erro ao carregar: $e'),
       ),
       data: (transactions) {
+        final stats =
+            ref.watch(monthlyStatsProvider).valueOrNull ?? const <MonthlyStats>[];
+        final plan = ref.watch(monthPlanningProvider).valueOrNull;
+        final spentTotal =
+            ref.watch(monthSpentTotalProvider).valueOrNull ?? 0.0;
         var income = 0.0;
         var expense = 0.0;
         for (final transaction in transactions) {
@@ -177,6 +186,14 @@ class DashboardPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (stats.isNotEmpty) ...[
+                  const Divider(height: 24),
+                  BalanceSparkline(stats: stats),
+                ],
+                if (plan != null && plan.monthlyBudget > 0) ...[
+                  const SizedBox(height: 8),
+                  _BudgetBar(spent: spentTotal, budget: plan.monthlyBudget),
+                ],
               ],
             ),
           ),
@@ -296,5 +313,54 @@ class DashboardPage extends ConsumerWidget {
             scope: scope,
           );
     }
+  }
+}
+
+/// Barra compacta de orçamento do mês (gasto vs planejado).
+class _BudgetBar extends StatelessWidget {
+  const _BudgetBar({required this.spent, required this.budget});
+
+  final double spent;
+  final double budget;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = budget <= 0 ? 0.0 : (spent / budget).clamp(0.0, 1.0);
+    final over = spent > budget;
+    final color = over
+        ? AppColors.expense
+        : (ratio > 0.8 ? AppColors.warning : AppColors.income);
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Orçamento do mês',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+            Text(
+              '${CurrencyFormatter.format(spent)} / ${CurrencyFormatter.format(budget)}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 6,
+            backgroundColor: color.withOpacity(0.15),
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 }
