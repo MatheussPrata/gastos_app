@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gastos_app/core/notifications/notification_permission_service.dart';
+import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
@@ -62,6 +64,7 @@ class DashboardPage extends ConsumerWidget {
       body: Column(
         children: [
           _buildMonthSelector(context, ref, selectedMonth),
+          const _NotificationBanner(),
           _buildSummary(context, ref, transactionsAsync),
           const UpcomingBills(),
           Expanded(
@@ -361,6 +364,58 @@ class _BudgetBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Aviso visível quando o sistema bloqueia as notificações.
+class _NotificationBanner extends ConsumerWidget {
+  const _NotificationBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final permissions = ref.watch(notificationPermissionsProvider).valueOrNull;
+    if (permissions == null || permissions.canNotify) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Material(
+        color: AppColors.warning.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () async {
+            final result =
+                await NotificationPermissionService.instance.request();
+            ref.invalidate(notificationPermissionsProvider);
+            if (!result.canNotify) {
+              await NotificationPermissionService.instance.openSystemSettings();
+            }
+          },
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.notifications_off_outlined,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Notificações bloqueadas. Toque para ativar lembretes e alertas.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

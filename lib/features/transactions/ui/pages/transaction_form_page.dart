@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -13,7 +11,6 @@ import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
 import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
-import 'package:gastos_app/features/planning/services/notification_service.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart'
     hide Category, RecurringTransaction;
@@ -216,11 +213,6 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
               month: _date,
               scope: scope,
               onAlerts: (alerts) {
-                for (final alert in alerts) {
-                  unawaited(
-                    NotificationService.instance.showBudgetAlert(alert),
-                  );
-                }
                 container
                   ..invalidate(planningAlertsProvider)
                   ..invalidate(unreadAlertsProvider)
@@ -537,23 +529,38 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           return;
         }
 
-        // Liga o lembrete e, se o sistema ainda nao autorizou, pede agora:
-        // e o momento em que o utilizador entende por que o pedido aparece.
+        // Só liga o lembrete se o sistema realmente autorizar a notificação;
+        // caso contrário o utilizador acharia que o aviso está ativo.
         final permissions = await NotificationPermissionService.instance
             .request();
         if (!mounted) return;
-
-        setState(() => _reminderEnabled = true);
         ref.invalidate(notificationPermissionsProvider);
 
         if (!permissions.canNotify) {
+          setState(() => _reminderEnabled = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
+              content: const Text(
+                'Sem permissão de notificações o lembrete não aparece.',
+              ),
+              action: SnackBarAction(
+                label: 'Abrir',
+                onPressed: () async {
+                  await NotificationPermissionService.instance
+                      .openSystemSettings();
+                },
+              ),
+            ),
+          );
+          return;
+        }
+
+        setState(() => _reminderEnabled = true);
+        if (!permissions.canScheduleExact) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
               content: Text(
-                permissions.status ==
-                        NotificationPermissionStatus.permanentlyDenied
-                    ? 'Notificações bloqueadas. Ative nas configurações.'
-                    : 'Notificações negadas. O lembrete não vai aparecer.',
+                'Alarme exato desativado: o aviso pode atrasar alguns minutos.',
               ),
             ),
           );

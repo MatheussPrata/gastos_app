@@ -13,6 +13,7 @@ import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
+import 'package:gastos_app/features/planning/services/notification_service.dart';
 
 final planningRepositoryProvider = Provider<PlanningRepository>((ref) {
   return PlanningRepository();
@@ -570,11 +571,19 @@ class PlanningRepository {
     DateTime? month,
     BudgetScope scope = BudgetScope.individual,
     void Function(List<BudgetAlert> alerts)? onAlerts,
+    bool notify = true,
   }) {
     unawaited(() async {
       try {
         final created = await checkAndCreateAlerts(month: month, scope: scope);
-        if (created.isNotEmpty) onAlerts?.call(created);
+        if (created.isNotEmpty) {
+          if (notify) {
+            for (final alert in created) {
+              unawaited(NotificationService.instance.showBudgetAlert(alert));
+            }
+          }
+          onAlerts?.call(created);
+        }
       } catch (_) {
         // Never surface background planning errors to the caller.
       }
