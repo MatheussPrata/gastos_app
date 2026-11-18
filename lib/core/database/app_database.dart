@@ -1,12 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:flutter/foundation.dart'
-    show debugPrint, kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqlcipher_flutter_libs/sqlcipher_flutter_libs.dart';
-import 'package:sqlite3/open.dart';
 import 'package:sqlite3/sqlite3.dart' show sqlite3;
 import 'dart:io';
 
@@ -442,161 +438,67 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gastos.db'));
-    final backup = File('${file.path}.plaintext.bak');
-    var key = await getDbKey();
-    final prefs = await SharedPreferences.getInstance();
-    var verified = prefs.getBool(_dbVerifiedKey) ?? false;
 
-    // 1. Banco existente.
+    // Banco antigo cifrado: exporta uma unica vez para texto puro.
     if (await file.exists() && !await _isPlaintextDatabase(file)) {
-      // 1a. Chave antiga (passphrase) -> re-chaveia uma unica vez para raw.
-      if (!key.isRaw) {
-        final rekeyed = await _rekeyToRaw(file, key);
-        if (rekeyed) {
-          key = await getDbKey();
-          verified = true;
-          await prefs.setBool(_dbVerifiedKey, true);
-        }
-      }
-
-      // 1b. Valida a chave apenas na primeira abertura.
-      if (key.isRaw && !verified) {
-        if (await _canOpenEncrypted(file, key)) {
-          await prefs.setBool(_dbVerifiedKey, true);
-          if (await backup.exists()) {
-            await backup.delete();
-          }
-        } else {
-          debugPrint('Banco cifrado nao abriu; tentando recuperar.');
-          await prefs.setBool(_dbVerifiedKey, false);
-          await _recoverDatabase(file, backup);
-        }
-      } else if (verified && await backup.exists()) {
-        await backup.delete();
-      }
-    }
-
-    // 2. Banco em texto puro: migra para cifrado.
-    if (await _isPlaintextDatabase(file)) {
-      final migrated = await _tryEncryptExisting(file, key);
-      if (!migrated) {
-        return NativeDatabase(file);
-      }
-      await prefs.setBool(_dbVerifiedKey, true);
-    }
-
-    // 3. Abre o banco cifrado num isolate de fundo para nao travar a UI.
-    final pragma = key.pragma;
-    return NativeDatabase.createInBackground(
-      file,
-      setup: (db) {
-        db.execute('PRAGMA key = $pragma;');
+      final key = await getDbKey();
+      final exported = await _exportToPlaintext(file, key);
+      if (!exported) {
+        // Sem exportacao, preserva o arquivo e recomeca (o sync repoe).
+        final stamp = DateTime.now().millisecondsSinceEpoch;
         try {
-          final version = db.select('PRAGMA cipher_version;');
-          if (version.isEmpty) {
-            debugPrint('SQLCipher indisponivel: banco NAO esta cifrado.');
-          }
+          await file.rename('${file.path}.encrypted-$stamp.bak');
         } catch (error) {
-          debugPrint('Falha ao verificar SQLCipher: $error');
+          debugPrint('Falha ao mover banco cifrado: $error');
         }
-      },
-      isolateSetup: _configureSqlCipher,
-    );
+      }
+    }
+
+    // SQLite puro, em isolate de fundo. Sem chave, sem PBKDF2.
+    return NativeDatabase.createInBackground(file);
   });
 }
 
-void _configureSqlCipher() {
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    open.overrideFor(OperatingSystem.android, openCipherOnAndroid);
-  }
-}
-
-const _dbVerifiedKey = 'kuanto_db_verified_v1';
-
-/// Confirma que o arquivo abre com a chave atual.
-Future<bool> _canOpenEncrypted(File file, DbKey key) async {
+/// Exporta o banco SQLCipher para um arquivo SQLite comum.
+Future<bool> _exportToPlaintext(File file, DbKey key) async {
+  final plain = File('${file.path}.plain');
   try {
+    if (await plain.exists()) {
+      await plain.delete();
+    }
+
     final db = sqlite3.open(file.path);
     try {
       db.execute('PRAGMA key = ${key.pragma};');
-      db.select('SELECT count(*) AS c FROM sqlite_master;');
-      return true;
-    } finally {
-      db.dispose();
-    }
-  } catch (error) {
-    debugPrint('Validacao do banco cifrado falhou: $error');
-    return false;
-  }
-}
-
-/// Re-chaveia o banco antigo (passphrase) para chave raw, sem PBKDF2.
-Future<bool> _rekeyToRaw(File file, DbKey legacyKey) async {
-  final backup = File('${file.path}.rekey.bak');
-  final newKey = DbKey(generateRawKey(), isRaw: true);
-  try {
-    if (!await backup.exists()) {
-      await file.copy(backup.path);
-    }
-    await savePendingRawKey(newKey.value);
-
-    final db = sqlite3.open(file.path);
-    try {
-      db.execute('PRAGMA key = ${legacyKey.pragma};');
       db.select('SELECT count(*) FROM sqlite_master;');
-      db.execute('PRAGMA rekey = ${newKey.pragma};');
+      db.execute(
+        "ATTACH DATABASE '${_escapeSql(plain.path)}' AS plaintext KEY '';",
+      );
+      db.execute("SELECT sqlcipher_export('plaintext');");
+      db.execute('DETACH DATABASE plaintext;');
     } finally {
       db.dispose();
     }
 
-    final check = sqlite3.open(file.path);
+    // So substitui o original depois de validar o arquivo em texto puro.
+    final check = sqlite3.open(plain.path);
     try {
-      check.execute('PRAGMA key = ${newKey.pragma};');
       final rows = check.select('SELECT count(*) AS c FROM sqlite_master;');
       if (((rows.first['c'] as int?) ?? 0) <= 0) return false;
     } finally {
       check.dispose();
     }
 
-    await promotePendingRawKey(newKey.value);
-    if (await backup.exists()) {
-      await backup.delete();
-    }
-    debugPrint('Banco re-chaveado para raw key.');
+    await file.delete();
+    await plain.rename(file.path);
+    debugPrint('Banco migrado para SQLite puro (sem criptografia).');
     return true;
   } catch (error) {
-    debugPrint('Falha no rekey: $error');
-    await discardPendingRawKey();
+    debugPrint('Falha ao exportar banco cifrado: $error');
     try {
-      if (await backup.exists()) {
-        if (await file.exists()) await file.delete();
-        await backup.copy(file.path);
-      }
+      if (await plain.exists()) await plain.delete();
     } catch (_) {}
     return false;
-  }
-}
-
-/// Restaura o backup em texto puro; sem backup, isola o arquivo ruim para
-/// o app voltar a abrir e o sync repor os dados do servidor.
-Future<void> _recoverDatabase(File file, File backup) async {
-  try {
-    if (await backup.exists()) {
-      if (await file.exists()) await file.delete();
-      await backup.copy(file.path);
-      debugPrint('Banco restaurado do backup em texto puro.');
-      return;
-    }
-  } catch (error) {
-    debugPrint('Falha ao restaurar backup: $error');
-  }
-
-  try {
-    final stamp = DateTime.now().millisecondsSinceEpoch;
-    await file.rename('${file.path}.corrupt-$stamp');
-    debugPrint('Banco movido para ${file.path}.corrupt-$stamp');
-  } catch (error) {
-    debugPrint('Falha ao mover banco corrompido: $error');
   }
 }
 
@@ -615,54 +517,6 @@ Future<bool> _isPlaintextDatabase(File file) async {
   }
 }
 
-/// Copia o banco em texto puro para um novo arquivo cifrado com SQLCipher.
-Future<bool> _tryEncryptExisting(File file, DbKey key) async {
-  final backup = File('${file.path}.plaintext.bak');
-  final encrypted = File('${file.path}.encrypted');
-  try {
-    if (!await backup.exists()) {
-      await file.copy(backup.path);
-    }
-    if (await encrypted.exists()) {
-      await encrypted.delete();
-    }
-
-    final source = sqlite3.open(file.path);
-    try {
-      source.execute(
-        "ATTACH DATABASE '${_escapeSql(encrypted.path)}' AS encrypted "
-        'KEY ${key.pragma};',
-      );
-      source.execute("SELECT sqlcipher_export('encrypted');");
-      source.execute('DETACH DATABASE encrypted;');
-    } finally {
-      source.dispose();
-    }
-
-    // So substitui o original depois de validar o arquivo cifrado.
-    final check = sqlite3.open(encrypted.path);
-    try {
-      check.execute('PRAGMA key = ${key.pragma};');
-      final rows = check.select('SELECT count(*) AS c FROM sqlite_master;');
-      final count = (rows.first['c'] as int?) ?? 0;
-      if (count <= 0) return false;
-    } finally {
-      check.dispose();
-    }
-
-    await file.delete();
-    await encrypted.rename(file.path);
-    // O backup fica ate o proximo inicio validar a chave; ai e removido.
-    debugPrint('Banco local migrado para SQLCipher.');
-    return true;
-  } catch (error) {
-    debugPrint('Falha ao migrar banco para SQLCipher: $error');
-    try {
-      if (await encrypted.exists()) await encrypted.delete();
-    } catch (_) {}
-    return false;
-  }
-}
-
 String _escapeSql(String value) => value.replaceAll("'", "''");
+
 
