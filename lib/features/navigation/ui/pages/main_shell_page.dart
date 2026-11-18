@@ -29,6 +29,37 @@ class MainShellPage extends ConsumerStatefulWidget {
   ConsumerState<MainShellPage> createState() => _MainShellPageState();
 }
 
+class _LazyIndexedStack extends StatefulWidget {
+  const _LazyIndexedStack({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  State<_LazyIndexedStack> createState() => _LazyIndexedStackState();
+}
+
+class _LazyIndexedStackState extends State<_LazyIndexedStack> {
+  final Set<int> _loaded = {0};
+
+  @override
+  void didUpdateWidget(covariant _LazyIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _loaded.add(widget.index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IndexedStack(
+      index: widget.index,
+      children: [
+        for (var i = 0; i < widget.children.length; i++)
+          _loaded.contains(i) ? widget.children[i] : const SizedBox.shrink(),
+      ],
+    );
+  }
+}
+
 class _MainShellPageState extends ConsumerState<MainShellPage> {
   @override
   void initState() {
@@ -65,7 +96,7 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
         ref.read(bottomNavIndexProvider.notifier).state = AppTab.home;
       },
       child: Scaffold(
-        body: IndexedStack(
+        body: _LazyIndexedStack(
           index: selectedIndex,
           children: MainShellPage._pages,
         ),

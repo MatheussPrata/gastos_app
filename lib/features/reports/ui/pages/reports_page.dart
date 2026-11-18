@@ -83,6 +83,7 @@ class ReportsPage extends ConsumerWidget {
           ref
             ..invalidate(monthTransactionsProvider)
             ..invalidate(monthlyStatsProvider)
+        ..invalidate(recentMonthlyStatsProvider)
             ..invalidate(monthlyCategoryStatsProvider)
             ..invalidate(monthlyStatsAllProvider)
             ..invalidate(monthlyCategoryStatsAllProvider)

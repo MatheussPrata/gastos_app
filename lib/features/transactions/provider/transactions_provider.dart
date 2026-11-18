@@ -45,6 +45,15 @@ final monthlyStatsAllProvider =
   return repository.getMonthlyStats(months: 600);
 });
 
+/// Últimos 6 meses para o sparkline do Dashboard (consulta leve).
+final recentMonthlyStatsProvider =
+    FutureProvider<List<MonthlyStats>>((ref) async {
+  final repository = ref.watch(transactionsRepositoryProvider);
+  final now = DateTime.now();
+  final since = DateTime(now.year, now.month - 5, 1);
+  return repository.getMonthlyStats(months: 6, since: since);
+});
+
 /// Monthly income/expense (with category breakdown) for the full history.
 final monthlyCategoryStatsAllProvider =
     FutureProvider<List<MonthlyCategoryStats>>((ref) async {

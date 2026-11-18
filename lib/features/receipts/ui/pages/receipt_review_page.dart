@@ -537,6 +537,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
         ..invalidate(transactionsListProvider)
         ..invalidate(monthTransactionsProvider)
         ..invalidate(monthlyStatsProvider)
+        ..invalidate(recentMonthlyStatsProvider)
         ..invalidate(monthlyCategoryStatsProvider)
         ..invalidate(monthPlanningProvider)
         ..invalidate(planningProgressProvider)

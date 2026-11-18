@@ -66,6 +66,7 @@ void _invalidateData(WidgetRef ref) {
     ..invalidate(monthTransactionsProvider)
     ..invalidate(transactionsListProvider)
     ..invalidate(monthlyStatsProvider)
+        ..invalidate(recentMonthlyStatsProvider)
     ..invalidate(monthlyCategoryStatsProvider)
     ..invalidate(categoryExpensesProvider)
     ..invalidate(recurringListProvider)

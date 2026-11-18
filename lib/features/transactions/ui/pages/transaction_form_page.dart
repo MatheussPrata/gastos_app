@@ -193,6 +193,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       ref.invalidate(monthTransactionsProvider);
       ref.invalidate(transactionsListProvider);
       ref.invalidate(monthlyStatsProvider);
+      ref.invalidate(recentMonthlyStatsProvider);
       ref.invalidate(recurringListProvider);
 
       // Planning: refresh percentages/alerts and check thresholds in the

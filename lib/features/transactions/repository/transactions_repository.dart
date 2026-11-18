@@ -240,8 +240,15 @@ class TransactionsRepository {
 
   // ---------------------------------------------------------------- stats
 
-  Future<List<MonthlyStats>> getMonthlyStats({int months = 12}) async {
-    final all = await _db.select(_db.transactions).get();
+  Future<List<MonthlyStats>> getMonthlyStats({
+    int months = 12,
+    DateTime? since,
+  }) async {
+    final query = _db.select(_db.transactions);
+    if (since != null) {
+      query.where((t) => t.date.isBiggerOrEqualValue(since));
+    }
+    final all = await query.get();
 
     final data = <String, Map<String, double>>{};
     for (final t in all) {

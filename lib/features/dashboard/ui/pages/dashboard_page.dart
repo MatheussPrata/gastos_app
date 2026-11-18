@@ -147,7 +147,8 @@ class DashboardPage extends ConsumerWidget {
       ),
       data: (transactions) {
         final stats =
-            ref.watch(monthlyStatsProvider).valueOrNull ?? const <MonthlyStats>[];
+            ref.watch(recentMonthlyStatsProvider).valueOrNull ??
+                const <MonthlyStats>[];
         final plan = ref.watch(monthPlanningProvider).valueOrNull;
         final spentTotal =
             ref.watch(monthSpentTotalProvider).valueOrNull ?? 0.0;
@@ -304,6 +305,7 @@ class DashboardPage extends ConsumerWidget {
       ..invalidate(transactionsListProvider)
       ..invalidate(monthTransactionsProvider)
       ..invalidate(monthlyStatsProvider)
+        ..invalidate(recentMonthlyStatsProvider)
       ..invalidate(monthPlanningProvider)
       ..invalidate(planningProgressProvider)
       ..invalidate(planningAlertsProvider)

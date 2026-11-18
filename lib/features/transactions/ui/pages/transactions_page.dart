@@ -255,6 +255,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
       ref.invalidate(transactionsListProvider);
       ref.invalidate(monthTransactionsProvider);
       ref.invalidate(monthlyStatsProvider);
+      ref.invalidate(recentMonthlyStatsProvider);
 
       // Deleting changes the real spending, so refresh planning and re-check
       // thresholds without blocking the list update.

@@ -40,6 +40,7 @@ Future<SharingSyncResult> runSharingSync(WidgetRef ref) async {
     ..invalidate(monthTransactionsProvider)
     ..invalidate(transactionsListProvider)
     ..invalidate(monthlyStatsProvider)
+        ..invalidate(recentMonthlyStatsProvider)
     ..invalidate(categoryExpensesProvider)
     ..invalidate(sharingConnectionProvider)
     ..invalidate(monthPlanningProvider)
