@@ -3,10 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqlite3/sqlite3.dart' show sqlite3;
 import 'dart:io';
-
-import 'package:gastos_app/core/storage/db_key.dart';
 
 part 'app_database.g.dart';
 
@@ -439,67 +436,18 @@ LazyDatabase _openConnection() {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gastos.db'));
 
-    // Banco antigo cifrado: exporta uma unica vez para texto puro.
+    // Banco cifrado de versao antiga: preserva e recomeca (o sync repoe).
     if (await file.exists() && !await _isPlaintextDatabase(file)) {
-      final key = await getDbKey();
-      final exported = await _exportToPlaintext(file, key);
-      if (!exported) {
-        // Sem exportacao, preserva o arquivo e recomeca (o sync repoe).
-        final stamp = DateTime.now().millisecondsSinceEpoch;
-        try {
-          await file.rename('${file.path}.encrypted-$stamp.bak');
-        } catch (error) {
-          debugPrint('Falha ao mover banco cifrado: $error');
-        }
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      try {
+        await file.rename('${file.path}.encrypted-$stamp.bak');
+      } catch (error) {
+        debugPrint('Falha ao mover banco cifrado: $error');
       }
     }
 
-    // SQLite puro, em isolate de fundo. Sem chave, sem PBKDF2.
     return NativeDatabase.createInBackground(file);
   });
-}
-
-/// Exporta o banco SQLCipher para um arquivo SQLite comum.
-Future<bool> _exportToPlaintext(File file, DbKey key) async {
-  final plain = File('${file.path}.plain');
-  try {
-    if (await plain.exists()) {
-      await plain.delete();
-    }
-
-    final db = sqlite3.open(file.path);
-    try {
-      db.execute('PRAGMA key = ${key.pragma};');
-      db.select('SELECT count(*) FROM sqlite_master;');
-      db.execute(
-        "ATTACH DATABASE '${_escapeSql(plain.path)}' AS plaintext KEY '';",
-      );
-      db.execute("SELECT sqlcipher_export('plaintext');");
-      db.execute('DETACH DATABASE plaintext;');
-    } finally {
-      db.dispose();
-    }
-
-    // So substitui o original depois de validar o arquivo em texto puro.
-    final check = sqlite3.open(plain.path);
-    try {
-      final rows = check.select('SELECT count(*) AS c FROM sqlite_master;');
-      if (((rows.first['c'] as int?) ?? 0) <= 0) return false;
-    } finally {
-      check.dispose();
-    }
-
-    await file.delete();
-    await plain.rename(file.path);
-    debugPrint('Banco migrado para SQLite puro (sem criptografia).');
-    return true;
-  } catch (error) {
-    debugPrint('Falha ao exportar banco cifrado: $error');
-    try {
-      if (await plain.exists()) await plain.delete();
-    } catch (_) {}
-    return false;
-  }
 }
 
 /// Um banco SQLite em texto puro comeca com o header oficial.
@@ -516,7 +464,3 @@ Future<bool> _isPlaintextDatabase(File file) async {
     await raf.close();
   }
 }
-
-String _escapeSql(String value) => value.replaceAll("'", "''");
-
-

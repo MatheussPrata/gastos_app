@@ -1,11 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sqlcipher_flutter_libs/sqlcipher_flutter_libs.dart';
-import 'package:sqlite3/open.dart';
 import 'package:gastos_app/core/api/dio_client.dart';
 import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/router/app_router.dart';
@@ -16,11 +12,6 @@ import 'package:gastos_app/features/transactions/services/transaction_reminder_s
 /// App entry point
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // No Android, garante que o sqlite3 carregue a biblioteca do SQLCipher.
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    open.overrideFor(OperatingSystem.android, openCipherOnAndroid);
-  }
 
   // Initialize Dio client
   DioClient().init(baseUrl: ApiEndpoints.baseUrl);
