@@ -3,6 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' show sqlite3;
 import 'dart:io';
 
@@ -440,17 +441,25 @@ LazyDatabase _openConnection() {
     final file = File(p.join(dbFolder.path, 'gastos.db'));
     final backup = File('${file.path}.plaintext.bak');
     final key = await getOrCreateDbKey();
+    final prefs = await SharedPreferences.getInstance();
+    final verified = prefs.getBool(_dbVerifiedKey) ?? false;
 
-    // 1. Banco cifrado existente: valida a chave antes de abrir no drift.
+    // 1. Banco cifrado existente. A validacao custa uma derivacao de chave,
+    //    entao ela so roda uma vez; depois o banco abre direto.
     if (await file.exists() && !await _isPlaintextDatabase(file)) {
-      if (await _canOpenEncrypted(file, key)) {
-        // Chave confirmada: o backup em texto puro pode ser removido.
-        if (await backup.exists()) {
-          await backup.delete();
+      if (!verified) {
+        if (await _canOpenEncrypted(file, key)) {
+          await prefs.setBool(_dbVerifiedKey, true);
+          if (await backup.exists()) {
+            await backup.delete();
+          }
+        } else {
+          debugPrint('Banco cifrado nao abriu; tentando recuperar.');
+          await prefs.setBool(_dbVerifiedKey, false);
+          await _recoverDatabase(file, backup);
         }
-      } else {
-        debugPrint('Banco cifrado nao abriu; tentando recuperar.');
-        await _recoverDatabase(file, backup);
+      } else if (await backup.exists()) {
+        await backup.delete();
       }
     }
 
@@ -461,6 +470,7 @@ LazyDatabase _openConnection() {
         // Nunca deixa o app sem abrir: mantem o banco antigo funcional.
         return NativeDatabase(file);
       }
+      await prefs.setBool(_dbVerifiedKey, true);
     }
 
     // 3. Abre o banco cifrado.
@@ -477,6 +487,8 @@ LazyDatabase _openConnection() {
     });
   });
 }
+
+const _dbVerifiedKey = 'kuanto_db_verified_v1';
 
 /// Confirma que o arquivo abre com a chave atual.
 Future<bool> _canOpenEncrypted(File file, String key) async {

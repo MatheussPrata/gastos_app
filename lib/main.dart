@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -26,13 +28,11 @@ void main() async {
   // Configure budget alert notifications (asks permission on Android 13+).
   await NotificationService.instance.initialize();
 
-  // Prepara o fuso horario dos lembretes de pagamento.
-  await TransactionReminderService.instance.initialize();
-
-  // Initialize database (optional - can be lazy)
-  // AppDatabase(); // Singleton, will initialize on first access
-
   runApp(const ProviderScope(child: GastosApp()));
+
+  // Fuso horario dos lembretes: carrega depois do primeiro frame, fora do
+  // caminho critico de abertura.
+  unawaited(TransactionReminderService.instance.initialize());
 }
 
 /// Main app widget
