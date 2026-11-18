@@ -18,11 +18,13 @@ final syncServiceProvider = Provider<SyncService>((ref) => SyncService());
 Future<SyncOutcome> runStartupSync(WidgetRef ref) async {
   final service = ref.read(syncServiceProvider);
 
-  // Restaura sempre (nao so quando o banco esta vazio): cartoes e outras
-  // entidades podem faltar mesmo com transacoes locais presentes.
-  // O restore ignora registros locais ainda nao sincronizados.
-  final restored = await service.restore();
+  // 1. Envia o que ficou pendente (rapido: so linhas nao sincronizadas).
   final pushed = await service.push();
+
+  // 2. Restaura apenas quando o aparelho esta sem transacoes locais
+  //    (primeiro uso/reinstalacao). Com dados locais, a UI abre offline-first
+  //    e o restore completo fica no botao "Sincronizar agora".
+  final restored = await service.restore(onlyIfEmpty: true);
 
   if (restored.hasChanges) {
     _invalidateData(ref);

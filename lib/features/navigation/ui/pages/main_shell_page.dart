@@ -33,7 +33,13 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _silentSync());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Deixa a UI ler o banco local primeiro (offline-first).
+      // O sync roda depois, sem competir com a primeira renderizacao.
+      Future<void>.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) _silentSync();
+      });
+    });
   }
 
   Future<void> _silentSync() async {

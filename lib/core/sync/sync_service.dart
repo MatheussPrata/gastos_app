@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, countAll;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
@@ -94,8 +94,12 @@ class SyncService {
     }
   }
 
-  Future<int> localTransactionCount() async =>
-      (await _db.select(_db.transactions).get()).length;
+  Future<int> localTransactionCount() async {
+    final count = countAll();
+    final query = _db.selectOnly(_db.transactions)..addColumns([count]);
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
+  }
 
   // -------------------------------------------------------------------- push
 
