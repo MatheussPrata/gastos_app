@@ -7,6 +7,7 @@ import 'package:gastos_app/core/notifications/notification_permissions_provider.
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
+import 'package:gastos_app/core/widgets/deferred.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/balance_sparkline.dart';
@@ -69,9 +70,9 @@ class DashboardPage extends ConsumerWidget {
       body: Column(
         children: [
           _buildMonthSelector(context, ref, selectedMonth),
-          const _NotificationBanner(),
+          const Deferred(child: _NotificationBanner()),
           _buildSummary(context, ref, transactionsAsync),
-          const UpcomingBills(),
+          const Deferred(child: UpcomingBills()),
           Expanded(
             child: _buildTransactionsList(context, ref, transactionsAsync),
           ),
@@ -149,9 +150,6 @@ class DashboardPage extends ConsumerWidget {
         final stats =
             ref.watch(recentMonthlyStatsProvider).valueOrNull ??
                 const <MonthlyStats>[];
-        final plan = ref.watch(monthPlanningProvider).valueOrNull;
-        final spentTotal =
-            ref.watch(monthSpentTotalProvider).valueOrNull ?? 0.0;
         var income = 0.0;
         var expense = 0.0;
         for (final transaction in transactions) {
@@ -199,10 +197,7 @@ class DashboardPage extends ConsumerWidget {
                   const Divider(height: 24),
                   BalanceSparkline(stats: stats),
                 ],
-                if (plan != null && plan.monthlyBudget > 0) ...[
-                  const SizedBox(height: 8),
-                  _BudgetBar(spent: spentTotal, budget: plan.monthlyBudget),
-                ],
+                const Deferred(child: _BudgetBarSection()),
               ],
             ),
           ),
@@ -327,6 +322,24 @@ class DashboardPage extends ConsumerWidget {
 }
 
 /// Barra compacta de orçamento do mês (gasto vs planejado).
+/// Barra compacta de orçamento do mês (gasto vs planejado).
+class _BudgetBarSection extends ConsumerWidget {
+  const _BudgetBarSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final plan = ref.watch(monthPlanningProvider).valueOrNull;
+    final spent = ref.watch(monthSpentTotalProvider).valueOrNull ?? 0.0;
+    if (plan == null || plan.monthlyBudget <= 0) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: _BudgetBar(spent: spent, budget: plan.monthlyBudget),
+    );
+  }
+}
+
 class _BudgetBar extends StatelessWidget {
   const _BudgetBar({required this.spent, required this.budget});
 

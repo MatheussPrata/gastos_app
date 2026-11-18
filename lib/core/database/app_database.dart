@@ -440,14 +440,24 @@ LazyDatabase _openConnection() {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gastos.db'));
     final backup = File('${file.path}.plaintext.bak');
-    final key = await getOrCreateDbKey();
+    var key = await getDbKey();
     final prefs = await SharedPreferences.getInstance();
-    final verified = prefs.getBool(_dbVerifiedKey) ?? false;
+    var verified = prefs.getBool(_dbVerifiedKey) ?? false;
 
-    // 1. Banco cifrado existente. A validacao custa uma derivacao de chave,
-    //    entao ela so roda uma vez; depois o banco abre direto.
+    // 1. Banco existente.
     if (await file.exists() && !await _isPlaintextDatabase(file)) {
-      if (!verified) {
+      // 1a. Chave antiga (passphrase) -> re-chaveia uma unica vez para raw.
+      if (!key.isRaw) {
+        final rekeyed = await _rekeyToRaw(file, key);
+        if (rekeyed) {
+          key = await getDbKey();
+          verified = true;
+          await prefs.setBool(_dbVerifiedKey, true);
+        }
+      }
+
+      // 1b. Valida a chave apenas na primeira abertura.
+      if (key.isRaw && !verified) {
         if (await _canOpenEncrypted(file, key)) {
           await prefs.setBool(_dbVerifiedKey, true);
           if (await backup.exists()) {
@@ -458,16 +468,15 @@ LazyDatabase _openConnection() {
           await prefs.setBool(_dbVerifiedKey, false);
           await _recoverDatabase(file, backup);
         }
-      } else if (await backup.exists()) {
+      } else if (verified && await backup.exists()) {
         await backup.delete();
       }
     }
 
-    // 2. Banco em texto puro: migra para cifrado (mantem backup ate validar).
+    // 2. Banco em texto puro: migra para cifrado.
     if (await _isPlaintextDatabase(file)) {
       final migrated = await _tryEncryptExisting(file, key);
       if (!migrated) {
-        // Nunca deixa o app sem abrir: mantem o banco antigo funcional.
         return NativeDatabase(file);
       }
       await prefs.setBool(_dbVerifiedKey, true);
@@ -475,7 +484,7 @@ LazyDatabase _openConnection() {
 
     // 3. Abre o banco cifrado.
     return NativeDatabase(file, setup: (db) {
-      db.execute("PRAGMA key = '${_escapeSql(key)}';");
+      db.execute('PRAGMA key = ${key.pragma};');
       try {
         final version = db.select('PRAGMA cipher_version;');
         if (version.isEmpty) {
@@ -491,11 +500,11 @@ LazyDatabase _openConnection() {
 const _dbVerifiedKey = 'kuanto_db_verified_v1';
 
 /// Confirma que o arquivo abre com a chave atual.
-Future<bool> _canOpenEncrypted(File file, String key) async {
+Future<bool> _canOpenEncrypted(File file, DbKey key) async {
   try {
     final db = sqlite3.open(file.path);
     try {
-      db.execute("PRAGMA key = '${_escapeSql(key)}';");
+      db.execute('PRAGMA key = ${key.pragma};');
       db.select('SELECT count(*) AS c FROM sqlite_master;');
       return true;
     } finally {
@@ -503,6 +512,53 @@ Future<bool> _canOpenEncrypted(File file, String key) async {
     }
   } catch (error) {
     debugPrint('Validacao do banco cifrado falhou: $error');
+    return false;
+  }
+}
+
+/// Re-chaveia o banco antigo (passphrase) para chave raw, sem PBKDF2.
+Future<bool> _rekeyToRaw(File file, DbKey legacyKey) async {
+  final backup = File('${file.path}.rekey.bak');
+  final newKey = DbKey(generateRawKey(), isRaw: true);
+  try {
+    if (!await backup.exists()) {
+      await file.copy(backup.path);
+    }
+    await savePendingRawKey(newKey.value);
+
+    final db = sqlite3.open(file.path);
+    try {
+      db.execute('PRAGMA key = ${legacyKey.pragma};');
+      db.select('SELECT count(*) FROM sqlite_master;');
+      db.execute('PRAGMA rekey = ${newKey.pragma};');
+    } finally {
+      db.dispose();
+    }
+
+    final check = sqlite3.open(file.path);
+    try {
+      check.execute('PRAGMA key = ${newKey.pragma};');
+      final rows = check.select('SELECT count(*) AS c FROM sqlite_master;');
+      if (((rows.first['c'] as int?) ?? 0) <= 0) return false;
+    } finally {
+      check.dispose();
+    }
+
+    await promotePendingRawKey(newKey.value);
+    if (await backup.exists()) {
+      await backup.delete();
+    }
+    debugPrint('Banco re-chaveado para raw key.');
+    return true;
+  } catch (error) {
+    debugPrint('Falha no rekey: $error');
+    await discardPendingRawKey();
+    try {
+      if (await backup.exists()) {
+        if (await file.exists()) await file.delete();
+        await backup.copy(file.path);
+      }
+    } catch (_) {}
     return false;
   }
 }
@@ -546,7 +602,7 @@ Future<bool> _isPlaintextDatabase(File file) async {
 }
 
 /// Copia o banco em texto puro para um novo arquivo cifrado com SQLCipher.
-Future<bool> _tryEncryptExisting(File file, String key) async {
+Future<bool> _tryEncryptExisting(File file, DbKey key) async {
   final backup = File('${file.path}.plaintext.bak');
   final encrypted = File('${file.path}.encrypted');
   try {
@@ -561,7 +617,7 @@ Future<bool> _tryEncryptExisting(File file, String key) async {
     try {
       source.execute(
         "ATTACH DATABASE '${_escapeSql(encrypted.path)}' AS encrypted "
-        "KEY '${_escapeSql(key)}';",
+        'KEY ${key.pragma};',
       );
       source.execute("SELECT sqlcipher_export('encrypted');");
       source.execute('DETACH DATABASE encrypted;');
@@ -572,7 +628,7 @@ Future<bool> _tryEncryptExisting(File file, String key) async {
     // So substitui o original depois de validar o arquivo cifrado.
     final check = sqlite3.open(encrypted.path);
     try {
-      check.execute("PRAGMA key = '${_escapeSql(key)}';");
+      check.execute('PRAGMA key = ${key.pragma};');
       final rows = check.select('SELECT count(*) AS c FROM sqlite_master;');
       final count = (rows.first['c'] as int?) ?? 0;
       if (count <= 0) return false;
@@ -595,3 +651,4 @@ Future<bool> _tryEncryptExisting(File file, String key) async {
 }
 
 String _escapeSql(String value) => value.replaceAll("'", "''");
+
