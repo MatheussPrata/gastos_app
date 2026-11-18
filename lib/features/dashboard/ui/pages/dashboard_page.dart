@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -10,6 +12,7 @@ import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/core/widgets/deferred.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
+import 'package:gastos_app/features/dashboard/data/dashboard_snapshot.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/balance_sparkline.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/settings_drawer.dart';
 import 'package:gastos_app/features/dashboard/ui/widgets/upcoming_bills.dart';
@@ -43,6 +46,21 @@ class DashboardPage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final selectedMonth = ref.watch(selectedMonthProvider);
     final transactionsAsync = ref.watch(monthTransactionsProvider);
+    final snapshot = ref.watch(dashboardSnapshotProvider).valueOrNull;
+    final cachedSnapshot = snapshot != null &&
+            snapshot.monthKey == monthKeyOf(selectedMonth)
+        ? snapshot.transactions
+        : null;
+
+    ref.listen<AsyncValue<List<Transaction>>>(monthTransactionsProvider,
+        (previous, next) {
+      final list = next.valueOrNull;
+      if (list != null) {
+        unawaited(
+          saveDashboardSnapshot(ref.read(selectedMonthProvider), list),
+        );
+      }
+    });
 
     return Scaffold(
       drawer: const SettingsDrawer(),
@@ -71,10 +89,19 @@ class DashboardPage extends ConsumerWidget {
         children: [
           _buildMonthSelector(context, ref, selectedMonth),
           const Deferred(child: _NotificationBanner()),
-          _buildSummary(context, transactionsAsync),
+          _buildSummary(
+            context,
+            transactionsAsync,
+            fallback: cachedSnapshot,
+          ),
           const Deferred(child: UpcomingBills()),
           Expanded(
-            child: _buildTransactionsList(context, ref, transactionsAsync),
+            child: _buildTransactionsList(
+              context,
+              ref,
+              transactionsAsync,
+              fallback: cachedSnapshot,
+            ),
           ),
         ],
       ),
@@ -134,68 +161,70 @@ class DashboardPage extends ConsumerWidget {
 
   Widget _buildSummary(
     BuildContext context,
-    AsyncValue<List<Transaction>> transactionsAsync,
-  ) {
-    return transactionsAsync.when(
-      loading: () => const Padding(
+    AsyncValue<List<Transaction>> transactionsAsync, {
+    List<Transaction>? fallback,
+  }) {
+    final transactions = transactionsAsync.valueOrNull ?? fallback;
+    if (transactions == null) {
+      if (transactionsAsync.hasError) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text('Erro ao carregar: ${transactionsAsync.error}'),
+        );
+      }
+      return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text('Erro ao carregar: $e'),
-      ),
-      data: (transactions) {
-        var income = 0.0;
-        var expense = 0.0;
-        for (final transaction in transactions) {
-          if (transaction.isExpense) {
-            expense += transaction.amount;
-          } else {
-            income += transaction.amount;
-          }
-        }
-        final balance = income - expense;
+      );
+    }
 
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+    var income = 0.0;
+    var expense = 0.0;
+    for (final transaction in transactions) {
+      if (transaction.isExpense) {
+        expense += transaction.amount;
+      } else {
+        income += transaction.amount;
+      }
+    }
+    final balance = income - expense;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _summaryItem('Entradas', income, AppColors.income),
-                    _summaryItem('Saídas', expense, AppColors.expense),
-                  ],
-                ),
-                const Divider(height: 28),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Saldo do mês',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Text(
-                      CurrencyFormatter.format(balance),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color:
-                            balance >= 0 ? AppColors.income : AppColors.expense,
-                      ),
-                    ),
-                  ],
-                ),
-                const Deferred(child: _SparklineSection()),
-                const Deferred(child: _BudgetBarSection()),
+                _summaryItem('Entradas', income, AppColors.income),
+                _summaryItem('Saídas', expense, AppColors.expense),
               ],
             ),
-          ),
-        );
-      },
+            const Divider(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Saldo do mês',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  CurrencyFormatter.format(balance),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: balance >= 0 ? AppColors.income : AppColors.expense,
+                  ),
+                ),
+              ],
+            ),
+            const Deferred(child: _SparklineSection()),
+            const Deferred(child: _BudgetBarSection()),
+          ],
+        ),
+      ),
     );
   }
 
@@ -219,42 +248,39 @@ class DashboardPage extends ConsumerWidget {
   Widget _buildTransactionsList(
     BuildContext context,
     WidgetRef ref,
-    AsyncValue<List<Transaction>> transactionsAsync,
-  ) {
-    return transactionsAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (e, _) => const SizedBox.shrink(),
-      data: (transactions) {
-        if (transactions.isEmpty) {
-          return const Center(child: Text('Nenhum lançamento neste mês'));
-        }
-        return ListView.separated(
-          itemCount: transactions.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final transaction = transactions[index];
-            return TransactionTile(
-              transaction: transaction,
-              onTap: () {
-                if (transaction.receiptId != null &&
-                    transaction.receiptId!.isNotEmpty) {
-                  context.push(
-                    RouteNames.receiptDetail,
-                    extra: {
-                      'receiptId': transaction.receiptId,
-                      'transactionId': transaction.id,
-                    },
-                  );
-                } else {
-                  context.push(
-                    RouteNames.transactionForm,
-                    extra: {'id': transaction.id, 'isEditing': true},
-                  );
-                }
-              },
-              onDelete: () => _confirmDelete(context, ref, transaction),
-            );
+    AsyncValue<List<Transaction>> transactionsAsync, {
+    List<Transaction>? fallback,
+  }) {
+    final transactions = transactionsAsync.valueOrNull ?? fallback;
+    if (transactions == null) return const SizedBox.shrink();
+    if (transactions.isEmpty) {
+      return const Center(child: Text('Nenhum lançamento neste mês'));
+    }
+    return ListView.separated(
+      itemCount: transactions.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final transaction = transactions[index];
+        return TransactionTile(
+          transaction: transaction,
+          onTap: () {
+            if (transaction.receiptId != null &&
+                transaction.receiptId!.isNotEmpty) {
+              context.push(
+                RouteNames.receiptDetail,
+                extra: {
+                  'receiptId': transaction.receiptId,
+                  'transactionId': transaction.id,
+                },
+              );
+            } else {
+              context.push(
+                RouteNames.transactionForm,
+                extra: {'id': transaction.id, 'isEditing': true},
+              );
+            }
           },
+          onDelete: () => _confirmDelete(context, ref, transaction),
         );
       },
     );
