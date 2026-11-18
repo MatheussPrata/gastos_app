@@ -71,7 +71,7 @@ class DashboardPage extends ConsumerWidget {
         children: [
           _buildMonthSelector(context, ref, selectedMonth),
           const Deferred(child: _NotificationBanner()),
-          _buildSummary(context, ref, transactionsAsync),
+          _buildSummary(context, transactionsAsync),
           const Deferred(child: UpcomingBills()),
           Expanded(
             child: _buildTransactionsList(context, ref, transactionsAsync),
@@ -134,7 +134,6 @@ class DashboardPage extends ConsumerWidget {
 
   Widget _buildSummary(
     BuildContext context,
-    WidgetRef ref,
     AsyncValue<List<Transaction>> transactionsAsync,
   ) {
     return transactionsAsync.when(
@@ -147,9 +146,6 @@ class DashboardPage extends ConsumerWidget {
         child: Text('Erro ao carregar: $e'),
       ),
       data: (transactions) {
-        final stats =
-            ref.watch(recentMonthlyStatsProvider).valueOrNull ??
-                const <MonthlyStats>[];
         var income = 0.0;
         var expense = 0.0;
         for (final transaction in transactions) {
@@ -193,10 +189,7 @@ class DashboardPage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                if (stats.isNotEmpty) ...[
-                  const Divider(height: 24),
-                  BalanceSparkline(stats: stats),
-                ],
+                const Deferred(child: _SparklineSection()),
                 const Deferred(child: _BudgetBarSection()),
               ],
             ),
@@ -321,7 +314,24 @@ class DashboardPage extends ConsumerWidget {
   }
 }
 
-/// Barra compacta de orçamento do mês (gasto vs planejado).
+class _SparklineSection extends ConsumerWidget {
+  const _SparklineSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats =
+        ref.watch(recentMonthlyStatsProvider).valueOrNull ??
+            const <MonthlyStats>[];
+    if (stats.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        const Divider(height: 24),
+        BalanceSparkline(stats: stats),
+      ],
+    );
+  }
+}
+
 /// Barra compacta de orçamento do mês (gasto vs planejado).
 class _BudgetBarSection extends ConsumerWidget {
   const _BudgetBarSection();

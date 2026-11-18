@@ -1,9 +1,12 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqlcipher_flutter_libs/sqlcipher_flutter_libs.dart';
+import 'package:sqlite3/open.dart';
 import 'package:sqlite3/sqlite3.dart' show sqlite3;
 import 'dart:io';
 
@@ -482,19 +485,30 @@ LazyDatabase _openConnection() {
       await prefs.setBool(_dbVerifiedKey, true);
     }
 
-    // 3. Abre o banco cifrado.
-    return NativeDatabase(file, setup: (db) {
-      db.execute('PRAGMA key = ${key.pragma};');
-      try {
-        final version = db.select('PRAGMA cipher_version;');
-        if (version.isEmpty) {
-          debugPrint('SQLCipher indisponivel: banco NAO esta cifrado.');
+    // 3. Abre o banco cifrado num isolate de fundo para nao travar a UI.
+    final pragma = key.pragma;
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (db) {
+        db.execute('PRAGMA key = $pragma;');
+        try {
+          final version = db.select('PRAGMA cipher_version;');
+          if (version.isEmpty) {
+            debugPrint('SQLCipher indisponivel: banco NAO esta cifrado.');
+          }
+        } catch (error) {
+          debugPrint('Falha ao verificar SQLCipher: $error');
         }
-      } catch (error) {
-        debugPrint('Falha ao verificar SQLCipher: $error');
-      }
-    });
+      },
+      isolateSetup: _configureSqlCipher,
+    );
   });
+}
+
+void _configureSqlCipher() {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    open.overrideFor(OperatingSystem.android, openCipherOnAndroid);
+  }
 }
 
 const _dbVerifiedKey = 'kuanto_db_verified_v1';
