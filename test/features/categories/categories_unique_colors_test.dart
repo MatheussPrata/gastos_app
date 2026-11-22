@@ -3,7 +3,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
-import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/repository/categories_repository.dart';
 import 'package:gastos_app/features/categories/utils/category_icons.dart';
 

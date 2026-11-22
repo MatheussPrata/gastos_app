@@ -25,7 +25,7 @@ void main() {
     });
 
     test('parseFromHtml processa layout padrao SEFAZ PR com tabResult', () {
-      const sampleHtml = '''
+      const sampleHtml = r'''
 <!DOCTYPE html>
 <html>
 <head><title>NFC-e</title></head>
@@ -64,6 +64,12 @@ void main() {
     <div id="linhaTotal">
       <span class="totalNfe">114,90</span>
     </div>
+    <table id="totalNota">
+      <tr><th>Qtde. total de itens</th><td>2</td></tr>
+      <tr><th>Valor total R$</th><td>114,90</td></tr>
+      <tr><th>Desconto R$</th><td>0,00</td></tr>
+      <tr><th>Valor a pagar R$</th><td>114,90</td></tr>
+    </table>
   </div>
 </body>
 </html>
@@ -90,6 +96,104 @@ void main() {
       expect(picanha.unitPrice, 60.00);
       expect(picanha.totalPrice, 90.00);
       expect(picanha.category, ReceiptItemCategorizer.acougue);
+    });
+
+    test('aplica desconto por item e desconto da nota no total', () {
+      const sampleHtml = r'''
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="conteudo">
+    <span class="txtTopo">MERCADO DESCONTO LTDA</span>
+    <span class="CNPJ">12.345.678/0001-90</span>
+    <span>Emissão: 21/11/2026 10:00:00</span>
+    <table id="tabResult">
+      <tr>
+        <td>
+          <span class="txtTit">SABAO EM PO OMO 1.6KG</span>
+          <span class="RCod">(Código: 1234)</span>
+          <span class="Rqtd">Qtde.: 1,000</span>
+          <span class="RUN">UN: UN</span>
+          <span class="RvlUnit">Vl. Unit.: 24,90</span>
+          <span class="Rdesc">Desconto: 2,00</span>
+          <span class="RvlTot">24,90</span>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <span class="txtTit">PICANHA BOVINA KG</span>
+          <span class="RCod">(Código: 5678)</span>
+          <span class="Rqtd">Qtde.: 1,500</span>
+          <span class="RUN">UN: KG</span>
+          <span class="RvlUnit">Vl. Unit.: 60,00</span>
+          <span class="RvlTot">90,00</span>
+        </td>
+      </tr>
+    </table>
+    <table id="totalNota">
+      <tr><th>Qtde. total de itens</th><td>2</td></tr>
+      <tr><th>Valor total R$</th><td>114,90</td></tr>
+      <tr><th>Desconto R$</th><td>10,00</td></tr>
+      <tr><th>Valor a pagar R$</th><td>104,90</td></tr>
+    </table>
+  </div>
+</body>
+</html>
+''';
+
+      final receipt = parser.parseFromHtml(sampleHtml);
+
+      expect(receipt.items.length, 2);
+      // Bruto: 24,90 + 90,00
+      expect(receipt.itemsGrossTotal, closeTo(114.90, 0.001));
+      // Líquido dos itens: 22,90 + 90,00
+      expect(receipt.itemsNetTotal, closeTo(112.90, 0.001));
+      // O total salvo é o "Valor a pagar", já depois dos descontos
+      expect(receipt.totalAmount, closeTo(104.90, 0.001));
+
+      final omo = receipt.items.first;
+      expect(omo.discount, closeTo(2.00, 0.001));
+      expect(omo.totalPrice, closeTo(22.90, 0.001));
+
+      // 114,90 - 104,90 = 10,00 de desconto total; 2,00 são do item,
+      // então 8,00 ficam no desconto da nota.
+      expect(receipt.discountTotal, closeTo(10.00, 0.001));
+      expect(receipt.discountAmount, closeTo(8.00, 0.001));
+    });
+
+    test('reconstroi o total a partir do valor total quando falta o valor a pagar', () {
+      const sampleHtml = r'''
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="conteudo">
+    <span class="txtTopo">MERCADO SEM PAGAR LTDA</span>
+    <table id="tabResult">
+      <tr>
+        <td>
+          <span class="txtTit">ARROZ 5KG</span>
+          <span class="Rqtd">Qtde.: 1</span>
+          <span class="RUN">UN: UN</span>
+          <span class="RvlUnit">Vl. Unit.: 30,00</span>
+          <span class="RvlTot">30,00</span>
+        </td>
+      </tr>
+    </table>
+    <table id="totalNota">
+      <tr><th>Valor total R$</th><td>30,00</td></tr>
+      <tr><th>Desconto R$</th><td>5,00</td></tr>
+    </table>
+  </div>
+</body>
+</html>
+''';
+
+      final receipt = parser.parseFromHtml(sampleHtml);
+
+      expect(receipt.totalAmount, closeTo(25.00, 0.001));
+      expect(receipt.itemsGrossTotal, closeTo(30.00, 0.001));
+      expect(receipt.discountTotal, closeTo(5.00, 0.001));
+      expect(receipt.discountAmount, closeTo(5.00, 0.001));
     });
   });
 }

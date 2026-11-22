@@ -9,7 +9,6 @@ import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/settings/ui/widgets/theme_color_picker.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
-import 'package:gastos_app/features/credit_cards/ui/pages/credit_cards_page.dart';
 
 /// Drawer de configurações que abre a partir do menu hambúrguer no Dashboard.
 class SettingsDrawer extends ConsumerWidget {

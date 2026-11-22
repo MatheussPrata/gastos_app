@@ -169,6 +169,18 @@ class ReceiptDetailPage extends ConsumerWidget {
                         color: AppColors.expense,
                       ),
                     ),
+                    if (receipt.discountTotal > 0.005)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Desconto: -${CurrencyFormatter.format(receipt.discountTotal)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.income,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -292,6 +304,18 @@ class ReceiptDetailPage extends ConsumerWidget {
                               color: Colors.grey.shade600,
                             ),
                           ),
+                          if (item.discount > 0.005)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Desconto: -${CurrencyFormatter.format(item.discount)}',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.income,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -317,23 +341,71 @@ class ReceiptDetailPage extends ConsumerWidget {
               borderRadius:
                   const BorderRadius.vertical(bottom: Radius.circular(16)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
-                const Text(
-                  'Total da Compra',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                if (receipt.discountTotal > 0.005) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Subtotal dos itens',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      Text(
+                        CurrencyFormatter.format(receipt.itemsGrossTotal),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                Text(
-                  CurrencyFormatter.format(receipt.totalAmount),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.expense,
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Descontos',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.income,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '-${CurrencyFormatter.format(receipt.discountTotal)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.income,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
+                  const Divider(height: 18),
+                ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total da Compra',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      CurrencyFormatter.format(receipt.totalAmount),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.expense,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

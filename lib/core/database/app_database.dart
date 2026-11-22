@@ -271,6 +271,7 @@ class Receipts extends Table {
   TextColumn get establishmentCnpj => text().withDefault(const Constant(''))();
   DateTimeColumn get issueDate => dateTime()();
   RealColumn get totalAmount => real()();
+  RealColumn get discountAmount => real().withDefault(const Constant(0.0))();
   TextColumn get paymentMethod => text().withDefault(const Constant(''))();
   TextColumn get accessKey => text().nullable()();
   TextColumn get rawUrl => text().nullable()();
@@ -290,6 +291,7 @@ class ReceiptItems extends Table {
   TextColumn get unit => text().withDefault(const Constant('UN'))();
   RealColumn get unitPrice => real().withDefault(const Constant(0.0))();
   RealColumn get totalPrice => real().withDefault(const Constant(0.0))();
+  RealColumn get discount => real().withDefault(const Constant(0.0))();
   TextColumn get category => text().withDefault(const Constant('Outros'))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
@@ -344,7 +346,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -403,6 +405,10 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 9) {
             await m.createTable(goals);
+          }
+          if (from < 10) {
+            await m.addColumn(receipts, receipts.discountAmount);
+            await m.addColumn(receiptItems, receiptItems.discount);
           }
         },
       );

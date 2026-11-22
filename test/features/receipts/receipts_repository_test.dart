@@ -99,4 +99,59 @@ void main() {
     expect(limpezaSummary.totalAmount, 6.0);
     expect(limpezaSummary.itemCount, 1);
   });
+
+  test('persiste desconto por item e desconto da nota', () async {
+    final receipt = Receipt(
+      id: 'r-2',
+      transactionId: '',
+      establishmentName: 'Mercado Desconto',
+      issueDate: DateTime(2026, 11, 21, 9, 0),
+      totalAmount: 95.0,
+      discountAmount: 5.0,
+      paymentMethod: PaymentMethods.pix,
+      createdAt: DateTime.now(),
+      items: const [
+        ReceiptItem(
+          id: 'i-1',
+          receiptId: 'r-2',
+          name: 'Cafe',
+          quantity: 1,
+          unitPrice: 50.0,
+          totalPrice: 45.0,
+          discount: 5.0,
+          category: ReceiptItemCategorizer.alimentacao,
+        ),
+        ReceiptItem(
+          id: 'i-2',
+          receiptId: 'r-2',
+          name: 'Leite',
+          quantity: 1,
+          unitPrice: 55.0,
+          totalPrice: 55.0,
+          category: ReceiptItemCategorizer.padaria,
+        ),
+      ],
+    );
+
+    final saved = await repo.saveReceiptWithTransaction(
+      receipt: receipt,
+      categoryId: 'cat-mercado',
+      userId: 'user-1',
+    );
+
+    expect(saved.transaction.amount, 95.0);
+
+    final loaded = await repo.getReceiptById('r-2');
+    expect(loaded, isNotNull);
+    expect(loaded!.totalAmount, 95.0);
+    expect(loaded.discountAmount, 5.0);
+    expect(loaded.items.length, 2);
+    expect(loaded.items.first.discount, 5.0);
+    expect(loaded.items.first.totalPrice, 45.0);
+    expect(loaded.items.last.discount, 0.0);
+
+    // Bruto 105,00 - pago 95,00 = 10,00 de desconto total.
+    expect(loaded.itemsGrossTotal, 105.0);
+    expect(loaded.discountTotal, 10.0);
+  });
 }
