@@ -195,5 +195,45 @@ void main() {
       expect(receipt.discountTotal, closeTo(5.00, 0.001));
       expect(receipt.discountAmount, closeTo(5.00, 0.001));
     });
+
+    test('extrai itens renderizados em divs (fora da tabela tabResult)', () {
+      const sampleHtml = r'''
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="conteudo">
+    <span class="txtTopo">COMERCIO DE MEDICAMENTOS TESTE LTDA</span>
+    <span>CNPJ: 88.212.113/1091-01</span>
+    <div class="produto">
+      <div class="nome">DIPIRONA 500MG</div>
+      <div class="descricao">Qtde.: 2 UN: UN Vl. Unit.: 10,00</div>
+      <div class="preco">R$ 20,00</div>
+    </div>
+    <div class="produto">
+      <div class="nome">VITAMINA C 1G</div>
+      <div class="descricao">Qtde.: 1 UN: UN Vl. Unit.: 15,00</div>
+      <div class="preco">R$ 15,00</div>
+    </div>
+    <table id="totalNota">
+      <tr><th>Valor total R$</th><td>35,00</td></tr>
+      <tr><th>Desconto R$</th><td>0,00</td></tr>
+      <tr><th>Valor a pagar R$</th><td>35,00</td></tr>
+    </table>
+  </div>
+</body>
+</html>
+''';
+
+      final receipt = parser.parseFromHtml(sampleHtml);
+
+      expect(receipt.items.length, 2);
+      expect(receipt.items[0].name, 'DIPIRONA 500MG');
+      expect(receipt.items[0].quantity, 2);
+      expect(receipt.items[0].unitPrice, closeTo(10.00, 0.001));
+      expect(receipt.items[0].totalPrice, closeTo(20.00, 0.001));
+      expect(receipt.items[1].name, 'VITAMINA C 1G');
+      expect(receipt.items[1].totalPrice, closeTo(15.00, 0.001));
+      expect(receipt.totalAmount, closeTo(35.00, 0.001));
+    });
   });
 }

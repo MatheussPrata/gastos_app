@@ -390,25 +390,42 @@ class NfcePrParserService {
   }
 
   List<ReceiptItem> _extractItems(dom.Document doc, String receiptId) {
+    // 1) Layout nacional/PR: linhas com classes txtTit/Rqtd/RvlUnit...
+    final fromRows = _extractItemsFromRows(doc, receiptId);
+    if (fromRows.isNotEmpty) return fromRows;
+
+    // 2) Itens renderizados fora de tabelas (divs de produto).
+    final fromBlocks = _extractItemsFromBlocks(doc, receiptId);
+    if (fromBlocks.isNotEmpty) return fromBlocks;
+
+    // 3) Último recurso: qualquer tabela com nome + valor na mesma linha.
+    return _extractItemsFromGenericTables(doc, receiptId);
+  }
+
+  List<ReceiptItem> _extractItemsFromRows(
+    dom.Document doc,
+    String receiptId,
+  ) {
     final items = <ReceiptItem>[];
 
-    // No padrão SEFAZ: tabela #tabResult com linhas tr
     final table = doc.querySelector('table#tabResult') ??
         doc.querySelector('table.tabResult') ??
         doc.querySelector('#tabResult');
-
     final rows = table?.querySelectorAll('tr') ?? doc.querySelectorAll('tr');
 
     var order = 0;
     for (final row in rows) {
       final titleEl = row.querySelector('.txtTit') ??
           row.querySelector('span.txtTit') ??
-          row.querySelector('.nome');
+          row.querySelector('.nomeProduto') ??
+          row.querySelector('.descricao') ??
+          row.querySelector('.nome') ??
+          row.querySelector('.titulo');
 
       if (titleEl == null || titleEl.text.trim().isEmpty) continue;
 
       final name = _cleanText(titleEl.text);
-      if (name.isEmpty) continue;
+      if (!_looksLikeProductName(name)) continue;
 
       final codeEl = row.querySelector('.RCod');
       final code = codeEl != null
@@ -416,9 +433,7 @@ class NfcePrParserService {
           : null;
 
       final qtdEl = row.querySelector('.Rqtd');
-      final qtd = qtdEl != null
-          ? _parseQuantity(qtdEl.text)
-          : 1.0;
+      final qtd = qtdEl != null ? _parseQuantity(qtdEl.text) : 1.0;
 
       final unEl = row.querySelector('.RUN');
       final unit = unEl != null
@@ -426,9 +441,8 @@ class NfcePrParserService {
           : 'UN';
 
       final unitValEl = row.querySelector('.RvlUnit');
-      final unitVal = unitValEl != null
-          ? _parseCurrency(unitValEl.text)
-          : 0.0;
+      final unitVal =
+          unitValEl != null ? _parseCurrency(unitValEl.text) : 0.0;
 
       final totalValEl = row.querySelector('.RvlTot') ??
           row.querySelector('.valor') ??
@@ -443,9 +457,8 @@ class NfcePrParserService {
           row.querySelector('.RvlDesc') ??
           row.querySelector('.txtDesconto') ??
           row.querySelector('.desconto');
-      var lineDiscount = discountEl != null
-          ? _parseCurrency(discountEl.text)
-          : 0.0;
+      var lineDiscount =
+          discountEl != null ? _parseCurrency(discountEl.text) : 0.0;
       if (lineDiscount <= 0) {
         final match = RegExp(
           r'desconto\s*:?\s*(?:R\$)?\s*([\d.,]+)',
@@ -484,8 +497,6 @@ class NfcePrParserService {
           ? unitVal
           : (qtd > 0 ? netTotal / qtd : netTotal);
 
-      final category = ReceiptItemCategorizer.categorize(name);
-
       items.add(
         ReceiptItem(
           id: _uuid.v4(),
@@ -497,13 +508,238 @@ class NfcePrParserService {
           unitPrice: unitPrice,
           totalPrice: netTotal,
           discount: lineDiscount,
-          category: category,
+          category: ReceiptItemCategorizer.categorize(name),
           sortOrder: order++,
         ),
       );
     }
 
     return items;
+  }
+
+  List<ReceiptItem> _extractItemsFromBlocks(
+    dom.Document doc,
+    String receiptId,
+  ) {
+    final items = <ReceiptItem>[];
+    final seen = <String>{};
+
+    final candidates = doc.querySelectorAll(
+      '.txtTit, .nomeProduto, .descricaoProduto, .descricao, '
+      '.produto .nome, .item .nome, '
+      '[class*="produto"] [class*="nome"], '
+      '[class*="item"] [class*="nome"], '
+      '[class*="item"] [class*="descricao"]',
+    );
+
+    for (final titleEl in candidates) {
+      final container = _closestItemContainer(titleEl);
+      if (container == null) continue;
+
+      final item = _buildGenericItem(
+        container,
+        titleEl,
+        receiptId,
+        items.length,
+      );
+      if (item == null) continue;
+
+      if (!seen.add(_itemKey(item))) continue;
+      items.add(item.copyWith(sortOrder: items.length));
+    }
+
+    return items;
+  }
+
+  List<ReceiptItem> _extractItemsFromGenericTables(
+    dom.Document doc,
+    String receiptId,
+  ) {
+    final items = <ReceiptItem>[];
+    final seen = <String>{};
+
+    for (final table in doc.querySelectorAll('table')) {
+      final id = table.id.toLowerCase();
+      if (id == 'totalnota' || id == 'linhatotal') continue;
+
+      for (final row in table.querySelectorAll('tr')) {
+        final cells = row.querySelectorAll('td, th');
+        if (cells.length < 2) continue;
+
+        final item = _buildGenericItem(
+          row,
+          cells.first,
+          receiptId,
+          items.length,
+        );
+        if (item == null) continue;
+
+        if (!seen.add(_itemKey(item))) continue;
+        items.add(item.copyWith(sortOrder: items.length));
+      }
+    }
+
+    return items;
+  }
+
+  String _itemKey(ReceiptItem item) =>
+      '${item.name.toLowerCase()}|${item.quantity}|'
+      '${item.totalPrice.toStringAsFixed(2)}';
+
+  dom.Element? _closestItemContainer(dom.Element titleEl) {
+    var node = titleEl.parent;
+    for (var depth = 0; depth < 6 && node != null; depth++) {
+      final text = node.text;
+      if (RegExp(r'(?:qtde|qtd|quantidade)', caseSensitive: false)
+              .hasMatch(text) ||
+          RegExp(r'(?:vl\.?\s*unit|valor\s*unit)', caseSensitive: false)
+              .hasMatch(text) ||
+          RegExp(r'R\$\s*\d', caseSensitive: false).hasMatch(text)) {
+        return node;
+      }
+      node = node.parent;
+    }
+    return titleEl.parent;
+  }
+
+  bool _looksLikeProductName(String name) {
+    final normalized = _cleanText(name).toLowerCase();
+    if (normalized.length < 3 || normalized.length > 120) return false;
+    if (!RegExp(r'[a-zà-ÿ]').hasMatch(normalized)) return false;
+    // Linhas de quantidade/preço não são nomes de produto.
+    if (RegExp(
+      r'^(?:(?:qtde|qtd|quantidade|un|valor|total)\b|vl\.?\b|r\$)',
+      caseSensitive: false,
+    ).hasMatch(normalized)) {
+      return false;
+    }
+    if (normalized.contains('qtde') &&
+        RegExp(r'unit[áa]rio|vl\.?\s*unit').hasMatch(normalized)) {
+      return false;
+    }
+
+    const blocked = [
+      'total',
+      'desconto',
+      'tributo',
+      'valor a pagar',
+      'forma de pagamento',
+      'pagamento',
+      'cartão',
+      'cartao',
+      'pix',
+      'dinheiro',
+      'cnpj',
+      'cpf',
+      'consumidor',
+      'operador',
+      'caixa',
+      'chave de acesso',
+      'protocolo',
+      'autoriza',
+      'consulta',
+      'documento auxiliar',
+      'data de emiss',
+    ];
+    return !blocked.any(normalized.contains);
+  }
+
+  ReceiptItem? _buildGenericItem(
+    dom.Element container,
+    dom.Element titleEl,
+    String receiptId,
+    int sortOrder,
+  ) {
+    final name = _cleanText(titleEl.text);
+    if (!_looksLikeProductName(name)) return null;
+
+    final text = container.text;
+
+    final codeMatch = RegExp(r'c[óo]digo\s*:?\s*(\d+)',
+            caseSensitive: false)
+        .firstMatch(text);
+    final code = codeMatch?.group(1);
+
+    final qtyMatch = RegExp(
+      r'(?:qtde|qtd|quantidade)\.?\s*:?\s*([\d.,]+)',
+      caseSensitive: false,
+    ).firstMatch(text);
+    final qty = qtyMatch != null ? _parseQuantity(qtyMatch.group(1)!) : 1.0;
+
+    final unitMatch = RegExp(
+      r'\bUN\s*:?\s*([A-Za-zÀ-ÿ]{1,4})',
+      caseSensitive: false,
+    ).firstMatch(text);
+    final unit = unitMatch?.group(1)?.trim().toUpperCase() ?? 'UN';
+
+    final unitPriceMatch = RegExp(
+      r'(?:vl\.?\s*unit\.?|valor\s*unit[áa]rio|unit[áa]rio)\s*:?\s*'
+      r'(?:R\$)?\s*([\d.,]+)',
+      caseSensitive: false,
+    ).firstMatch(text);
+    var unitPrice = unitPriceMatch != null
+        ? _parseCurrency(unitPriceMatch.group(1)!)
+        : 0.0;
+
+    final discountMatch = RegExp(
+      r'desconto\s*:?\s*(?:R\$)?\s*([\d.,]+)',
+      caseSensitive: false,
+    ).firstMatch(text);
+    var discount =
+        discountMatch != null ? _parseCurrency(discountMatch.group(1)!) : 0.0;
+
+    // Remove o texto do desconto para o último valor da linha ser o total.
+    final totalsText = text.replaceAll(
+      RegExp(
+        r'desconto\s*:?\s*(?:R\$)?\s*[\d.,]+',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+    final values = _currencyValues(totalsText);
+
+    var grossTotal = unitPrice > 0 ? unitPrice * qty : 0.0;
+    var total = values.isNotEmpty ? values.last : 0.0;
+
+    if (total <= 0) total = grossTotal;
+    if (grossTotal <= 0) grossTotal = total;
+    if (total <= 0 && grossTotal <= 0) return null;
+
+    if (discount > 0) {
+      if ((total - grossTotal).abs() <= 0.03) total = grossTotal - discount;
+    } else if (grossTotal - total > 0.02) {
+      discount = grossTotal - total;
+    }
+
+    if (total < 0) total = 0;
+    discount = grossTotal > 0 ? discount.clamp(0.0, grossTotal) : 0.0;
+    if (unitPrice <= 0) {
+      unitPrice = qty > 0 ? total / qty : total;
+    }
+
+    return ReceiptItem(
+      id: _uuid.v4(),
+      receiptId: receiptId,
+      name: name,
+      code: code,
+      quantity: qty > 0 ? qty : 1.0,
+      unit: unit.isNotEmpty ? unit : 'UN',
+      unitPrice: unitPrice,
+      totalPrice: total,
+      discount: discount,
+      category: ReceiptItemCategorizer.categorize(name),
+      sortOrder: sortOrder,
+    );
+  }
+
+  List<double> _currencyValues(String text) {
+    final matches = RegExp(
+      r'(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+\.\d{2})',
+    ).allMatches(text);
+    return matches
+        .map((match) => _parseCurrency(match.group(1)!))
+        .where((value) => value > 0)
+        .toList();
   }
 
   double _parseCurrency(String text) {
