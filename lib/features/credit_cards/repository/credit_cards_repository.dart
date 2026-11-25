@@ -236,6 +236,7 @@ class CreditCardsRepository {
     final key = 'card_invoice_${cardId}_${month.year}_${month.month}';
     if (amount <= 0) {
       await (_db.delete(_db.appSettings)..where((s) => s.key.equals(key))).go();
+      await _sync.tombstone('app_setting', key);
     } else {
       await _db.into(_db.appSettings).insertOnConflictUpdate(
             db.AppSettingsCompanion(
@@ -244,6 +245,7 @@ class CreditCardsRepository {
               isSynced: const Value(false),
             ),
           );
+      await _sync.clearTombstone('app_setting', key);
     }
     unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
@@ -267,6 +269,7 @@ class CreditCardsRepository {
     final key = 'card_invoice_paid_${cardId}_${month.year}_${month.month}';
     if (!isPaid) {
       await (_db.delete(_db.appSettings)..where((s) => s.key.equals(key))).go();
+      await _sync.tombstone('app_setting', key);
     } else {
       await _db.into(_db.appSettings).insertOnConflictUpdate(
             db.AppSettingsCompanion(
@@ -275,6 +278,7 @@ class CreditCardsRepository {
               isSynced: const Value(false),
             ),
           );
+      await _sync.clearTombstone('app_setting', key);
     }
     unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());

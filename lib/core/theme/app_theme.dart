@@ -374,8 +374,39 @@ ThemeData buildDarkTheme(Color seedColor) {
   );
 }
 
+/// Persists and exposes the selected theme mode (`system`, `light`, `dark`).
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  ThemeModeNotifier() : super(ThemeMode.system) {
+    _load();
+  }
+
+  static const _prefsKey = 'theme_mode';
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null) return;
+      state = switch (raw) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+    } catch (_) {}
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, mode.name);
+    } catch (_) {}
+  }
+}
+
 /// Theme mode provider
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
+    (ref) => ThemeModeNotifier());
 
 /// Default themes (blue seed) kept for callers that do not customize colors.
 ThemeData get lightTheme => buildLightTheme(AppColors.primary);

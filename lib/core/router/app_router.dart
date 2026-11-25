@@ -16,6 +16,7 @@ import 'package:gastos_app/features/receipts/ui/pages/receipt_review_page.dart';
 import 'package:gastos_app/features/receipts/ui/pages/receipt_scanner_page.dart';
 import 'package:gastos_app/features/recurring/ui/pages/recurring_form_page.dart';
 import 'package:gastos_app/features/recurring/ui/pages/recurring_page.dart';
+import 'package:gastos_app/features/settings/ui/pages/backup_page.dart';
 import 'package:gastos_app/features/settings/ui/pages/notification_settings_page.dart';
 import 'package:gastos_app/features/sharing/ui/pages/sharing_page.dart';
 import 'package:gastos_app/features/transactions/ui/pages/transaction_form_page.dart';
@@ -37,6 +38,7 @@ class RouteNames {
   static const String goals = '/goals';
   static const String sharing = '/sharing';
   static const String notificationSettings = '/settings/notifications';
+  static const String backup = '/settings/backup';
   static const String receiptScanner = '/receipt/scanner';
   static const String receiptReview = '/receipt/review';
   static const String receiptDetail = '/receipt/detail';
@@ -162,6 +164,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.notificationSettings,
         builder: (context, state) => const NotificationSettingsPage(),
+      ),
+      GoRoute(
+        path: RouteNames.backup,
+        builder: (context, state) => const BackupPage(),
       ),
       GoRoute(
         path: RouteNames.receiptScanner,

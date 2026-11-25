@@ -13,6 +13,7 @@ import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/planning/ui/pages/planning_page.dart';
+import 'package:gastos_app/features/recurring/services/recurring_generator_service.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
@@ -82,11 +83,18 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
   }
 
   Future<void> _initializeNotificationsAndSync() async {
+    var totalGenerated = 0;
     try {
       await NotificationPermissionService.instance.requestOnceIfNeverPrompted();
-      if (mounted) {
-        ref.invalidate(notificationPermissionsProvider);
-      }
+      if (!mounted) return;
+      ref.invalidate(notificationPermissionsProvider);
+
+      final genBeforeSync = await ref
+          .read(recurringGeneratorServiceProvider)
+          .generateDueTransactions();
+      totalGenerated += genBeforeSync.generatedCount;
+      if (!mounted) return;
+
       await TransactionReminderService.instance
           .syncAllFromDatabase(db.AppDatabase());
 
@@ -102,6 +110,24 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
     } catch (_) {}
 
     await _silentSync();
+
+    try {
+      if (!mounted) return;
+      final genAfterSync = await ref
+          .read(recurringGeneratorServiceProvider)
+          .generateDueTransactions();
+      totalGenerated += genAfterSync.generatedCount;
+      if (totalGenerated > 0 && mounted) {
+        invalidateSyncedData(ref);
+        final now = DateTime.now();
+        for (final scope in BudgetScope.values) {
+          ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
+                month: now,
+                scope: scope,
+              );
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _silentSync() async {

@@ -8,7 +8,6 @@ import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
-import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 
 /// Formulario de transacao recorrente (criar/editar).
 class RecurringFormPage extends ConsumerStatefulWidget {
@@ -95,6 +94,9 @@ class _RecurringFormPageState extends ConsumerState<RecurringFormPage> {
             .getRecurringById(widget.recurringId!);
         if (existing == null) throw Exception('Recorrência não encontrada');
 
+        final scheduleChanged =
+            existing.startDate != _date || existing.frequency != _frequency;
+
         await ref.read(recurringListProvider.notifier).updateRecurring(
               existing.copyWith(
                 description: description,
@@ -105,7 +107,7 @@ class _RecurringFormPageState extends ConsumerState<RecurringFormPage> {
                 dayOfMonth: _date.day,
                 startDate: _date,
                 isActive: _isActive,
-                nextDueDate: RecurringDates.nextDue(_date, _frequency),
+                nextDueDate: scheduleChanged ? _date : existing.nextDueDate,
               ),
             );
       } else {
@@ -121,7 +123,7 @@ class _RecurringFormPageState extends ConsumerState<RecurringFormPage> {
           dayOfMonth: _date.day,
           startDate: _date,
           isActive: _isActive,
-          nextDueDate: RecurringDates.nextDue(_date, _frequency),
+          nextDueDate: _date,
           createdAt: now,
         );
         await ref

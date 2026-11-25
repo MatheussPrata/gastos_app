@@ -197,11 +197,16 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             amount: transaction.amount,
             type: _isExpense ? 'expense' : 'income',
             categoryId: _categoryId,
+            creditCardId: transaction.creditCardId,
             frequency: _frequency,
             dayOfMonth: _date.day,
             startDate: _date,
             isActive: true,
-            nextDueDate: RecurringDates.nextDue(_date, _frequency),
+            nextDueDate: RecurringDates.nextDue(
+              _date,
+              _frequency,
+              preferredDay: _date.day,
+            ),
             createdAt: now,
           );
           await ref

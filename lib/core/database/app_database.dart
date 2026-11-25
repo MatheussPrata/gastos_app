@@ -129,22 +129,6 @@ class RecurringTransactions extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// Shopping items table
-class ShoppingItems extends Table {
-  TextColumn get id => text()();
-  TextColumn get userId => text()();
-  TextColumn get name => text()();
-  TextColumn get category => text().nullable()();
-  BoolColumn get isChecked => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get checkedAt => dateTime().nullable()();
-  TextColumn get checkedBy => text().nullable()();
-  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
 /// App settings table
 class AppSettings extends Table {
   TextColumn get key => text()();
@@ -235,34 +219,6 @@ class Connections extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// Password reset tokens table (for local reference)
-class PasswordResetTokens extends Table {
-  TextColumn get id => text()();
-  TextColumn get userId => text()();
-  TextColumn get tokenHash => text()();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get expiresAt => dateTime()();
-  DateTimeColumn get usedAt => dateTime().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-/// Sessions table (for refresh tokens)
-class Sessions extends Table {
-  TextColumn get id => text()();
-  TextColumn get userId => text()();
-  TextColumn get refreshTokenHash => text()();
-  TextColumn get userAgent => text().nullable()();
-  TextColumn get ipAddress => text().nullable()();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get expiresAt => dateTime()();
-  DateTimeColumn get revokedAt => dateTime().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
 /// Fiscal receipts table (NFC-e / Cupom Fiscal)
 class Receipts extends Table {
   TextColumn get id => text()();
@@ -319,6 +275,7 @@ class Goals extends Table {
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -331,14 +288,11 @@ class Goals extends Table {
   CreditCards,
   Transactions,
   RecurringTransactions,
-  ShoppingItems,
   AppSettings,
   BudgetPlans,
   BudgetAlerts,
   Connections,
   PendingDeletions,
-  PasswordResetTokens,
-  Sessions,
   Receipts,
   ReceiptItems,
   Goals,
@@ -354,7 +308,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -463,6 +417,15 @@ class AppDatabase extends _$AppDatabase {
               'WHERE total_discount <= 0',
             );
           }
+          if (from < 13) {
+            await m.addColumn(goals, goals.updatedAt);
+            await customStatement(
+              'UPDATE goals SET updated_at = COALESCE(updated_at, created_at)',
+            );
+            await customStatement('DROP TABLE IF EXISTS shopping_items');
+            await customStatement('DROP TABLE IF EXISTS sessions');
+            await customStatement('DROP TABLE IF EXISTS password_reset_tokens');
+          }
         },
       );
 
@@ -476,7 +439,6 @@ class AppDatabase extends _$AppDatabase {
       await delete(budgetPlans).go();
       await delete(transactions).go();
       await delete(recurringTransactions).go();
-      await delete(shoppingItems).go();
       await delete(categories).go();
       await delete(subcategories).go();
       await delete(creditCards).go();
@@ -484,8 +446,6 @@ class AppDatabase extends _$AppDatabase {
       await delete(connections).go();
       await delete(pendingDeletions).go();
       await delete(users).go();
-      await delete(sessions).go();
-      await delete(passwordResetTokens).go();
     });
   }
 }

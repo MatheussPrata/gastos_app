@@ -25,6 +25,8 @@ void main() {
     syncService = _MockSyncService();
     when(() => syncService.push()).thenAnswer((_) async => const SyncOutcome());
     when(() => syncService.tombstone(any(), any())).thenAnswer((_) async {});
+    when(() => syncService.clearTombstone(any(), any()))
+        .thenAnswer((_) async {});
 
     cardsRepo = CreditCardsRepository(database: db, syncService: syncService);
     planningRepo = PlanningRepository(database: db, syncService: syncService);
@@ -55,9 +57,26 @@ void main() {
       await cardsRepo.setCardInvoiceAmount('card-1', month, 1500.50);
       expect(await cardsRepo.getCardInvoiceAmount('card-1', month), 1500.50);
 
-      // Zerar valor remove do banco
+      // Zerar valor remove do banco e registra tombstone
       await cardsRepo.setCardInvoiceAmount('card-1', month, 0.0);
       expect(await cardsRepo.getCardInvoiceAmount('card-1', month), 0.0);
+      verify(() => syncService.tombstone(
+          'app_setting', 'card_invoice_card-1_2026_11')).called(1);
+
+      // Salvar novamente limpa tombstone e marca fatura paga / desmarca
+      await cardsRepo.setCardInvoiceAmount('card-1', month, 900.0);
+      verify(() => syncService.clearTombstone(
+          'app_setting', 'card_invoice_card-1_2026_11')).called(2);
+
+      await cardsRepo.setInvoicePaid('card-1', month, true);
+      expect(await cardsRepo.isInvoicePaid('card-1', month), isTrue);
+      verify(() => syncService.clearTombstone(
+          'app_setting', 'card_invoice_paid_card-1_2026_11')).called(1);
+
+      await cardsRepo.setInvoicePaid('card-1', month, false);
+      expect(await cardsRepo.isInvoicePaid('card-1', month), isFalse);
+      verify(() => syncService.tombstone(
+          'app_setting', 'card_invoice_paid_card-1_2026_11')).called(1);
     });
   });
 

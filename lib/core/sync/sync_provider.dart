@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
+import 'package:gastos_app/features/goals/provider/goals_provider.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
@@ -27,7 +28,7 @@ Future<SyncOutcome> runStartupSync(WidgetRef ref) async {
   final restored = await service.restore(onlyIfEmpty: true);
 
   if (restored.hasChanges) {
-    _invalidateData(ref);
+    invalidateSyncedData(ref);
   }
 
   return SyncOutcome(
@@ -48,7 +49,7 @@ Future<SyncOutcome> runFullRestore(WidgetRef ref) async {
   final restored = await service.restore();
 
   if (restored.hasChanges || pushed.hasChanges) {
-    _invalidateData(ref);
+    invalidateSyncedData(ref);
   }
 
   return SyncOutcome(
@@ -60,23 +61,29 @@ Future<SyncOutcome> runFullRestore(WidgetRef ref) async {
   );
 }
 
-void _invalidateData(WidgetRef ref) {
+void invalidateSyncedData(WidgetRef ref) {
   ref
     ..invalidate(categoriesListProvider)
     ..invalidate(monthTransactionsProvider)
     ..invalidate(transactionsListProvider)
     ..invalidate(monthlyStatsProvider)
-        ..invalidate(recentMonthlyStatsProvider)
+    ..invalidate(recentMonthlyStatsProvider)
     ..invalidate(monthlyCategoryStatsProvider)
     ..invalidate(categoryExpensesProvider)
     ..invalidate(recurringListProvider)
+    ..invalidate(goalsProvider)
     ..invalidate(monthPlanningProvider)
     ..invalidate(planningProgressProvider)
     ..invalidate(planningAlertsProvider)
+    ..invalidate(unreadAlertsProvider)
     ..invalidate(monthlyIncomeProvider)
     ..invalidate(monthSpentTotalProvider)
     ..invalidate(incomeAttributionProvider)
     ..invalidate(sharingConnectionProvider)
     ..invalidate(creditCardsProvider)
+    ..invalidate(cardsWithSpentProvider)
+    ..invalidate(cardInvoiceAmountProvider)
+    ..invalidate(cardInvoicePaidProvider)
+    ..invalidate(cardForecastProvider)
     ..invalidate(allCardsTransactionsProvider);
 }

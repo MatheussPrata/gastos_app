@@ -5,6 +5,8 @@ import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/widgets/empty_state.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart' as cat;
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
+import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
@@ -53,11 +55,19 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     }).toList();
   }
 
-  Future<void> _export(List<Transaction> list, List<cat.Category> categories) async {
+  Future<void> _export(
+    List<Transaction> list,
+    List<cat.Category> categories,
+    List<CreditCardItem> creditCards,
+  ) async {
     if (_exporting || list.isEmpty) return;
     setState(() => _exporting = true);
     try {
-      await exportTransactionsCsv(transactions: list, categories: categories);
+      await exportTransactionsCsv(
+        transactions: list,
+        categories: categories,
+        creditCards: creditCards,
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -74,6 +84,8 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final transactionsAsync = ref.watch(transactionsListProvider);
     final categories =
         ref.watch(categoriesListProvider).valueOrNull ?? const <cat.Category>[];
+    final creditCards =
+        ref.watch(creditCardsProvider).valueOrNull ?? const <CreditCardItem>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -86,7 +98,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                 tooltip: 'Exportar CSV',
                 onPressed: filtered.isEmpty || _exporting
                     ? null
-                    : () => _export(filtered, categories),
+                    : () => _export(filtered, categories, creditCards),
                 icon: _exporting
                     ? const SizedBox(
                         width: 18,

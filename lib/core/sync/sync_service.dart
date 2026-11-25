@@ -224,6 +224,31 @@ class SyncService {
       payload['receipts'] = serializedReceipts;
     }
 
+    final unsyncedGoals = await (_db.select(_db.goals)
+          ..where((g) => g.isSynced.equals(false)))
+        .get();
+    if (unsyncedGoals.isNotEmpty) {
+      payload['goals'] = [for (final g in unsyncedGoals) _goalToJson(g)];
+    }
+
+    final unsyncedSettings = await (_db.select(_db.appSettings)
+          ..where((s) => s.isSynced.equals(false)))
+        .get();
+    if (unsyncedSettings.isNotEmpty) {
+      payload['appSettings'] = [
+        for (final s in unsyncedSettings) _appSettingToJson(s)
+      ];
+    }
+
+    final unsyncedAlerts = await (_db.select(_db.budgetAlerts)
+          ..where((a) => a.isSynced.equals(false)))
+        .get();
+    if (unsyncedAlerts.isNotEmpty) {
+      payload['budgetAlerts'] = [
+        for (final a in unsyncedAlerts) _budgetAlertToJson(a)
+      ];
+    }
+
     if (payload.isEmpty) {
       return SyncOutcome(pushed: pushed, failed: failed);
     }
@@ -254,6 +279,9 @@ class SyncService {
       await _markRecurringSynced(recurring, failedIds);
       await _markPlansSynced(plans, failedIds);
       await _markReceiptsSynced(unsyncedReceipts, failedIds);
+      await _markGoalsSynced(unsyncedGoals, failedIds);
+      await _markAppSettingsSynced(unsyncedSettings, failedIds);
+      await _markBudgetAlertsSynced(unsyncedAlerts, failedIds);
 
       final sent = [
         ...unsyncedCategories.map((c) => c.id),
@@ -263,6 +291,9 @@ class SyncService {
         ...recurring.map((r) => r.id),
         ...plans.map((p) => p.id),
         ...unsyncedReceipts.map((r) => r.id),
+        ...unsyncedGoals.map((g) => g.id),
+        ...unsyncedSettings.map((s) => s.key),
+        ...unsyncedAlerts.map((a) => a.id),
       ];
       final rejected = sent.where(failedIds.contains).length;
       pushed += sent.length - rejected;
@@ -345,6 +376,33 @@ class SyncService {
     }
   }
 
+  Future<void> _markGoalsSynced(
+      List<db.Goal> rows, Set<String> failedIds) async {
+    for (final g in rows) {
+      if (failedIds.contains(g.id)) continue;
+      await (_db.update(_db.goals)..where((x) => x.id.equals(g.id)))
+          .write(const db.GoalsCompanion(isSynced: Value(true)));
+    }
+  }
+
+  Future<void> _markAppSettingsSynced(
+      List<db.AppSetting> rows, Set<String> failedIds) async {
+    for (final s in rows) {
+      if (failedIds.contains(s.key)) continue;
+      await (_db.update(_db.appSettings)..where((x) => x.key.equals(s.key)))
+          .write(const db.AppSettingsCompanion(isSynced: Value(true)));
+    }
+  }
+
+  Future<void> _markBudgetAlertsSynced(
+      List<db.BudgetAlert> rows, Set<String> failedIds) async {
+    for (final a in rows) {
+      if (failedIds.contains(a.id)) continue;
+      await (_db.update(_db.budgetAlerts)..where((x) => x.id.equals(a.id)))
+          .write(const db.BudgetAlertsCompanion(isSynced: Value(true)));
+    }
+  }
+
   /// Aplica no servidor as eliminacoes feitas offline.
   ///
   /// Uma lápide so e removida quando o servidor confirma a eliminacao; caso
@@ -403,6 +461,14 @@ class SyncService {
         );
   }
 
+  /// Remove uma lápide pendente quando o registo volta a ser gravado localmente.
+  Future<void> clearTombstone(String entityType, String remoteId) async {
+    await (_db.delete(_db.pendingDeletions)
+          ..where((d) =>
+              d.entityType.equals(entityType) & d.remoteId.equals(remoteId)))
+        .go();
+  }
+
   // -------------------------------------------------------------------- pull
 
   /// Baixa os dados do utilizador a partir do servidor.
@@ -453,6 +519,9 @@ class SyncService {
     pulled += await _restoreRecurring(
         data['recurringTransactions'], userId, blocked);
     pulled += await _restorePlans(data['budgetPlans'], userId);
+    pulled += await _restoreGoals(data['goals'], blocked);
+    pulled += await _restoreAppSettings(data['appSettings'], blocked);
+    pulled += await _restoreBudgetAlerts(data['budgetAlerts'], blocked);
 
     // Num aparelho novo os lembretes tem de ser reagendados localmente.
     if (pulled > 0) await _rescheduleRestoredReminders();
@@ -897,6 +966,129 @@ class SyncService {
     return count;
   }
 
+  Future<int> _restoreGoals(dynamic raw, Set<String> blocked) async {
+    if (raw is! List) return 0;
+    final local = {
+      for (final row in await _db.select(_db.goals).get()) row.id: row
+    };
+    var count = 0;
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = Map<String, dynamic>.from(item);
+      final id = json['id']?.toString();
+      final name = json['name']?.toString() ?? '';
+      if (id == null || id.isEmpty || name.isEmpty) continue;
+      if (blocked.contains('goal:$id')) continue;
+
+      final createdAt = _optionalDate(json['createdAt']) ?? DateTime.now();
+      final updatedAt = _optionalDate(json['updatedAt']) ?? createdAt;
+
+      final existing = local[id];
+      if (existing != null) {
+        if (!existing.isSynced) continue;
+        final existingUpdated = existing.updatedAt ?? existing.createdAt;
+        if (!updatedAt.isAfter(existingUpdated)) continue;
+      }
+
+      await _db.into(_db.goals).insertOnConflictUpdate(
+            db.GoalsCompanion(
+              id: Value(id),
+              name: Value(name),
+              targetAmount: Value(_toDouble(json['targetAmount'])),
+              savedAmount: Value(_toDouble(json['savedAmount'])),
+              targetDate: Value(_optionalDate(json['targetDate'])),
+              color: Value((json['color'] is num)
+                  ? (json['color'] as num).toInt()
+                  : 0xFF2EC4B6),
+              isArchived: Value(json['isArchived'] as bool? ?? false),
+              createdAt: Value(createdAt),
+              updatedAt: Value(updatedAt),
+              isSynced: const Value(true),
+            ),
+          );
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _restoreAppSettings(dynamic raw, Set<String> blocked) async {
+    if (raw is! List) return 0;
+    final local = {
+      for (final row in await _db.select(_db.appSettings).get()) row.key: row
+    };
+    var count = 0;
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = Map<String, dynamic>.from(item);
+      final key = json['key']?.toString();
+      if (key == null || key.isEmpty) continue;
+      if (blocked.contains('app_setting:$key') ||
+          blocked.contains('appSetting:$key')) {
+        continue;
+      }
+
+      final existing = local[key];
+      if (existing != null && !existing.isSynced) continue;
+
+      await _db.into(_db.appSettings).insertOnConflictUpdate(
+            db.AppSettingsCompanion(
+              key: Value(key),
+              value: Value(json['value']?.toString() ?? ''),
+              isSynced: const Value(true),
+            ),
+          );
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _restoreBudgetAlerts(dynamic raw, Set<String> blocked) async {
+    if (raw is! List) return 0;
+    final local = {
+      for (final row in await _db.select(_db.budgetAlerts).get()) row.id: row
+    };
+    var count = 0;
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = Map<String, dynamic>.from(item);
+      final id = json['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      if (blocked.contains('budget_alert:$id') ||
+          blocked.contains('budgetAlert:$id')) {
+        continue;
+      }
+
+      final triggeredAt = _optionalDate(json['triggeredAt']);
+      if (triggeredAt == null) continue;
+
+      final existing = local[id];
+      if (existing != null && !existing.isSynced) continue;
+
+      await _db.into(_db.budgetAlerts).insertOnConflictUpdate(
+            db.BudgetAlertsCompanion(
+              id: Value(id),
+              planId: Value(json['planId']?.toString() ?? ''),
+              categoryId: Value(json['categoryId']?.toString() ?? ''),
+              categoryName: Value(json['categoryName']?.toString() ?? ''),
+              scope: Value(json['scope']?.toString() == 'couple'
+                  ? 'couple'
+                  : 'individual'),
+              threshold: Value((json['threshold'] is num)
+                  ? (json['threshold'] as num).toInt()
+                  : 80),
+              spentAmount: Value(_toDouble(json['spentAmount'])),
+              allocatedAmount: Value(_toDouble(json['allocatedAmount'])),
+              triggeredAt: Value(triggeredAt),
+              read: Value(json['read'] as bool? ?? false),
+              dismissed: Value(json['dismissed'] as bool? ?? false),
+              isSynced: const Value(true),
+            ),
+          );
+      count++;
+    }
+    return count;
+  }
+
   /// Reagenda no sistema operativo os lembretes restaurados do servidor.
   Future<void> _rescheduleRestoredReminders() async {
     try {
@@ -1003,6 +1195,37 @@ class SyncService {
         'notifications': _decodeJson(p.notificationsJson, fallback: const {}),
         'createdAt': p.createdAt.toIso8601String(),
         'updatedAt': p.updatedAt.toIso8601String(),
+      };
+
+  Map<String, dynamic> _goalToJson(db.Goal g) => {
+        'id': g.id,
+        'name': g.name,
+        'targetAmount': g.targetAmount,
+        'savedAmount': g.savedAmount,
+        'targetDate': g.targetDate?.toIso8601String(),
+        'color': g.color,
+        'isArchived': g.isArchived,
+        'createdAt': g.createdAt.toIso8601String(),
+        'updatedAt': (g.updatedAt ?? g.createdAt).toIso8601String(),
+      };
+
+  Map<String, dynamic> _appSettingToJson(db.AppSetting s) => {
+        'key': s.key,
+        'value': s.value,
+      };
+
+  Map<String, dynamic> _budgetAlertToJson(db.BudgetAlert a) => {
+        'id': a.id,
+        'planId': a.planId,
+        'categoryId': a.categoryId,
+        'categoryName': a.categoryName,
+        'scope': a.scope,
+        'threshold': a.threshold,
+        'spentAmount': a.spentAmount,
+        'allocatedAmount': a.allocatedAmount,
+        'triggeredAt': a.triggeredAt.toIso8601String(),
+        'read': a.read,
+        'dismissed': a.dismissed,
       };
 
   static double _toDouble(dynamic value) {

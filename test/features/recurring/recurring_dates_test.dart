@@ -34,11 +34,28 @@ void main() {
         RecurringDates.nextDue(DateTime(2028, 1, 31), 'monthly'),
         DateTime(2028, 2, 29),
       );
+      // Preserva dia preferido 31 após fevereiro.
+      expect(
+        RecurringDates.nextDue(
+          DateTime(2026, 2, 28),
+          'monthly',
+          preferredDay: 31,
+        ),
+        DateTime(2026, 3, 31),
+      );
     });
 
-    test('anual adiciona 1 ano', () {
+    test('anual adiciona 1 ano e respeita dia preferido em ano não bissexto', () {
       final start = DateTime(2026, 11, 3);
       expect(RecurringDates.nextDue(start, 'yearly'), DateTime(2027, 11, 3));
+      expect(
+        RecurringDates.nextDue(
+          DateTime(2028, 2, 29),
+          'yearly',
+          preferredDay: 29,
+        ),
+        DateTime(2029, 2, 28),
+      );
     });
   });
 

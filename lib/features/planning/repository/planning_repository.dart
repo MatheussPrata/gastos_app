@@ -375,11 +375,20 @@ class PlanningRepository {
   }
 
   Future<void> deletePlan(String id) async {
+    final alerts = await (_db.select(_db.budgetAlerts)
+          ..where((alert) => alert.planId.equals(id)))
+        .get();
     await (_db.delete(_db.budgetPlans)..where((plan) => plan.id.equals(id)))
         .go();
     await (_db.delete(_db.budgetAlerts)
           ..where((alert) => alert.planId.equals(id)))
         .go();
+    for (final alert in alerts) {
+      await _sync.tombstone('budget_alert', alert.id);
+    }
+    if (alerts.isNotEmpty) {
+      unawaited(_sync.push());
+    }
   }
 
   /// Merges a plan downloaded from the server into the local database.
@@ -410,6 +419,7 @@ class PlanningRepository {
       read: Value(true),
       isSynced: Value(false),
     ));
+    unawaited(_sync.push());
   }
 
   Future<void> dismissAlert(String alertId) async {
@@ -418,6 +428,7 @@ class PlanningRepository {
       dismissed: Value(true),
       isSynced: Value(false),
     ));
+    unawaited(_sync.push());
   }
 
   Future<void> markAllAlertsRead() async {
@@ -425,6 +436,7 @@ class PlanningRepository {
           read: Value(true),
           isSynced: Value(false),
         ));
+    unawaited(_sync.push());
   }
 
   // ---------------------------------------------------------------- triggers

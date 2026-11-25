@@ -79,8 +79,9 @@ class SettingsDrawer extends ConsumerWidget {
                     ),
                     trailing: PopupMenuButton<ThemeMode>(
                       initialValue: themeMode,
-                      onSelected: (mode) =>
-                          ref.read(themeModeProvider.notifier).state = mode,
+                      onSelected: (mode) => ref
+                          .read(themeModeProvider.notifier)
+                          .setThemeMode(mode),
                       itemBuilder: (context) => [
                         const PopupMenuItem(
                             value: ThemeMode.system, child: Text('Sistema')),
@@ -186,6 +187,15 @@ class SettingsDrawer extends ConsumerWidget {
                         'Escolher quantos dias antes avisar'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.push(RouteNames.notificationSettings),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.backup_outlined),
+                    title: const Text('Backup e restauração'),
+                    subtitle:
+                        const Text('Exportar JSON ou restaurar seus dados'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RouteNames.backup),
                   ),
                   const Divider(height: 1),
                   ListTile(

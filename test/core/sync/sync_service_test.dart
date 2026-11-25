@@ -604,5 +604,148 @@ void main() {
       expect(items.first.grossTotal, 30.0);
       expect(items.first.isSynced, isTrue);
     });
+
+    test('envia metas, faturas (appSettings) e budgetAlerts no push', () async {
+      await db.into(db.goals).insert(GoalsCompanion.insert(
+            id: 'goal-1',
+            name: 'Viagem',
+            targetAmount: 8000.0,
+            savedAmount: const Value(2000.0),
+            createdAt: DateTime(2026, 11, 1),
+            updatedAt: Value(DateTime(2026, 11, 10)),
+            isSynced: const Value(false),
+          ));
+      await db.into(db.appSettings).insert(AppSettingsCompanion.insert(
+            key: 'card_invoice_card-1_2026_11',
+            value: '1320.5',
+            isSynced: const Value(false),
+          ));
+      await db.into(db.budgetAlerts).insert(BudgetAlertsCompanion.insert(
+            id: 'alert-1',
+            planId: 'plan-1',
+            categoryId: '1',
+            categoryName: 'Alimentação',
+            threshold: 80,
+            spentAmount: 850.0,
+            allocatedAmount: 1000.0,
+            triggeredAt: DateTime(2026, 11, 15),
+            isSynced: const Value(false),
+          ));
+
+      Map<String, dynamic>? sent;
+      when(() => dio.post(any(), data: any(named: 'data')))
+          .thenAnswer((invocation) async {
+        sent = invocation.namedArguments[#data] as Map<String, dynamic>;
+        return _ok(
+          {'data': {'synced': true, 'failedIds': <String>[]}},
+          ApiEndpoints.sync,
+        );
+      });
+
+      final outcome = await service.push();
+
+      expect(outcome.pushed, 3);
+      expect((sent!['goals'] as List).single['name'], 'Viagem');
+      expect((sent!['appSettings'] as List).single['key'],
+          'card_invoice_card-1_2026_11');
+      expect((sent!['budgetAlerts'] as List).single['threshold'], 80);
+
+      expect(
+        await (db.select(db.goals)..where((g) => g.isSynced.equals(false)))
+            .get(),
+        isEmpty,
+      );
+      expect(
+        await (db.select(db.appSettings)
+              ..where((s) => s.isSynced.equals(false)))
+            .get(),
+        isEmpty,
+      );
+      expect(
+        await (db.select(db.budgetAlerts)
+              ..where((a) => a.isSynced.equals(false)))
+            .get(),
+        isEmpty,
+      );
+    });
+
+    test('restaura metas, appSettings e budgetAlerts respeitando tombstones',
+        () async {
+      await service.tombstone('goal', 'goal-deleted');
+      await service.tombstone('app_setting', 'card_invoice_paid_c1_2026_11');
+      await service.tombstone('budget_alert', 'alert-deleted');
+
+      final payload = {
+        'data': {
+          'goals': [
+            {
+              'id': 'goal-ok',
+              'name': 'Reserva de Emergência',
+              'targetAmount': 12000.0,
+              'savedAmount': 4000.0,
+              'color': 4281255094,
+              'isArchived': false,
+              'createdAt': '2026-11-01T00:00:00.000Z',
+              'updatedAt': '2026-11-10T00:00:00.000Z',
+            },
+            {
+              'id': 'goal-deleted',
+              'name': 'Apagada',
+              'targetAmount': 500.0,
+              'savedAmount': 0.0,
+              'createdAt': '2026-11-01T00:00:00.000Z',
+            },
+          ],
+          'appSettings': [
+            {'key': 'card_invoice_c1_2026_11', 'value': '990.0'},
+            {'key': 'card_invoice_paid_c1_2026_11', 'value': 'true'},
+          ],
+          'budgetAlerts': [
+            {
+              'id': 'alert-ok',
+              'planId': 'plan-1',
+              'categoryId': '1',
+              'categoryName': 'Alimentação',
+              'scope': 'individual',
+              'threshold': 90,
+              'spentAmount': 920.0,
+              'allocatedAmount': 1000.0,
+              'triggeredAt': '2026-11-18T00:00:00.000Z',
+              'read': true,
+              'dismissed': false,
+            },
+            {
+              'id': 'alert-deleted',
+              'planId': 'plan-1',
+              'categoryId': '1',
+              'categoryName': 'Apagado',
+              'threshold': 80,
+              'spentAmount': 800.0,
+              'allocatedAmount': 1000.0,
+              'triggeredAt': '2026-11-18T00:00:00.000Z',
+            },
+          ],
+        }
+      };
+
+      when(() => dio.get(any())).thenAnswer(
+        (_) async => _ok(jsonDecode(jsonEncode(payload)), ApiEndpoints.sync),
+      );
+
+      final outcome = await service.restore();
+      expect(outcome.pulled, 3);
+
+      final goals = await db.select(db.goals).get();
+      expect(goals.map((g) => g.id), ['goal-ok']);
+      expect(goals.single.isSynced, isTrue);
+
+      final settings = await db.select(db.appSettings).get();
+      expect(settings.map((s) => s.key), ['card_invoice_c1_2026_11']);
+      expect(settings.single.value, '990.0');
+
+      final alerts = await db.select(db.budgetAlerts).get();
+      expect(alerts.map((a) => a.id), ['alert-ok']);
+      expect(alerts.single.read, isTrue);
+    });
   });
 }

@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:gastos_app/core/router/app_router.dart';
+import 'package:gastos_app/core/sync/sync_provider.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
+import 'package:gastos_app/features/recurring/services/recurring_generator_service.dart';
 import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
 
 /// Lista de transacoes recorrentes (contas fixas, assinaturas, salario...).
@@ -53,6 +55,7 @@ class RecurringPage extends ConsumerWidget {
                 onToggleActive: (value) => ref
                     .read(recurringListProvider.notifier)
                     .updateRecurring(item.copyWith(isActive: value)),
+                onGenerateNow: () => _generateNow(context, ref, item),
                 onEdit: () => context.push(
                   RouteNames.recurringForm,
                   extra: {'id': item.id, 'isEditing': true},
@@ -70,6 +73,29 @@ class RecurringPage extends ConsumerWidget {
           extra: {'isEditing': false},
         ),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Future<void> _generateNow(
+    BuildContext context,
+    WidgetRef ref,
+    RecurringTransaction item,
+  ) async {
+    final dueBefore = item.nextDueDate;
+    final created =
+        await ref.read(recurringGeneratorServiceProvider).generateNow(item);
+    await ref.read(recurringListProvider.notifier).loadRecurring();
+    invalidateSyncedData(ref);
+    if (!context.mounted) return;
+    final dateText = DateFormatter.formatDayMonthYear(dueBefore);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          created
+              ? 'Lançamento criado para $dateText.'
+              : 'Lançamento de $dateText já existia; próxima data avançada.',
+        ),
       ),
     );
   }
@@ -107,12 +133,14 @@ class _RecurringTile extends StatelessWidget {
   const _RecurringTile({
     required this.item,
     required this.onToggleActive,
+    required this.onGenerateNow,
     required this.onEdit,
     required this.onDelete,
   });
 
   final RecurringTransaction item;
   final ValueChanged<bool> onToggleActive;
+  final VoidCallback onGenerateNow;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -161,10 +189,15 @@ class _RecurringTile extends StatelessWidget {
             const SizedBox(width: 8),
             PopupMenuButton<String>(
               onSelected: (value) {
+                if (value == 'generate_now') onGenerateNow();
                 if (value == 'edit') onEdit();
                 if (value == 'delete') onDelete();
               },
               itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'generate_now',
+                  child: Text('Lançar agora'),
+                ),
                 PopupMenuItem(value: 'edit', child: Text('Editar')),
                 PopupMenuItem(value: 'delete', child: Text('Excluir')),
               ],

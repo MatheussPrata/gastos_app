@@ -108,6 +108,8 @@ void main() {
       syncService = _MockSyncService();
       when(() => syncService.push()).thenAnswer((_) async => const SyncOutcome());
       when(() => syncService.tombstone(any(), any())).thenAnswer((_) async {});
+      when(() => syncService.clearTombstone(any(), any()))
+          .thenAnswer((_) async {});
 
       repo = CreditCardsRepository(database: db, syncService: syncService);
 
@@ -296,6 +298,8 @@ void main() {
       syncService = _MockSyncService();
       when(() => syncService.push()).thenAnswer((_) async => const SyncOutcome());
       when(() => syncService.tombstone(any(), any())).thenAnswer((_) async {});
+      when(() => syncService.clearTombstone(any(), any()))
+          .thenAnswer((_) async {});
 
       txRepo = TransactionsRepository(database: db, syncService: syncService);
       cardsRepo = CreditCardsRepository(database: db, syncService: syncService);

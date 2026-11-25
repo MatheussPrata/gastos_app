@@ -2,9 +2,14 @@
 class RecurringDates {
   /// Proxima ocorrencia apos [start] conforme a frequencia.
   ///
-  /// 'mensal' preserva o dia do mes quando possivel (31/01 -> 28/02 ou 29/02).
-  static DateTime nextDue(DateTime start, String frequency) {
-    final day = start.day;
+  /// 'mensal' e 'anual' preservam [preferredDay] (ou o dia de [start]) quando
+  /// possivel, ajustando ao ultimo dia do mes destino (ex.: 31/01 -> 28/02 -> 31/03).
+  static DateTime nextDue(
+    DateTime start,
+    String frequency, {
+    int? preferredDay,
+  }) {
+    final day = preferredDay ?? start.day;
     switch (frequency) {
       case 'daily':
         return start.add(const Duration(days: 1));
@@ -23,7 +28,15 @@ class RecurringDates {
           start.minute,
         );
       case 'yearly':
-        return DateTime(start.year + 1, start.month, day);
+        final targetYear = start.year + 1;
+        final lastDay = DateTime(targetYear, start.month + 1, 0).day;
+        return DateTime(
+          targetYear,
+          start.month,
+          day > lastDay ? lastDay : day,
+          start.hour,
+          start.minute,
+        );
       default:
         return start.add(const Duration(days: 30));
     }
