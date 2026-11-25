@@ -276,6 +276,7 @@ class Receipts extends Table {
   TextColumn get accessKey => text().nullable()();
   TextColumn get rawUrl => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -346,7 +347,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -409,6 +410,16 @@ class AppDatabase extends _$AppDatabase {
           if (from < 10) {
             await m.addColumn(receipts, receipts.discountAmount);
             await m.addColumn(receiptItems, receiptItems.discount);
+          }
+          if (from < 11) {
+            await m.addColumn(receipts, receipts.isSynced);
+            await customStatement(
+              'UPDATE transactions SET receipt_id = ('
+              'SELECT r.id FROM receipts r WHERE r.transaction_id = transactions.id LIMIT 1'
+              ') WHERE (receipt_id IS NULL OR receipt_id = \'\') AND EXISTS ('
+              'SELECT 1 FROM receipts r WHERE r.transaction_id = transactions.id'
+              ')',
+            );
           }
         },
       );

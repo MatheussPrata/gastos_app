@@ -525,9 +525,14 @@ class PlanningRepository {
   }) {
     unawaited(() async {
       try {
-        final created = await checkAndCreateAlerts(month: month, scope: scope);
+        final reference = _normalizeMonth(month ?? DateTime.now());
+        final created =
+            await checkAndCreateAlerts(month: reference, scope: scope);
         if (created.isNotEmpty) {
-          if (notify) {
+          final plan = await getPlanForMonth(reference, scope: scope);
+          final shouldPush =
+              notify && (plan?.notifications.pushNotification ?? true);
+          if (shouldPush) {
             for (final alert in created) {
               unawaited(NotificationService.instance.showBudgetAlert(alert));
             }

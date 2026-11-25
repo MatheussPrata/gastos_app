@@ -68,3 +68,10 @@ final categoryExpensesProvider = FutureProvider.family<List<CategoryExpense>,
   return repository.getExpensesByCategory(
       startDate: params.start, endDate: params.end);
 });
+
+/// Single transaction by id.
+final transactionByIdProvider =
+    FutureProvider.family<Transaction?, String>((ref, id) async {
+  final repository = ref.watch(transactionsRepositoryProvider);
+  return repository.getTransactionById(id);
+});

@@ -6,6 +6,7 @@ import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 final creditCardsRepositoryProvider = Provider<CreditCardsRepository>((ref) {
   return CreditCardsRepository();
@@ -62,6 +63,7 @@ class CreditCardsRepository {
           isSynced: const Value(false),
         ));
 
+    unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
     return card;
   }
@@ -82,12 +84,14 @@ class CreditCardsRepository {
       isSynced: const Value(false),
     ));
 
+    unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
     return card;
   }
 
   /// Delete a credit card and remove link from transactions.
   Future<void> deleteCreditCard(String id) async {
+    await TransactionReminderService.instance.cancelCreditCard(id);
     await (_db.delete(_db.creditCards)..where((c) => c.id.equals(id))).go();
     await _sync.tombstone('credit_card', id);
     unawaited(_sync.push());
@@ -220,6 +224,7 @@ class CreditCardsRepository {
             ),
           );
     }
+    unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
   }
 
@@ -250,6 +255,7 @@ class CreditCardsRepository {
             ),
           );
     }
+    unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
   }
 

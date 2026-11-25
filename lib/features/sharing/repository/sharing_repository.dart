@@ -192,6 +192,7 @@ class SharingRepository {
       }
 
       final transactions = data['transactions'] as List? ?? const [];
+      final receipts = data['receipts'] as List? ?? const [];
 
       var pulledTransactions = 0;
       for (final item in transactions) {
@@ -201,6 +202,11 @@ class SharingRepository {
           connection.partnerUserId,
         );
         pulledTransactions++;
+      }
+
+      for (final item in receipts) {
+        if (item is! Map) continue;
+        await _mergePartnerReceipt(Map<String, dynamic>.from(item));
       }
 
       final budgetPlanJson = data['budgetPlan'];
@@ -265,12 +271,84 @@ class SharingRepository {
             installmentGroupId: Value(json['installmentGroupId'] as String?),
             notes: Value(json['notes'] as String?),
             ownerId: Value(json['ownerId'] as String? ?? partnerUserId),
+            receiptId: Value(json['receiptId']?.toString()),
             partnerSynced: const Value(true),
             createdAt: Value(createdAt),
             updatedAt: Value(updatedAt),
             isSynced: const Value(true),
           ),
         );
+  }
+
+  Future<void> _mergePartnerReceipt(Map<String, dynamic> json) async {
+    final id = json['id']?.toString();
+    if (id == null || id.isEmpty) return;
+
+    final issueDate =
+        DateTime.tryParse(json['issueDate']?.toString() ?? '') ??
+            DateTime.now();
+    final createdAt =
+        DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? issueDate;
+    final transactionId = json['transactionId']?.toString() ?? '';
+
+    await _db.transaction(() async {
+      await _db.into(_db.receipts).insertOnConflictUpdate(
+            db.ReceiptsCompanion(
+              id: Value(id),
+              transactionId: Value(transactionId),
+              establishmentName:
+                  Value(json['establishmentName']?.toString() ?? ''),
+              establishmentCnpj:
+                  Value(json['establishmentCnpj']?.toString() ?? ''),
+              issueDate: Value(issueDate),
+              totalAmount: Value(_toDouble(json['totalAmount'])),
+              discountAmount: Value(_toDouble(json['discountAmount'])),
+              paymentMethod: Value(json['paymentMethod']?.toString() ?? ''),
+              accessKey: Value(json['accessKey']?.toString()),
+              rawUrl: Value(json['rawUrl']?.toString()),
+              createdAt: Value(createdAt),
+              isSynced: const Value(true),
+            ),
+          );
+
+      await (_db.delete(_db.receiptItems)
+            ..where((i) => i.receiptId.equals(id)))
+          .go();
+
+      final rawItems = json['items'];
+      if (rawItems is List) {
+        for (var idx = 0; idx < rawItems.length; idx++) {
+          final itemRaw = rawItems[idx];
+          if (itemRaw is! Map) continue;
+          final item = Map<String, dynamic>.from(itemRaw);
+          final itemId = item['id']?.toString();
+          if (itemId == null || itemId.isEmpty) continue;
+          await _db.into(_db.receiptItems).insert(
+                db.ReceiptItemsCompanion(
+                  id: Value(itemId),
+                  receiptId: Value(id),
+                  name: Value(item['name']?.toString() ?? ''),
+                  code: Value(item['code']?.toString()),
+                  quantity: Value(
+                    item['quantity'] == null
+                        ? 1.0
+                        : _toDouble(item['quantity']),
+                  ),
+                  unit: Value(item['unit']?.toString() ?? 'UN'),
+                  unitPrice: Value(_toDouble(item['unitPrice'])),
+                  totalPrice: Value(_toDouble(item['totalPrice'])),
+                  discount: Value(_toDouble(item['discount'])),
+                  category: Value(item['category']?.toString() ?? 'Outros'),
+                  sortOrder: Value(
+                    (item['sortOrder'] is num)
+                        ? (item['sortOrder'] as num).toInt()
+                        : idx,
+                  ),
+                ),
+              );
+        }
+      }
+    });
   }
 
   Future<void> _cacheConnection(SharingConnection connection) async {

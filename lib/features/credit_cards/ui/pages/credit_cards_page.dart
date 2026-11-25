@@ -15,6 +15,7 @@ import 'package:gastos_app/features/credit_cards/ui/widgets/credit_card_visual.d
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/ui/planning_ui_helpers.dart';
+import 'package:gastos_app/features/receipts/ui/receipt_navigation.dart';
 import 'package:gastos_app/features/transactions/ui/pages/transaction_form_page.dart';
 
 class CreditCardsPage extends ConsumerStatefulWidget {
@@ -1264,31 +1265,69 @@ class _CreditCardsPageState extends ConsumerState<CreditCardsPage> {
                         child: const Icon(Icons.credit_card,
                             color: AppColors.expense),
                       ),
-                      title: Text(
-                        tx.description,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        tx.isInstallment && tx.totalInstallments > 1
-                            ? '${DateFormatter.formatDayMonthYear(tx.date)} • Parcela ${tx.installmentNumber}/${tx.totalInstallments}'
-                            : DateFormatter.formatDayMonthYear(tx.date),
-                      ),
-                      trailing: Text(
-                        CurrencyFormatter.format(tx.amount),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: AppColors.expense,
-                        ),
-                      ),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => TransactionFormPage(
-                            transactionId: tx.id,
-                            isEditing: true,
-                          ),
-                        ),
-                      ),
+                       title: Row(
+                         children: [
+                           Expanded(
+                             child: Text(
+                               tx.description,
+                               maxLines: 1,
+                               overflow: TextOverflow.ellipsis,
+                               style: const TextStyle(fontWeight: FontWeight.w600),
+                             ),
+                           ),
+                           if (tx.receiptId != null && tx.receiptId!.isNotEmpty) ...[
+                             const SizedBox(width: 6),
+                             Container(
+                               padding: const EdgeInsets.symmetric(
+                                 horizontal: 6,
+                                 vertical: 2,
+                               ),
+                               decoration: BoxDecoration(
+                                 color: AppColors.income.withAlpha(30),
+                                 borderRadius: BorderRadius.circular(4),
+                               ),
+                               child: const Row(
+                                 mainAxisSize: MainAxisSize.min,
+                                 children: [
+                                   Icon(
+                                     Icons.receipt_long,
+                                     size: 10,
+                                     color: AppColors.income,
+                                   ),
+                                   SizedBox(width: 3),
+                                   Text(
+                                     'NF',
+                                     style: TextStyle(
+                                       fontSize: 9,
+                                       fontWeight: FontWeight.bold,
+                                       color: AppColors.income,
+                                     ),
+                                   ),
+                                 ],
+                               ),
+                             ),
+                           ],
+                         ],
+                       ),
+                       subtitle: Text(
+                         tx.isInstallment && tx.totalInstallments > 1
+                             ? '${DateFormatter.formatDayMonthYear(tx.date)} • Parcela ${tx.installmentNumber}/${tx.totalInstallments}'
+                             : DateFormatter.formatDayMonthYear(tx.date),
+                       ),
+                       trailing: Text(
+                         CurrencyFormatter.format(tx.amount),
+                         style: const TextStyle(
+                           fontWeight: FontWeight.bold,
+                           fontSize: 15,
+                           color: AppColors.expense,
+                         ),
+                       ),
+                       onTap: () => openTransactionOrReceipt(
+                         context,
+                         ref,
+                         transactionId: tx.id,
+                         receiptId: tx.receiptId,
+                       ),
                     ),
                   ),
               ],

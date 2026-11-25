@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/notifications/notification_permission_service.dart';
 import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/core/router/app_router.dart';
@@ -19,8 +20,10 @@ import 'package:gastos_app/features/dashboard/ui/widgets/upcoming_bills.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
+import 'package:gastos_app/features/receipts/ui/receipt_navigation.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/ui/widgets/transaction_tile.dart';
 
 const List<String> _monthNames = [
@@ -263,23 +266,12 @@ class DashboardPage extends ConsumerWidget {
         final transaction = transactions[index];
         return TransactionTile(
           transaction: transaction,
-          onTap: () {
-            if (transaction.receiptId != null &&
-                transaction.receiptId!.isNotEmpty) {
-              context.push(
-                RouteNames.receiptDetail,
-                extra: {
-                  'receiptId': transaction.receiptId,
-                  'transactionId': transaction.id,
-                },
-              );
-            } else {
-              context.push(
-                RouteNames.transactionForm,
-                extra: {'id': transaction.id, 'isEditing': true},
-              );
-            }
-          },
+          onTap: () => openTransactionOrReceipt(
+            context,
+            ref,
+            transactionId: transaction.id,
+            receiptId: transaction.receiptId,
+          ),
           onDelete: () => _confirmDelete(context, ref, transaction),
         );
       },
@@ -446,7 +438,12 @@ class _NotificationBanner extends ConsumerWidget {
             final result =
                 await NotificationPermissionService.instance.request();
             ref.invalidate(notificationPermissionsProvider);
-            if (!result.canNotify) {
+            if (result.canNotify) {
+              unawaited(
+                TransactionReminderService.instance
+                    .syncAllFromDatabase(db.AppDatabase()),
+              );
+            } else {
               await NotificationPermissionService.instance.openSystemSettings();
             }
           },

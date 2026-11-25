@@ -1,6 +1,9 @@
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:gastos_app/core/notifications/local_notifications_client.dart';
 
 /// Estado das permissoes de notificacao do aparelho.
 enum NotificationPermissionStatus {
@@ -53,12 +56,11 @@ class NotificationPermissionService {
   static final NotificationPermissionService instance =
       NotificationPermissionService._();
 
-  final FlutterLocalNotificationsPlugin _plugin =
-      FlutterLocalNotificationsPlugin();
+  static const String _promptedPrefKey =
+      'notifications_initial_prompt_done_v1';
 
   AndroidFlutterLocalNotificationsPlugin? get _android =>
-      _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      LocalNotificationsClient.instance.android;
 
   /// Consulta o estado atual sem mostrar nenhum pedido.
   Future<NotificationPermissions> check() async {
@@ -71,6 +73,7 @@ class NotificationPermissionService {
     }
 
     try {
+      await LocalNotificationsClient.instance.ensureInitialized();
       final android = _android;
       if (android == null) {
         // iOS/macOS: o plugin nao expoe consulta de estado sem pedir. Assume
@@ -85,10 +88,24 @@ class NotificationPermissionService {
       final enabled = await android.areNotificationsEnabled() ?? false;
       final exact = await android.canScheduleExactNotifications() ?? true;
 
+      if (enabled) {
+        return NotificationPermissions(
+          status: NotificationPermissionStatus.granted,
+          canScheduleExact: exact,
+          exactAlarmsSupported: true,
+        );
+      }
+
+      var alreadyPrompted = false;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        alreadyPrompted = prefs.getBool(_promptedPrefKey) ?? false;
+      } catch (_) {}
+
       return NotificationPermissions(
-        status: enabled
-            ? NotificationPermissionStatus.granted
-            : NotificationPermissionStatus.denied,
+        status: alreadyPrompted
+            ? NotificationPermissionStatus.denied
+            : NotificationPermissionStatus.notRequested,
         canScheduleExact: exact,
         exactAlarmsSupported: true,
       );
@@ -109,10 +126,16 @@ class NotificationPermissionService {
   /// interface deve encaminhar para as configuracoes do aparelho.
   Future<NotificationPermissions> request() async {
     try {
+      await LocalNotificationsClient.instance.ensureInitialized();
       final android = _android;
       if (android == null) {
         return check();
       }
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_promptedPrefKey, true);
+      } catch (_) {}
 
       final granted = await android.requestNotificationsPermission();
 
@@ -136,9 +159,29 @@ class NotificationPermissionService {
     }
   }
 
+  /// Na primeira abertura do app em aparelhos Android 13+, solicita a
+  /// permissão de notificações uma única vez para que lembretes e alertas já
+  /// funcionem sem obrigar o utilizador a procurar nas configurações.
+  Future<NotificationPermissions> requestOnceIfNeverPrompted() async {
+    final current = await check();
+    if (current.canNotify) return current;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final alreadyPrompted = prefs.getBool(_promptedPrefKey) ?? false;
+      if (alreadyPrompted) return current;
+      await prefs.setBool(_promptedPrefKey, true);
+    } catch (_) {
+      return current;
+    }
+
+    return request();
+  }
+
   /// Pede apenas o alarme exato, quando as notificacoes ja estao permitidas.
   Future<NotificationPermissions> requestExactAlarms() async {
     try {
+      await LocalNotificationsClient.instance.ensureInitialized();
       await _android?.requestExactAlarmsPermission();
     } catch (_) {}
     return check();

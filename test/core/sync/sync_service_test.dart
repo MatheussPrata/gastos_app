@@ -438,4 +438,160 @@ void main() {
       expect(await db.select(db.pendingDeletions).get(), isEmpty);
     });
   });
+
+  group('cupons fiscais (NF)', () {
+    test('envia cupom fiscal com itens e receiptId da transacao no push',
+        () async {
+      await db.into(db.transactions).insert(
+            TransactionsCompanion.insert(
+              id: 'tx-nf-1',
+              userId: 'user-1',
+              amount: 78.9,
+              description: 'Supermercado Condor',
+              date: DateTime(2026, 11, 20),
+              receiptId: const Value('rec-1'),
+              createdAt: DateTime(2026, 11, 20),
+              updatedAt: DateTime(2026, 11, 20),
+              isSynced: const Value(false),
+            ),
+          );
+
+      await db.into(db.receipts).insert(
+            ReceiptsCompanion.insert(
+              id: 'rec-1',
+              transactionId: 'tx-nf-1',
+              establishmentName: 'Supermercado Condor',
+              establishmentCnpj: const Value('76.189.406/0001-00'),
+              issueDate: DateTime(2026, 11, 20),
+              totalAmount: 78.9,
+              discountAmount: const Value(3.5),
+              paymentMethod: const Value('PIX'),
+              createdAt: DateTime(2026, 11, 20),
+              isSynced: const Value(false),
+            ),
+          );
+
+      await db.into(db.receiptItems).insert(
+            ReceiptItemsCompanion.insert(
+              id: 'item-1',
+              receiptId: 'rec-1',
+              name: 'Arroz Parboilizado 5kg',
+              quantity: const Value(2),
+              unit: const Value('UN'),
+              unitPrice: const Value(25.0),
+              totalPrice: const Value(48.0),
+              discount: const Value(2.0),
+              category: const Value('Alimentação'),
+              sortOrder: const Value(0),
+            ),
+          );
+
+      Map<String, dynamic>? sent;
+      when(() => dio.post(any(), data: any(named: 'data')))
+          .thenAnswer((invocation) async {
+        sent = invocation.namedArguments[#data] as Map<String, dynamic>;
+        return _ok(
+          {'data': {'synced': true, 'failedIds': <String>[]}},
+          ApiEndpoints.sync,
+        );
+      });
+
+      final outcome = await service.push();
+
+      expect(outcome.pushed, 2);
+      expect(sent, isNotNull);
+      final sentTx = (sent!['transactions'] as List).single as Map;
+      expect(sentTx['receiptId'], 'rec-1');
+
+      final sentReceipt = (sent!['receipts'] as List).single as Map;
+      expect(sentReceipt['id'], 'rec-1');
+      expect(sentReceipt['discountAmount'], 3.5);
+      final sentItems = sentReceipt['items'] as List;
+      expect(sentItems, hasLength(1));
+      expect((sentItems.single as Map)['name'], 'Arroz Parboilizado 5kg');
+
+      final pendingReceipts = await (db.select(db.receipts)
+            ..where((r) => r.isSynced.equals(false)))
+          .get();
+      expect(pendingReceipts, isEmpty);
+    });
+
+    test('restaura cupons fiscais, itens e repara vinculo receiptId', () async {
+      final payload = {
+        'data': {
+          'transactions': [
+            {
+              'id': 'tx-nf-remote',
+              'userId': 'user-1',
+              'amount': 45.0,
+              'description': 'Farmacia Nissei',
+              'date': '2026-11-22T15:00:00.000Z',
+              'isExpense': true,
+              'createdAt': '2026-11-22T15:00:00.000Z',
+              'updatedAt': '2026-11-22T15:00:00.000Z',
+            }
+          ],
+          'receipts': [
+            {
+              'id': 'rec-remote',
+              'transactionId': 'tx-nf-remote',
+              'establishmentName': 'Farmacia Nissei',
+              'establishmentCnpj': '79.430.682/0001-33',
+              'issueDate': '2026-11-22T15:00:00.000Z',
+              'totalAmount': 45.0,
+              'discountAmount': 5.0,
+              'paymentMethod': 'Cartão de Crédito',
+              'createdAt': '2026-11-22T15:00:00.000Z',
+              'items': [
+                {
+                  'id': 'ri-1',
+                  'receiptId': 'rec-remote',
+                  'name': 'Vitamina C',
+                  'quantity': 1,
+                  'unit': 'UN',
+                  'unitPrice': 30.0,
+                  'totalPrice': 25.0,
+                  'discount': 5.0,
+                  'category': 'Farmácia',
+                  'sortOrder': 0,
+                },
+                {
+                  'id': 'ri-2',
+                  'receiptId': 'rec-remote',
+                  'name': 'Protetor Solar',
+                  'quantity': 1,
+                  'unit': 'UN',
+                  'unitPrice': 20.0,
+                  'totalPrice': 20.0,
+                  'discount': 0.0,
+                  'category': 'Higiene',
+                  'sortOrder': 1,
+                },
+              ],
+            }
+          ],
+        }
+      };
+
+      when(() => dio.get(any())).thenAnswer(
+        (_) async => _ok(jsonDecode(jsonEncode(payload)), ApiEndpoints.sync),
+      );
+
+      final outcome = await service.restore();
+
+      expect(outcome.pulled, 2);
+      final tx = await (db.select(db.transactions)
+            ..where((t) => t.id.equals('tx-nf-remote')))
+          .getSingle();
+      expect(tx.receiptId, 'rec-remote');
+
+      final receipts = await db.select(db.receipts).get();
+      expect(receipts, hasLength(1));
+      expect(receipts.single.establishmentName, 'Farmacia Nissei');
+
+      final items = await db.select(db.receiptItems).get();
+      expect(items, hasLength(2));
+      expect(items.map((i) => i.name), ['Vitamina C', 'Protetor Solar']);
+    });
+  });
 }

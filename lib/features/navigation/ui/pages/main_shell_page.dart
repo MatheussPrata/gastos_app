@@ -1,13 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/notifications/notification_permission_service.dart';
+import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/core/sync/sync_provider.dart';
 import 'package:gastos_app/features/credit_cards/ui/pages/credit_cards_page.dart';
 import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
+import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
+import 'package:gastos_app/features/planning/repository/planning_repository.dart';
 import 'package:gastos_app/features/planning/ui/pages/planning_page.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 /// Main application shell.
 ///
@@ -66,11 +74,34 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Deixa a UI ler o banco local primeiro (offline-first).
-      // O sync roda depois, sem competir com a primeira renderizacao.
-      Future<void>.delayed(const Duration(milliseconds: 1200), () {
-        if (mounted) _silentSync();
+      // As notificacoes e o sync rodam logo depois, sem competir com o 1o frame.
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) _initializeNotificationsAndSync();
       });
     });
+  }
+
+  Future<void> _initializeNotificationsAndSync() async {
+    try {
+      await NotificationPermissionService.instance.requestOnceIfNeverPrompted();
+      if (mounted) {
+        ref.invalidate(notificationPermissionsProvider);
+      }
+      await TransactionReminderService.instance
+          .syncAllFromDatabase(db.AppDatabase());
+
+      if (mounted) {
+        final now = DateTime.now();
+        for (final scope in BudgetScope.values) {
+          ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
+                month: now,
+                scope: scope,
+              );
+        }
+      }
+    } catch (_) {}
+
+    await _silentSync();
   }
 
   Future<void> _silentSync() async {
@@ -78,6 +109,12 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
       // Restaura num aparelho vazio e envia o que ficou pendente.
       await runStartupSync(ref);
       await runSharingSync(ref);
+      if (mounted) {
+        unawaited(
+          TransactionReminderService.instance
+              .syncAllFromDatabase(db.AppDatabase()),
+        );
+      }
     } catch (_) {
       // Offline or not configured: local data continues to work.
     }

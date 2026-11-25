@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
+import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 final receiptsRepositoryProvider = Provider<ReceiptsRepository>((ref) {
   return ReceiptsRepository(syncService: SyncService());
@@ -23,30 +27,18 @@ class ReceiptsRepository {
         _sync = syncService,
         _uuid = uuid ?? const Uuid();
 
-  /// Salva ou atualiza o cupom fiscal, seus itens e cria/atualiza a transação macro correspondente.
+  /// Salva ou atualiza o cupom fiscal, seus itens e cria/atualiza a transação (ou parcelas) correspondente.
   Future<({Transaction transaction, Receipt receipt})> saveReceiptWithTransaction({
     required Receipt receipt,
     required String? categoryId,
     required String userId,
+    String? creditCardId,
+    bool isInstallment = false,
+    int totalInstallments = 1,
   }) async {
     final transactionId = receipt.transactionId.isNotEmpty ? receipt.transactionId : _uuid.v4();
     final receiptId = receipt.id.isNotEmpty ? receipt.id : _uuid.v4();
     final now = DateTime.now();
-
-    final txModel = Transaction(
-      id: transactionId,
-      userId: userId,
-      amount: receipt.totalAmount,
-      description: receipt.establishmentName,
-      date: receipt.issueDate,
-      categoryId: categoryId,
-      paymentMethod: receipt.paymentMethod,
-      isExpense: true,
-      notes: 'Cupom fiscal NFC-e PR',
-      receiptId: receiptId,
-      createdAt: receipt.createdAt,
-      updatedAt: now,
-    );
 
     final finalReceipt = receipt.copyWith(
       id: receiptId,
@@ -63,31 +55,181 @@ class ReceiptsRepository {
       ],
     );
 
+    late Transaction firstTxModel;
+    final removedTxIds = <String>[];
+    final writtenTxs = <Transaction>[];
+
     await _db.transaction(() async {
-      // 1. Insere ou atualiza a transação
-      await _db.into(_db.transactions).insertOnConflictUpdate(
-            db.TransactionsCompanion(
-              id: Value(txModel.id),
-              userId: Value(txModel.userId),
-              amount: Value(txModel.amount),
-              description: Value(txModel.description),
-              date: Value(txModel.date),
-              categoryId: Value(txModel.categoryId),
-              paymentMethod: Value(txModel.paymentMethod),
-              isExpense: const Value(true),
-              notes: Value(txModel.notes),
-              receiptId: Value(receiptId),
-              createdAt: Value(txModel.createdAt),
-              updatedAt: Value(txModel.updatedAt),
-              isSynced: const Value(false),
-            ),
+      final existingLinked = await (_db.select(_db.transactions)
+            ..where(
+              (t) => t.receiptId.equals(receiptId) | t.id.equals(transactionId),
+            ))
+          .get();
+      final existingByInstallment = <int, db.Transaction>{
+        for (final row in existingLinked) row.installmentNumber: row,
+      };
+      final existingPrimary = existingLinked
+          .where((row) => row.id == transactionId)
+          .firstOrNull;
+      final keptTxIds = <String>{};
+
+      // 1. Cria transação única ou parcelas
+      if (isInstallment && totalInstallments > 1) {
+        final groupId = existingLinked
+                .map((row) => row.installmentGroupId)
+                .whereType<String>()
+                .where((g) => g.isNotEmpty)
+                .firstOrNull ??
+            _uuid.v4();
+        final perInstallment =
+            _roundToCents(receipt.totalAmount / totalInstallments);
+
+        int? closingDay;
+        if (creditCardId != null && creditCardId.isNotEmpty) {
+          final cardRow = await (_db.select(_db.creditCards)
+                ..where((c) => c.id.equals(creditCardId)))
+              .getSingleOrNull();
+          if (cardRow != null) closingDay = cardRow.closingDay;
+        }
+
+        for (var i = 1; i <= totalInstallments; i++) {
+          final DateTime installmentDate;
+          if (closingDay != null) {
+            installmentDate = CreditCardCycleHelper.installmentDateForCycle(
+              baseDate: receipt.issueDate,
+              installmentIndex: i - 1,
+              closingDay: closingDay,
+            );
+          } else {
+            installmentDate = _addMonths(receipt.issueDate, i - 1);
+          }
+
+          final prevRow = i == 1
+              ? (existingPrimary ?? existingByInstallment[1])
+              : existingByInstallment[i];
+          final thisTxId =
+              i == 1 ? transactionId : (prevRow?.id ?? _uuid.v4());
+          keptTxIds.add(thisTxId);
+
+          final amount = i == totalInstallments
+              ? _roundToCents(
+                  receipt.totalAmount - perInstallment * (totalInstallments - 1))
+              : perInstallment;
+
+          final tx = Transaction(
+            id: thisTxId,
+            userId: userId,
+            amount: amount,
+            description: '${receipt.establishmentName} ($i/$totalInstallments)',
+            date: installmentDate,
+            categoryId: categoryId,
+            creditCardId: creditCardId,
+            paymentMethod: receipt.paymentMethod,
+            isExpense: true,
+            isInstallment: true,
+            installmentNumber: i,
+            totalInstallments: totalInstallments,
+            installmentGroupId: groupId,
+            notes: prevRow?.notes ?? 'Cupom fiscal NFC-e PR',
+            reminderEnabled: prevRow?.reminderEnabled ?? false,
+            receiptId: receiptId,
+            createdAt: prevRow?.createdAt ?? receipt.createdAt,
+            updatedAt: now,
           );
+
+          if (i == 1) {
+            firstTxModel = tx;
+          }
+          writtenTxs.add(tx);
+
+          await _db.into(_db.transactions).insertOnConflictUpdate(
+                db.TransactionsCompanion(
+                  id: Value(tx.id),
+                  userId: Value(tx.userId),
+                  amount: Value(tx.amount),
+                  description: Value(tx.description),
+                  date: Value(tx.date),
+                  categoryId: Value(tx.categoryId),
+                  creditCardId: Value(tx.creditCardId),
+                  paymentMethod: Value(tx.paymentMethod),
+                  isExpense: const Value(true),
+                  isInstallment: const Value(true),
+                  installmentNumber: Value(tx.installmentNumber),
+                  totalInstallments: Value(tx.totalInstallments),
+                  installmentGroupId: Value(tx.installmentGroupId),
+                  notes: Value(tx.notes),
+                  reminderEnabled: Value(tx.reminderEnabled),
+                  receiptId: Value(receiptId),
+                  createdAt: Value(tx.createdAt),
+                  updatedAt: Value(tx.updatedAt),
+                  isSynced: const Value(false),
+                ),
+              );
+        }
+      } else {
+        keptTxIds.add(transactionId);
+        firstTxModel = Transaction(
+          id: transactionId,
+          userId: userId,
+          amount: receipt.totalAmount,
+          description: receipt.establishmentName,
+          date: receipt.issueDate,
+          categoryId: categoryId,
+          creditCardId: creditCardId,
+          paymentMethod: receipt.paymentMethod,
+          isExpense: true,
+          isInstallment: false,
+          installmentNumber: 1,
+          totalInstallments: 1,
+          installmentGroupId: null,
+          notes: existingPrimary?.notes ?? 'Cupom fiscal NFC-e PR',
+          reminderEnabled: existingPrimary?.reminderEnabled ?? false,
+          receiptId: receiptId,
+          createdAt: existingPrimary?.createdAt ?? receipt.createdAt,
+          updatedAt: now,
+        );
+        writtenTxs.add(firstTxModel);
+
+        await _db.into(_db.transactions).insertOnConflictUpdate(
+              db.TransactionsCompanion(
+                id: Value(firstTxModel.id),
+                userId: Value(firstTxModel.userId),
+                amount: Value(firstTxModel.amount),
+                description: Value(firstTxModel.description),
+                date: Value(firstTxModel.date),
+                categoryId: Value(firstTxModel.categoryId),
+                creditCardId: Value(firstTxModel.creditCardId),
+                paymentMethod: Value(firstTxModel.paymentMethod),
+                isExpense: const Value(true),
+                isInstallment: const Value(false),
+                installmentNumber: const Value(1),
+                totalInstallments: const Value(1),
+                installmentGroupId: const Value(null),
+                notes: Value(firstTxModel.notes),
+                reminderEnabled: Value(firstTxModel.reminderEnabled),
+                receiptId: Value(receiptId),
+                createdAt: Value(firstTxModel.createdAt),
+                updatedAt: Value(firstTxModel.updatedAt),
+                isSynced: const Value(false),
+              ),
+            );
+      }
+
+      // Remove parcelas antigas excedentes caso o utilizador tenha reduzido ou desfeito o parcelamento
+      for (final oldRow in existingLinked) {
+        if (!keptTxIds.contains(oldRow.id)) {
+          await (_db.delete(_db.transactions)
+                ..where((t) => t.id.equals(oldRow.id)))
+              .go();
+          removedTxIds.add(oldRow.id);
+        }
+      }
 
       // 2. Insere ou atualiza o cupom fiscal
       await _db.into(_db.receipts).insertOnConflictUpdate(
             db.ReceiptsCompanion(
               id: Value(finalReceipt.id),
-              transactionId: Value(transactionId),
+              transactionId: Value(firstTxModel.id),
               establishmentName: Value(finalReceipt.establishmentName),
               establishmentCnpj: Value(finalReceipt.establishmentCnpj),
               issueDate: Value(finalReceipt.issueDate),
@@ -97,6 +239,7 @@ class ReceiptsRepository {
               accessKey: Value(finalReceipt.accessKey),
               rawUrl: Value(finalReceipt.rawUrl),
               createdAt: Value(finalReceipt.createdAt),
+              isSynced: const Value(false),
             ),
           );
 
@@ -125,24 +268,87 @@ class ReceiptsRepository {
       }
     });
 
+    for (final oldId in removedTxIds) {
+      unawaited(TransactionReminderService.instance.cancel(oldId));
+      try {
+        await _sync?.tombstone('transaction', oldId);
+      } catch (_) {}
+    }
+
+    for (final tx in writtenTxs) {
+      if (tx.reminderEnabled) {
+        unawaited(
+          TransactionReminderService.instance.schedule(
+            transactionId: tx.id,
+            description: tx.description,
+            amount: tx.amount,
+            isExpense: true,
+            dueDate: tx.date,
+            enabled: true,
+            now: now,
+            allowSameDayFallback: true,
+          ),
+        );
+      }
+    }
+
     // Envia sincronização se online
     try {
-      _sync?.push();
+      unawaited(_sync?.push());
     } catch (_) {}
 
-    return (transaction: txModel, receipt: finalReceipt);
+    return (transaction: firstTxModel, receipt: finalReceipt);
   }
+
+  DateTime _addMonths(DateTime date, int months) {
+    final year = date.year + ((date.month + months - 1) ~/ 12);
+    final month = ((date.month + months - 1) % 12) + 1;
+    final maxDays = DateTime(year, month + 1, 0).day;
+    final day = date.day > maxDays ? maxDays : date.day;
+    return DateTime(year, month, day, date.hour, date.minute, date.second);
+  }
+
+  double _roundToCents(double value) => (value * 100).roundToDouble() / 100;
 
   /// Busca um cupom fiscal pelo id da transação associada.
   Future<Receipt?> getReceiptByTransactionId(String transactionId) async {
-    final row = await (_db.select(_db.receipts)
+    var row = await (_db.select(_db.receipts)
           ..where((r) => r.transactionId.equals(transactionId)))
         .getSingleOrNull();
 
-    if (row == null) return null;
+    if (row == null) {
+      final tx = await (_db.select(_db.transactions)
+            ..where((t) => t.id.equals(transactionId)))
+          .getSingleOrNull();
+      if (tx?.receiptId != null && tx!.receiptId!.isNotEmpty) {
+        row = await (_db.select(_db.receipts)
+              ..where((r) => r.id.equals(tx.receiptId!)))
+            .getSingleOrNull();
+      }
+    }
+
+    final receiptRow = row;
+    if (receiptRow == null) return null;
+
+    // Auto-repara o vinculo na transacao caso estivesse ausente.
+    try {
+      final tx = await (_db.select(_db.transactions)
+            ..where((t) => t.id.equals(transactionId)))
+          .getSingleOrNull();
+      if (tx != null && (tx.receiptId == null || tx.receiptId!.isEmpty)) {
+        await (_db.update(_db.transactions)
+              ..where((t) => t.id.equals(transactionId)))
+            .write(
+          db.TransactionsCompanion(
+            receiptId: Value(receiptRow.id),
+            isSynced: const Value(false),
+          ),
+        );
+      }
+    } catch (_) {}
 
     final itemsRows = await (_db.select(_db.receiptItems)
-          ..where((i) => i.receiptId.equals(row.id))
+          ..where((i) => i.receiptId.equals(receiptRow.id))
           ..orderBy([(i) => OrderingTerm.asc(i.sortOrder)]))
         .get();
 
@@ -165,18 +371,18 @@ class ReceiptsRepository {
         .toList();
 
     return Receipt(
-      id: row.id,
-      transactionId: row.transactionId,
-      establishmentName: row.establishmentName,
-      establishmentCnpj: row.establishmentCnpj,
-      issueDate: row.issueDate,
-      totalAmount: row.totalAmount,
-      discountAmount: row.discountAmount,
-      paymentMethod: row.paymentMethod,
-      accessKey: row.accessKey,
-      rawUrl: row.rawUrl,
+      id: receiptRow.id,
+      transactionId: receiptRow.transactionId,
+      establishmentName: receiptRow.establishmentName,
+      establishmentCnpj: receiptRow.establishmentCnpj,
+      issueDate: receiptRow.issueDate,
+      totalAmount: receiptRow.totalAmount,
+      discountAmount: receiptRow.discountAmount,
+      paymentMethod: receiptRow.paymentMethod,
+      accessKey: receiptRow.accessKey,
+      rawUrl: receiptRow.rawUrl,
       items: items,
-      createdAt: row.createdAt,
+      createdAt: receiptRow.createdAt,
     );
   }
 
@@ -186,10 +392,11 @@ class ReceiptsRepository {
           ..where((r) => r.id.equals(receiptId)))
         .getSingleOrNull();
 
-    if (row == null) return null;
+    final receiptRow = row;
+    if (receiptRow == null) return null;
 
     final itemsRows = await (_db.select(_db.receiptItems)
-          ..where((i) => i.receiptId.equals(row.id))
+          ..where((i) => i.receiptId.equals(receiptRow.id))
           ..orderBy([(i) => OrderingTerm.asc(i.sortOrder)]))
         .get();
 
@@ -212,18 +419,18 @@ class ReceiptsRepository {
         .toList();
 
     return Receipt(
-      id: row.id,
-      transactionId: row.transactionId,
-      establishmentName: row.establishmentName,
-      establishmentCnpj: row.establishmentCnpj,
-      issueDate: row.issueDate,
-      totalAmount: row.totalAmount,
-      discountAmount: row.discountAmount,
-      paymentMethod: row.paymentMethod,
-      accessKey: row.accessKey,
-      rawUrl: row.rawUrl,
+      id: receiptRow.id,
+      transactionId: receiptRow.transactionId,
+      establishmentName: receiptRow.establishmentName,
+      establishmentCnpj: receiptRow.establishmentCnpj,
+      issueDate: receiptRow.issueDate,
+      totalAmount: receiptRow.totalAmount,
+      discountAmount: receiptRow.discountAmount,
+      paymentMethod: receiptRow.paymentMethod,
+      accessKey: receiptRow.accessKey,
+      rawUrl: receiptRow.rawUrl,
       items: items,
-      createdAt: row.createdAt,
+      createdAt: receiptRow.createdAt,
     );
   }
 

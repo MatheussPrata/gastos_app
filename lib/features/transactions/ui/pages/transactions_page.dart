@@ -8,6 +8,7 @@ import 'package:gastos_app/features/categories/provider/categories_provider.dart
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
+import 'package:gastos_app/features/receipts/ui/receipt_navigation.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:gastos_app/features/transactions/services/transactions_export_service.dart';
@@ -129,23 +130,12 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                     final transaction = filtered[index];
                     return TransactionTile(
                       transaction: transaction,
-                      onTap: () {
-                        if (transaction.receiptId != null &&
-                            transaction.receiptId!.isNotEmpty) {
-                          context.push(
-                            RouteNames.receiptDetail,
-                            extra: {
-                              'receiptId': transaction.receiptId,
-                              'transactionId': transaction.id,
-                            },
-                          );
-                        } else {
-                          context.push(
-                            RouteNames.transactionForm,
-                            extra: {'id': transaction.id, 'isEditing': true},
-                          );
-                        }
-                      },
+                      onTap: () => openTransactionOrReceipt(
+                        context,
+                        ref,
+                        transactionId: transaction.id,
+                        receiptId: transaction.receiptId,
+                      ),
                       onDelete: () => _confirmDelete(context, ref, transaction),
                     );
                   },

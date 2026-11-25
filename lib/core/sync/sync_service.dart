@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show Value, countAll;
+import 'package:drift/drift.dart'
+    show BooleanExpressionOperators, OrderingTerm, Value, countAll;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
@@ -208,6 +209,21 @@ class SyncService {
       payload['budgetPlans'] = [for (final p in plans) _planToJson(p)];
     }
 
+    final unsyncedReceipts = await (_db.select(_db.receipts)
+          ..where((r) => r.isSynced.equals(false)))
+        .get();
+    if (unsyncedReceipts.isNotEmpty) {
+      final serializedReceipts = <Map<String, dynamic>>[];
+      for (final r in unsyncedReceipts) {
+        final items = await (_db.select(_db.receiptItems)
+              ..where((i) => i.receiptId.equals(r.id))
+              ..orderBy([(i) => OrderingTerm.asc(i.sortOrder)]))
+            .get();
+        serializedReceipts.add(_receiptToJson(r, items));
+      }
+      payload['receipts'] = serializedReceipts;
+    }
+
     if (payload.isEmpty) {
       return SyncOutcome(pushed: pushed, failed: failed);
     }
@@ -237,6 +253,7 @@ class SyncService {
       await _markTransactionsSynced(transactions, failedIds);
       await _markRecurringSynced(recurring, failedIds);
       await _markPlansSynced(plans, failedIds);
+      await _markReceiptsSynced(unsyncedReceipts, failedIds);
 
       final sent = [
         ...unsyncedCategories.map((c) => c.id),
@@ -245,6 +262,7 @@ class SyncService {
         ...transactions.map((t) => t.id),
         ...recurring.map((r) => r.id),
         ...plans.map((p) => p.id),
+        ...unsyncedReceipts.map((r) => r.id),
       ];
       final rejected = sent.where(failedIds.contains).length;
       pushed += sent.length - rejected;
@@ -312,6 +330,15 @@ class SyncService {
       if (failedIds.contains(p.id)) continue;
       await (_db.update(_db.budgetPlans)..where((x) => x.id.equals(p.id)))
           .write(const db.BudgetPlansCompanion(isSynced: Value(true)));
+    }
+  }
+
+  Future<void> _markReceiptsSynced(
+      List<db.Receipt> rows, Set<String> failedIds) async {
+    for (final r in rows) {
+      if (failedIds.contains(r.id)) continue;
+      await (_db.update(_db.receipts)..where((x) => x.id.equals(r.id)))
+          .write(const db.ReceiptsCompanion(isSynced: Value(true)));
     }
   }
 
@@ -419,6 +446,7 @@ class SyncService {
     pulled += await _restoreCreditCards(data['creditCards'], userId, blocked);
     pulled +=
         await _restoreTransactions(data['transactions'], userId, blocked);
+    pulled += await _restoreReceipts(data['receipts'], blocked);
     pulled += await _restoreRecurring(
         data['recurringTransactions'], userId, blocked);
     pulled += await _restorePlans(data['budgetPlans'], userId);
@@ -580,6 +608,12 @@ class SyncService {
         if (!updatedAt.isAfter(existing.updatedAt)) continue;
       }
 
+      final incomingReceiptId = json['receiptId']?.toString();
+      final resolvedReceiptId =
+          (incomingReceiptId != null && incomingReceiptId.isNotEmpty)
+              ? incomingReceiptId
+              : existing?.receiptId;
+
       await _db.into(_db.transactions).insertOnConflictUpdate(
             db.TransactionsCompanion(
               id: Value(id),
@@ -604,11 +638,111 @@ class SyncService {
               partnerSynced: Value(json['partnerSynced'] as bool? ?? false),
               reminderEnabled:
                   Value(json['reminderEnabled'] as bool? ?? false),
+              receiptId: Value(resolvedReceiptId),
               createdAt: Value(createdAt),
               updatedAt: Value(updatedAt),
               isSynced: const Value(true),
             ),
           );
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _restoreReceipts(dynamic raw, Set<String> blocked) async {
+    if (raw is! List) return 0;
+    final local = {
+      for (final row in await _db.select(_db.receipts).get()) row.id: row
+    };
+    var count = 0;
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final json = Map<String, dynamic>.from(entry);
+      final id = json['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      if (blocked.contains('receipt:$id')) continue;
+
+      final existing = local[id];
+      if (existing != null && !existing.isSynced) continue;
+
+      final issueDate =
+          DateTime.tryParse(json['issueDate']?.toString() ?? '') ??
+              DateTime.now();
+      final createdAt =
+          DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? issueDate;
+      final transactionId = json['transactionId']?.toString() ?? '';
+
+      await _db.transaction(() async {
+        await _db.into(_db.receipts).insertOnConflictUpdate(
+              db.ReceiptsCompanion(
+                id: Value(id),
+                transactionId: Value(transactionId),
+                establishmentName:
+                    Value(json['establishmentName']?.toString() ?? ''),
+                establishmentCnpj:
+                    Value(json['establishmentCnpj']?.toString() ?? ''),
+                issueDate: Value(issueDate),
+                totalAmount: Value(_toDouble(json['totalAmount'])),
+                discountAmount: Value(_toDouble(json['discountAmount'])),
+                paymentMethod: Value(json['paymentMethod']?.toString() ?? ''),
+                accessKey: Value(json['accessKey']?.toString()),
+                rawUrl: Value(json['rawUrl']?.toString()),
+                createdAt: Value(createdAt),
+                isSynced: const Value(true),
+              ),
+            );
+
+        await (_db.delete(_db.receiptItems)
+              ..where((i) => i.receiptId.equals(id)))
+            .go();
+
+        final rawItems = json['items'];
+        if (rawItems is List) {
+          for (var idx = 0; idx < rawItems.length; idx++) {
+            final itemRaw = rawItems[idx];
+            if (itemRaw is! Map) continue;
+            final item = Map<String, dynamic>.from(itemRaw);
+            final itemId = item['id']?.toString();
+            await _db.into(_db.receiptItems).insert(
+                  db.ReceiptItemsCompanion(
+                    id: Value(
+                      (itemId != null && itemId.isNotEmpty)
+                          ? itemId
+                          : _uuid.v4(),
+                    ),
+                    receiptId: Value(id),
+                    name: Value(item['name']?.toString() ?? ''),
+                    code: Value(item['code']?.toString()),
+                    quantity: Value(
+                      item['quantity'] == null
+                          ? 1.0
+                          : _toDouble(item['quantity']),
+                    ),
+                    unit: Value(item['unit']?.toString() ?? 'UN'),
+                    unitPrice: Value(_toDouble(item['unitPrice'])),
+                    totalPrice: Value(_toDouble(item['totalPrice'])),
+                    discount: Value(_toDouble(item['discount'])),
+                    category: Value(item['category']?.toString() ?? 'Outros'),
+                    sortOrder: Value(
+                      (item['sortOrder'] is num)
+                          ? (item['sortOrder'] as num).toInt()
+                          : idx,
+                    ),
+                  ),
+                );
+          }
+        }
+
+        if (transactionId.isNotEmpty) {
+          await (_db.update(_db.transactions)
+                ..where(
+                  (t) =>
+                      t.id.equals(transactionId) &
+                      (t.receiptId.isNull() | t.receiptId.equals('')),
+                ))
+              .write(db.TransactionsCompanion(receiptId: Value(id)));
+        }
+      });
       count++;
     }
     return count;
@@ -723,24 +857,10 @@ class SyncService {
 
   /// Reagenda no sistema operativo os lembretes restaurados do servidor.
   Future<void> _rescheduleRestoredReminders() async {
-    final now = DateTime.now();
-    final rows = await (_db.select(_db.transactions)
-          ..where((t) => t.reminderEnabled.equals(true)))
-        .get();
-    for (final row in rows) {
-      try {
-        await TransactionReminderService.instance.schedule(
-          transactionId: row.id,
-          description: row.description,
-          amount: row.amount,
-          isExpense: row.isExpense,
-          dueDate: row.date,
-          enabled: true,
-          now: now,
-        );
-      } catch (_) {
-        // Um lembrete que falha nao impede o restauro dos dados.
-      }
+    try {
+      await TransactionReminderService.instance.syncAllFromDatabase(_db);
+    } catch (_) {
+      // Um lembrete que falha nao impede o restauro dos dados.
     }
   }
 
@@ -765,8 +885,43 @@ class SyncService {
         'ownerId': t.ownerId,
         'partnerSynced': t.partnerSynced,
         'reminderEnabled': t.reminderEnabled,
+        'receiptId': t.receiptId,
         'createdAt': t.createdAt.toIso8601String(),
         'updatedAt': t.updatedAt.toIso8601String(),
+      };
+
+  Map<String, dynamic> _receiptToJson(
+    db.Receipt r,
+    List<db.ReceiptItem> items,
+  ) =>
+      {
+        'id': r.id,
+        'transactionId': r.transactionId,
+        'establishmentName': r.establishmentName,
+        'establishmentCnpj': r.establishmentCnpj,
+        'issueDate': r.issueDate.toIso8601String(),
+        'totalAmount': r.totalAmount,
+        'discountAmount': r.discountAmount,
+        'paymentMethod': r.paymentMethod,
+        'accessKey': r.accessKey,
+        'rawUrl': r.rawUrl,
+        'createdAt': r.createdAt.toIso8601String(),
+        'items': [
+          for (final item in items)
+            {
+              'id': item.id,
+              'receiptId': item.receiptId,
+              'name': item.name,
+              'code': item.code,
+              'quantity': item.quantity,
+              'unit': item.unit,
+              'unitPrice': item.unitPrice,
+              'totalPrice': item.totalPrice,
+              'discount': item.discount,
+              'category': item.category,
+              'sortOrder': item.sortOrder,
+            },
+        ],
       };
 
   Map<String, dynamic> _recurringToJson(db.RecurringTransaction r) => {

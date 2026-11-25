@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:gastos_app/core/notifications/notification_permission_service.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 
 /// Dialog to edit the alert thresholds of the current plan.
@@ -103,11 +104,24 @@ class _NotificationSettingsDialogState
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Notificação push'),
-              subtitle: const Text('Disponível na próxima atualização'),
+              title: const Text('Notificação no aparelho'),
+              subtitle: const Text(
+                'Exibe alerta na barra de notificações do aparelho',
+              ),
               value: _push,
-              onChanged:
-                  !_enabled ? null : (value) => setState(() => _push = value),
+              onChanged: !_enabled
+                  ? null
+                  : (value) async {
+                      if (!value) {
+                        setState(() => _push = false);
+                        return;
+                      }
+                      final permissions =
+                          await NotificationPermissionService.instance
+                              .request();
+                      if (!mounted) return;
+                      setState(() => _push = permissions.canNotify || value);
+                    },
             ),
           ],
         ),

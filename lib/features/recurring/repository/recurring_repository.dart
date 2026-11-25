@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
+import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 class RecurringRepository {
   final db.AppDatabase _db;
@@ -80,6 +81,7 @@ class RecurringRepository {
           isSynced: const Value(false),
         ));
 
+    unawaited(_scheduleNotification(recurring));
     unawaited(_sync.push());
     return recurring;
   }
@@ -108,15 +110,32 @@ class RecurringRepository {
           isSynced: const Value(false),
         ));
 
+    unawaited(_scheduleNotification(recurring));
     unawaited(_sync.push());
     return recurring;
   }
 
   Future<void> deleteRecurring(String id) async {
+    await TransactionReminderService.instance.cancelRecurring(id);
     await (_db.delete(_db.recurringTransactions)..where((r) => r.id.equals(id)))
         .go();
     await _sync.tombstone('recurring', id);
     unawaited(_sync.push());
+  }
+
+  Future<void> _scheduleNotification(RecurringTransaction recurring) async {
+    try {
+      await TransactionReminderService.instance.scheduleRecurring(
+        recurringId: recurring.id,
+        description: recurring.description,
+        amount: recurring.amount,
+        isExpense: recurring.type == 'expense',
+        frequency: recurring.frequency,
+        nextDueDate: recurring.nextDueDate,
+        endDate: recurring.endDate,
+        isActive: recurring.isActive,
+      );
+    } catch (_) {}
   }
 
   /// A base local e a fonte da verdade; envio e restauracao passam pelo

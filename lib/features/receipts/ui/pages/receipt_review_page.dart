@@ -8,10 +8,15 @@ import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
+import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
+import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/planning/repository/planning_repository.dart';
+import 'package:gastos_app/features/planning/ui/planning_ui_helpers.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
+import 'package:gastos_app/features/receipts/provider/receipts_provider.dart';
 import 'package:gastos_app/features/receipts/repository/receipts_repository.dart';
 import 'package:gastos_app/features/receipts/services/receipt_item_categorizer.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart' hide Category;
@@ -31,6 +36,9 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
   late DateTime _selectedDate;
   late String _selectedPaymentMethod;
   String? _selectedCategoryId;
+  String? _selectedCreditCardId;
+  bool _isInstallment = false;
+  int _installments = 2;
   late List<ReceiptItem> _items;
   bool _isSaving = false;
   bool _itemsDirty = false;
@@ -46,6 +54,37 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
         ? widget.initialReceipt.paymentMethod
         : PaymentMethods.creditCard;
     _items = List.from(widget.initialReceipt.items);
+    if (widget.initialReceipt.transactionId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadExistingTransaction();
+      });
+    }
+  }
+
+  Future<void> _loadExistingTransaction() async {
+    try {
+      final existing = await ref
+          .read(transactionsRepositoryProvider)
+          .getTransactionById(widget.initialReceipt.transactionId);
+      if (existing == null || !mounted) return;
+      setState(() {
+        if (existing.categoryId != null && existing.categoryId!.isNotEmpty) {
+          _selectedCategoryId = existing.categoryId;
+        }
+        if (existing.creditCardId != null &&
+            existing.creditCardId!.isNotEmpty) {
+          _selectedCreditCardId = existing.creditCardId;
+        }
+        if (existing.paymentMethod.isNotEmpty &&
+            PaymentMethods.all.contains(existing.paymentMethod)) {
+          _selectedPaymentMethod = existing.paymentMethod;
+        }
+        if (existing.isInstallment && existing.totalInstallments > 1) {
+          _isInstallment = true;
+          _installments = existing.totalInstallments;
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -582,6 +621,16 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
             receipt: updatedReceipt,
             categoryId: _selectedCategoryId,
             userId: userId,
+            creditCardId: _selectedPaymentMethod == PaymentMethods.creditCard
+                ? _selectedCreditCardId
+                : null,
+            isInstallment: _selectedPaymentMethod == PaymentMethods.creditCard &&
+                _isInstallment,
+            totalInstallments:
+                (_selectedPaymentMethod == PaymentMethods.creditCard &&
+                        _isInstallment)
+                    ? _installments
+                    : 1,
           );
 
       // Invalida todos os providers de dados financeiros
@@ -591,13 +640,17 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
         ..invalidate(monthlyStatsProvider)
         ..invalidate(recentMonthlyStatsProvider)
         ..invalidate(monthlyCategoryStatsProvider)
+        ..invalidate(creditCardsProvider)
+        ..invalidate(cardsWithSpentProvider)
         ..invalidate(monthPlanningProvider)
         ..invalidate(planningProgressProvider)
         ..invalidate(planningAlertsProvider)
         ..invalidate(unreadAlertsProvider)
         ..invalidate(monthlyIncomeProvider)
         ..invalidate(incomeAttributionProvider)
-        ..invalidate(monthSpentTotalProvider);
+        ..invalidate(monthSpentTotalProvider)
+        ..invalidate(receiptDetailsProvider(result.receipt.id))
+        ..invalidate(receiptByTransactionProvider(result.transaction.id));
 
       for (final scope in BudgetScope.values) {
         ref.read(planningRepositoryProvider).checkAndCreateAlertsInBackground(
@@ -641,6 +694,8 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesListProvider);
+    final creditCardsAsync = ref.watch(creditCardsProvider);
+    final creditCards = creditCardsAsync.valueOrNull ?? const <CreditCardItem>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -671,7 +726,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
                   children: [
-                    _buildGeneralInfoCard(categories),
+                    _buildGeneralInfoCard(categories, creditCards),
                     const SizedBox(height: 16),
                     _buildItemsHeader(),
                     const SizedBox(height: 8),
@@ -724,7 +779,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     );
   }
 
-  Widget _buildGeneralInfoCard(List<Category> categories) {
+  Widget _buildGeneralInfoCard(
+    List<Category> categories,
+    List<CreditCardItem> creditCards,
+  ) {
     return Card(
       elevation: 1,
       child: Padding(
@@ -796,13 +854,107 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                     ],
                     onChanged: (val) {
                       if (val != null) {
-                        setState(() => _selectedPaymentMethod = val);
+                        setState(() {
+                          _selectedPaymentMethod = val;
+                          if (_selectedPaymentMethod != PaymentMethods.creditCard) {
+                            _isInstallment = false;
+                          }
+                        });
                       }
                     },
                   ),
                 ),
               ],
             ),
+            if (_selectedPaymentMethod == PaymentMethods.creditCard) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                value: _selectedCreditCardId,
+                decoration: const InputDecoration(
+                  labelText: 'Cartão de Crédito',
+                  prefixIcon: Icon(Icons.credit_card),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Nenhum cartão selecionado'),
+                  ),
+                  ...creditCards.map(
+                    (c) => DropdownMenuItem<String?>(
+                      value: c.id,
+                      child: Text(
+                          '${c.name}${c.lastFourDigits.isNotEmpty ? " (Final ${c.lastFourDigits})" : ""}'),
+                    ),
+                  ),
+                ],
+                onChanged: (val) {
+                  setState(() => _selectedCreditCardId = val);
+                },
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Parcelado',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text('Dividir em parcelas mensais',
+                    style: TextStyle(fontSize: 12)),
+                value: _isInstallment,
+                activeColor: AppColors.primary,
+                onChanged: (val) {
+                  setState(() => _isInstallment = val);
+                },
+              ),
+              if (_isInstallment) ...[
+                const SizedBox(height: 4),
+                DropdownButtonFormField<int>(
+                  value: _installments,
+                  decoration: const InputDecoration(
+                    labelText: 'Número de Parcelas',
+                    prefixIcon: Icon(Icons.splitscreen),
+                  ),
+                  items: List.generate(35, (i) => i + 2)
+                      .map(
+                        (n) => DropdownMenuItem(
+                          value: n,
+                          child: Text(
+                              '${n}x de ${CurrencyFormatter.format(_totalAmount / n)}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _installments = val);
+                    }
+                  },
+                ),
+                if (_selectedCreditCardId != null &&
+                    creditCards.any((c) => c.id == _selectedCreditCardId)) ...[
+                  const SizedBox(height: 6),
+                  Builder(builder: (context) {
+                    final card = creditCards
+                        .firstWhere((c) => c.id == _selectedCreditCardId);
+                    final invoiceMonth = CreditCardCycleHelper.invoiceMonthForDate(
+                        _selectedDate, card.closingDay);
+                    final lastDate =
+                        CreditCardCycleHelper.installmentDateForCycle(
+                      baseDate: _selectedDate,
+                      installmentIndex: _installments - 1,
+                      closingDay: card.closingDay,
+                    );
+                    final lastMonth = CreditCardCycleHelper.invoiceMonthForDate(
+                        lastDate, card.closingDay);
+                    return Text(
+                      'Parcelas: 1ª na fatura de ${planningMonthLabel(invoiceMonth)}, última (${_installments}x) em ${planningMonthLabel(lastMonth)}.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ],
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: _selectedCategoryId,

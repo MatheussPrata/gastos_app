@@ -143,6 +143,10 @@ class PlanningNotifier extends StateNotifier<AsyncValue<BudgetPlan?>> {
       if (mounted && revision == _revision) {
         state = AsyncValue.data(saved);
       }
+      _repository.checkAndCreateAlertsInBackground(
+        month: saved.month,
+        scope: saved.scope,
+      );
     } catch (error, stack) {
       if (mounted && revision == _revision) {
         state = AsyncValue.error(error, stack);

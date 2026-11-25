@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
+import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/receipts/provider/receipts_provider.dart';
+import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 
 class ReceiptDetailPage extends ConsumerWidget {
   final String? receiptId;
@@ -40,15 +42,44 @@ class ReceiptDetailPage extends ConsumerWidget {
               if (receipt == null || receipt.transactionId.isEmpty) {
                 return const SizedBox.shrink();
               }
-              return IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Editar Cupom e Itens',
-                onPressed: () {
-                  context.push(
-                    RouteNames.receiptReview,
-                    extra: receipt,
-                  );
-                },
+              final currentTxId =
+                  (transactionId != null && transactionId!.isNotEmpty)
+                      ? transactionId!
+                      : receipt.transactionId;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_note),
+                    tooltip: 'Editar Transação',
+                    onPressed: () async {
+                      await context.push(
+                        RouteNames.transactionForm,
+                        extra: {'id': currentTxId, 'isEditing': true},
+                      );
+                      ref.invalidate(transactionByIdProvider(currentTxId));
+                      if (receipt.id.isNotEmpty) {
+                        ref.invalidate(receiptDetailsProvider(receipt.id));
+                      }
+                      ref.invalidate(receiptByTransactionProvider(currentTxId));
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: 'Editar Cupom e Itens',
+                    onPressed: () async {
+                      await context.push(
+                        RouteNames.receiptReview,
+                        extra: receipt,
+                      );
+                      if (receipt.id.isNotEmpty) {
+                        ref.invalidate(receiptDetailsProvider(receipt.id));
+                      }
+                      ref.invalidate(receiptByTransactionProvider(currentTxId));
+                      ref.invalidate(transactionByIdProvider(currentTxId));
+                    },
+                  ),
+                ],
               );
             },
             loading: () => const SizedBox.shrink(),
@@ -69,7 +100,7 @@ class ReceiptDetailPage extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildHeaderCard(context, receipt),
+              _buildHeaderCard(context, ref, receipt),
               const SizedBox(height: 16),
               _buildItemsCard(context, receipt),
             ],
@@ -79,7 +110,23 @@ class ReceiptDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeaderCard(BuildContext context, Receipt receipt) {
+  Widget _buildHeaderCard(
+    BuildContext context,
+    WidgetRef ref,
+    Receipt receipt,
+  ) {
+    final currentTxId = (transactionId != null && transactionId!.isNotEmpty)
+        ? transactionId!
+        : receipt.transactionId;
+    final tx = currentTxId.isNotEmpty
+        ? ref.watch(transactionByIdProvider(currentTxId)).valueOrNull
+        : null;
+
+    final cards = ref.watch(creditCardsProvider).valueOrNull ?? [];
+    final card = (tx?.creditCardId != null && tx!.creditCardId!.isNotEmpty)
+        ? cards.where((c) => c.id == tx.creditCardId).firstOrNull
+        : null;
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -127,6 +174,52 @@ class ReceiptDetailPage extends ConsumerWidget {
                 ),
               ],
             ),
+            if (tx != null && tx.isInstallment && tx.totalInstallments > 1) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withAlpha(18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withAlpha(50)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.splitscreen,
+                        size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Parcelado em ${tx.totalInstallments}x (${tx.installmentNumber}ª parcela de ${CurrencyFormatter.format(tx.amount)})',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (card != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.credit_card, size: 16, color: Colors.blueGrey),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${card.name}${card.lastFourDigits.isNotEmpty ? " (Final ${card.lastFourDigits})" : ""}',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

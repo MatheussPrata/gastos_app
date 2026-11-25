@@ -1,11 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
+import 'package:gastos_app/core/database/app_database.dart' as db;
+import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/core/utils/formatters.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
+import 'package:gastos_app/features/receipts/provider/receipts_provider.dart';
+import 'package:gastos_app/features/receipts/repository/receipts_repository.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
 import 'package:gastos_app/features/recurring/utils/recurring_dates.dart';
@@ -67,6 +74,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   String _frequency = 'monthly';
   bool _isSaving = false;
   bool _reminderEnabled = false;
+  String? _receiptId;
 
   @override
   void initState() {
@@ -90,6 +98,17 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         await repository.getTransactionById(widget.transactionId!);
     if (transaction == null || !mounted) return;
 
+    var resolvedReceiptId = transaction.receiptId;
+    if (resolvedReceiptId == null || resolvedReceiptId.isEmpty) {
+      try {
+        final linkedReceipt = await ref
+            .read(receiptsRepositoryProvider)
+            .getReceiptByTransactionId(transaction.id);
+        resolvedReceiptId = linkedReceipt?.id;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+
     setState(() {
       _isExpense = transaction.isExpense;
       _descriptionController.text = transaction.description;
@@ -102,6 +121,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       _date = transaction.date;
       _notesController.text = transaction.notes ?? '';
       _reminderEnabled = transaction.isExpense && transaction.reminderEnabled;
+      _receiptId = resolvedReceiptId;
       if (transaction.isInstallment && transaction.totalInstallments > 1) {
         _isInstallment = true;
         _installments = transaction.totalInstallments;
@@ -315,12 +335,51 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isEditing ? 'Editar Transação' : 'Nova Transação'),
+        actions: [
+          if (!widget.isEditing)
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Ler Cupom Fiscal (NFC-e)',
+              onPressed: () => context.push(RouteNames.receiptScanner),
+            ),
+        ],
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (!widget.isEditing) ...[
+              Card(
+                elevation: 0,
+                color: AppColors.primary.withAlpha(18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppColors.primary.withAlpha(50)),
+                ),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.primary,
+                    child: Icon(Icons.qr_code_scanner, color: Colors.white, size: 20),
+                  ),
+                  title: const Text(
+                    'Lançar por Cupom / NFC-e',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Importe itens, total e data lendo o QR Code do cupom',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: AppColors.primary),
+                  onTap: () => context.push(RouteNames.receiptScanner),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (widget.isEditing && _receiptId != null && _receiptId!.isNotEmpty) ...[
+              _buildReceiptItemsSection(),
+              const SizedBox(height: 16),
+            ],
             _buildTypeToggle(),
             const SizedBox(height: 16),
             TextFormField(
@@ -563,6 +622,10 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         }
 
         setState(() => _reminderEnabled = true);
+        unawaited(
+          TransactionReminderService.instance
+              .syncAllFromDatabase(db.AppDatabase()),
+        );
         if (!permissions.canScheduleExact) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -839,6 +902,198 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildReceiptItemsSection() {
+    if (_receiptId == null || _receiptId!.isEmpty) return const SizedBox.shrink();
+
+    final receiptAsync = ref.watch(receiptDetailsProvider(_receiptId!));
+    return receiptAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (receipt) {
+        if (receipt == null || receipt.items.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Card(
+          elevation: 1,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.receipt_long,
+                        color: AppColors.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Itens Comprados na NF (${receipt.items.length})',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Editar'),
+                      onPressed: () async {
+                        await context.push(
+                          RouteNames.receiptReview,
+                          extra: receipt,
+                        );
+                        if (_receiptId != null) {
+                          ref.invalidate(receiptDetailsProvider(_receiptId!));
+                        }
+                      },
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Ver Cupom'),
+                      onPressed: () {
+                        context.push(
+                          RouteNames.receiptDetail,
+                          extra: {
+                            'receiptId': _receiptId,
+                            'transactionId': widget.transactionId,
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const Divider(height: 12),
+                for (var index = 0; index < receipt.items.length; index++) ...[
+                  if (index > 0) const Divider(height: 12),
+                  Builder(
+                    builder: (context) {
+                      final item = receipt.items[index];
+                      final unit = item.unit.isNotEmpty
+                          ? item.unit.toUpperCase()
+                          : 'UN';
+                      final qty = item.quantity ==
+                              item.quantity.truncateToDouble()
+                          ? item.quantity.toInt().toString()
+                          : (unit == 'KG'
+                              ? item.quantity.toStringAsFixed(3)
+                              : item.quantity.toStringAsFixed(2));
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 11,
+                            backgroundColor: Colors.grey.shade200,
+                            child: Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.name,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$qty $unit${item.unitPrice > 0 ? " × ${CurrencyFormatter.format(item.unitPrice)}" : ""}',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                if (item.discount > 0.005)
+                                  Text(
+                                    'Desconto: -${CurrencyFormatter.format(item.discount)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.income,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            CurrencyFormatter.format(item.totalPrice),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.expense,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+                const Divider(height: 18),
+                if (receipt.discountTotal > 0.005) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Descontos na nota',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      Text(
+                        '-${CurrencyFormatter.format(receipt.discountTotal)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.income,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total do Cupom Fiscal',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      CurrencyFormatter.format(receipt.totalAmount),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.expense,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

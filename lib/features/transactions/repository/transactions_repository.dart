@@ -212,7 +212,7 @@ class TransactionsRepository {
 
     // O lembrete e agendado no aparelho para cada parcela criada.
     for (final transaction in created) {
-      unawaited(_scheduleReminder(transaction));
+      unawaited(_scheduleReminder(transaction, allowSameDayFallback: true));
     }
 
     unawaited(syncPendingTransactions());
@@ -225,16 +225,59 @@ class TransactionsRepository {
     await _db
         .update(_db.transactions)
         .replace(_toCompanion(updated, synced: false));
-    unawaited(_scheduleReminder(updated));
+    unawaited(_scheduleReminder(updated, allowSameDayFallback: true));
     unawaited(syncPendingTransactions());
     return updated;
   }
 
   Future<void> deleteTransaction(String id) async {
+    final existingTx = await (_db.select(_db.transactions)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+
+    var linkedReceiptId = existingTx?.receiptId;
+    if (linkedReceiptId == null || linkedReceiptId.isEmpty) {
+      final receiptRow = await (_db.select(_db.receipts)
+            ..where((r) => r.transactionId.equals(id)))
+          .getSingleOrNull();
+      linkedReceiptId = receiptRow?.id;
+    }
+
     await TransactionReminderService.instance.cancel(id);
     await (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
     // A eliminacao e enviada na proxima sincronizacao (funciona offline).
     await _sync.tombstone('transaction', id);
+
+    if (linkedReceiptId != null && linkedReceiptId.isNotEmpty) {
+      final remaining = await (_db.select(_db.transactions)
+            ..where((t) => t.receiptId.equals(linkedReceiptId!))
+            ..orderBy([(t) => OrderingTerm.asc(t.installmentNumber)]))
+          .get();
+      if (remaining.isEmpty) {
+        await (_db.delete(_db.receiptItems)
+              ..where((i) => i.receiptId.equals(linkedReceiptId!)))
+            .go();
+        await (_db.delete(_db.receipts)
+              ..where((r) => r.id.equals(linkedReceiptId!)))
+            .go();
+        await _sync.tombstone('receipt', linkedReceiptId);
+      } else {
+        final receiptRow = await (_db.select(_db.receipts)
+              ..where((r) => r.id.equals(linkedReceiptId!)))
+            .getSingleOrNull();
+        if (receiptRow != null && receiptRow.transactionId == id) {
+          await (_db.update(_db.receipts)
+                ..where((r) => r.id.equals(linkedReceiptId!)))
+              .write(
+            db.ReceiptsCompanion(
+              transactionId: Value(remaining.first.id),
+              isSynced: const Value(false),
+            ),
+          );
+        }
+      }
+    }
+
     unawaited(_sync.push());
   }
 
@@ -373,7 +416,10 @@ class TransactionsRepository {
   }
 
   /// Agenda ou cancela o lembrete de [transaction] no aparelho.
-  Future<void> _scheduleReminder(Transaction transaction) async {
+  Future<void> _scheduleReminder(
+    Transaction transaction, {
+    bool allowSameDayFallback = false,
+  }) async {
     try {
       await TransactionReminderService.instance.schedule(
         transactionId: transaction.id,
@@ -383,6 +429,7 @@ class TransactionsRepository {
         dueDate: transaction.date,
         enabled: transaction.isExpense && transaction.reminderEnabled,
         now: DateTime.now(),
+        allowSameDayFallback: allowSameDayFallback,
       );
     } catch (_) {
       // O lembrete nunca deve impedir a gravacao da transacao.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/notifications/notification_permission_service.dart';
 import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
+import 'package:gastos_app/features/planning/services/notification_service.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/utils/reminder_schedule.dart';
 
@@ -19,25 +22,12 @@ class ReminderLeadDaysNotifier extends StateNotifier<int> {
     state = TransactionReminderService.instance.leadDays;
   }
 
-  /// Grava a nova antecedencia e reagenda as transacoes que ja tem lembrete.
+  /// Grava a nova antecedencia e reagenda transacoes, recorrencias e faturas.
   Future<void> setLeadDays(int days) async {
     state = days;
     await TransactionReminderService.instance.setLeadDays(days);
-
-    final database = db.AppDatabase();
-    final rows = await (database.select(database.transactions)
-          ..where((t) => t.reminderEnabled.equals(true)))
-        .get();
-
-    await TransactionReminderService.instance.rescheduleAll(
-      rows.map((row) => (
-            id: row.id,
-            description: row.description,
-            amount: row.amount,
-            isExpense: row.isExpense,
-            dueDate: row.date,
-          )),
-    );
+    await TransactionReminderService.instance
+        .syncAllFromDatabase(db.AppDatabase());
   }
 }
 
@@ -47,7 +37,7 @@ final reminderLeadDaysProvider =
 );
 
 /// Configuracoes das notificacoes do app.
-class NotificationSettingsPage extends ConsumerWidget {
+class NotificationSettingsPage extends ConsumerStatefulWidget {
   const NotificationSettingsPage({super.key});
 
   static const _labels = {
@@ -60,7 +50,92 @@ class NotificationSettingsPage extends ConsumerWidget {
   };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationSettingsPage> createState() =>
+      _NotificationSettingsPageState();
+}
+
+class _NotificationSettingsPageState
+    extends ConsumerState<NotificationSettingsPage>
+    with WidgetsBindingObserver {
+  bool _sendingTest = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      ref.invalidate(notificationPermissionsProvider);
+      unawaited(
+        TransactionReminderService.instance
+            .syncAllFromDatabase(db.AppDatabase()),
+      );
+    }
+  }
+
+  Future<void> _sendTestNotification() async {
+    if (_sendingTest) return;
+    setState(() => _sendingTest = true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      var permissions = await NotificationPermissionService.instance.check();
+      if (!permissions.canNotify) {
+        permissions = await NotificationPermissionService.instance.request();
+        if (mounted) {
+          ref.invalidate(notificationPermissionsProvider);
+        }
+      }
+
+      if (!permissions.canNotify) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Permita as notificações nas configurações do aparelho para testar.',
+            ),
+            action: SnackBarAction(
+              label: 'Abrir',
+              onPressed: () {
+                NotificationPermissionService.instance.openSystemSettings();
+              },
+            ),
+          ),
+        );
+        return;
+      }
+
+      final sent = await NotificationService.instance.showTestNotification();
+      unawaited(
+        TransactionReminderService.instance
+            .syncAllFromDatabase(db.AppDatabase()),
+      );
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            sent
+                ? 'Notificação de teste enviada! Verifique a barra do aparelho.'
+                : 'Não foi possível enviar a notificação neste aparelho.',
+          ),
+          backgroundColor: sent ? AppColors.income : AppColors.expense,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sendingTest = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final leadDays = ref.watch(reminderLeadDaysProvider);
 
     return Scaffold(
@@ -69,6 +144,29 @@ class NotificationSettingsPage extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const _PermissionsSection(),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.notifications_active,
+                color: AppColors.primary,
+              ),
+              title: const Text('Testar notificações'),
+              subtitle: const Text(
+                'Envia um aviso imediato para confirmar que o aparelho está exibindo notificações.',
+              ),
+              trailing: FilledButton.tonal(
+                onPressed: _sendingTest ? null : _sendTestNotification,
+                child: _sendingTest
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Testar'),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           const Text(
             'Lembretes de vencimento',
@@ -76,7 +174,8 @@ class NotificationSettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Valem para toda transação marcada com "Lembrar de pagar". '
+            'Valem para transações marcadas com "Lembrar de pagar", contas '
+            'recorrentes ativas e faturas de cartão em aberto. '
             'Ao mudar, os lembretes já agendados são atualizados.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -88,7 +187,10 @@ class NotificationSettingsPage extends ConsumerWidget {
                   RadioListTile<int>(
                     value: days,
                     groupValue: leadDays,
-                    title: Text(_labels[days] ?? '$days dias antes'),
+                    title: Text(
+                      NotificationSettingsPage._labels[days] ??
+                          '$days dias antes',
+                    ),
                     onChanged: (value) async {
                       if (value == null || value == leadDays) return;
                       final messenger = ScaffoldMessenger.of(context);
@@ -98,7 +200,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                       messenger.showSnackBar(
                         SnackBar(
                           content: Text(
-                            'Lembretes atualizados: ${_labels[value]}',
+                            'Lembretes atualizados: ${NotificationSettingsPage._labels[value]}',
                           ),
                         ),
                       );
@@ -108,12 +210,14 @@ class NotificationSettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Card(
+          const Card(
             child: ListTile(
-              leading: const Icon(Icons.notifications_active_outlined,
-                  color: AppColors.primary),
-              title: const Text('Horário dos avisos'),
-              subtitle: const Text(
+              leading: Icon(
+                Icons.schedule_outlined,
+                color: AppColors.primary,
+              ),
+              title: Text('Horário dos avisos'),
+              subtitle: Text(
                 'Os lembretes chegam às 09:00, no fuso do aparelho.',
               ),
             ),
@@ -203,7 +307,12 @@ class _PermissionCard extends ConsumerWidget {
                             await NotificationPermissionService.instance
                                 .request();
                         onRefresh();
-                        if (!result.canNotify) {
+                        if (result.canNotify) {
+                          unawaited(
+                            TransactionReminderService.instance
+                                .syncAllFromDatabase(db.AppDatabase()),
+                          );
+                        } else {
                           messenger.showSnackBar(
                             const SnackBar(
                               content: Text(
@@ -244,7 +353,12 @@ class _PermissionCard extends ConsumerWidget {
                   final result = await NotificationPermissionService.instance
                       .requestExactAlarms();
                   onRefresh();
-                  if (!result.canScheduleExact) {
+                  if (result.canScheduleExact) {
+                    unawaited(
+                      TransactionReminderService.instance
+                          .syncAllFromDatabase(db.AppDatabase()),
+                    );
+                  } else {
                     await NotificationPermissionService.instance
                         .openSystemSettings(exactAlarms: true);
                     messenger.showSnackBar(
