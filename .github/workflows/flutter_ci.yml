@@ -22,6 +22,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -41,6 +42,41 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+      - name: Configurar mirror Maven Central e retry do Gradle
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat << 'EOF' > ~/.gradle/init.d/maven-mirror.gradle
+          import java.net.URI
+          import org.gradle.api.artifacts.repositories.ArtifactRepository
+          import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+
+          def mirror = URI.create("https://maven-central.storage-download.googleapis.com/maven2/")
+          def rewrite = { ArtifactRepository repo ->
+              if (repo instanceof MavenArtifactRepository) {
+                  def u = repo.url?.toString() ?: ""
+                  if (u.startsWith("https://repo.maven.apache.org/maven2") ||
+                      u.startsWith("https://repo1.maven.org/maven2")) {
+                      repo.setUrl(mirror)
+                  }
+              }
+          }
+          settingsEvaluated { settings ->
+              settings.pluginManagement.repositories.all(rewrite)
+              settings.dependencyResolutionManagement.repositories.all(rewrite)
+          }
+          projectsLoaded { g ->
+              g.rootProject.allprojects { proj ->
+                  proj.buildscript.repositories.all(rewrite)
+                  proj.repositories.all(rewrite)
+              }
+          }
+          EOF
+          cat << 'EOF' >> ~/.gradle/gradle.properties
+          systemProp.org.gradle.internal.http.retry.max.attempts=5
+          systemProp.org.gradle.internal.http.connectionTimeout=60000
+          systemProp.org.gradle.internal.http.socketTimeout=60000
+          EOF
 
       - name: Restaurar Keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.jks
