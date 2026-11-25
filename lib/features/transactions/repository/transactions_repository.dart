@@ -286,10 +286,14 @@ class TransactionsRepository {
   Future<List<MonthlyStats>> getMonthlyStats({
     int months = 12,
     DateTime? since,
+    DateTime? until,
   }) async {
     final query = _db.select(_db.transactions);
     if (since != null) {
       query.where((t) => t.date.isBiggerOrEqualValue(since));
+    }
+    if (until != null) {
+      query.where((t) => t.date.isSmallerOrEqualValue(until));
     }
     final all = await query.get();
 
@@ -354,11 +358,58 @@ class TransactionsRepository {
     return list;
   }
 
+  /// Expenses grouped by payment method for a given date range.
+  Future<List<PaymentMethodExpense>> getExpensesByPaymentMethod({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final results = await (_db.select(_db.transactions)
+          ..where((t) => t.isExpense.equals(true))
+          ..where((t) => t.date.isBiggerOrEqualValue(startDate))
+          ..where((t) => t.date.isSmallerOrEqualValue(endDate)))
+        .get();
+
+    final totals = <String, double>{};
+    final counts = <String, int>{};
+    for (final t in results) {
+      final raw = t.paymentMethod.trim();
+      final method = raw.isNotEmpty
+          ? raw
+          : (t.creditCardId != null && t.creditCardId!.isNotEmpty
+              ? PaymentMethods.creditCard
+              : 'Não informado');
+      totals[method] = (totals[method] ?? 0) + t.amount;
+      counts[method] = (counts[method] ?? 0) + 1;
+    }
+
+    final list = totals.entries
+        .map(
+          (e) => PaymentMethodExpense(
+            method: e.key,
+            total: e.value,
+            count: counts[e.key] ?? 0,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.total.compareTo(a.total));
+
+    return list;
+  }
+
   /// Monthly income/expense with expenses broken down by category.
   Future<List<MonthlyCategoryStats>> getMonthlyCategoryStats({
     int months = 12,
+    DateTime? since,
+    DateTime? until,
   }) async {
-    final all = await _db.select(_db.transactions).get();
+    final query = _db.select(_db.transactions);
+    if (since != null) {
+      query.where((t) => t.date.isBiggerOrEqualValue(since));
+    }
+    if (until != null) {
+      query.where((t) => t.date.isSmallerOrEqualValue(until));
+    }
+    final all = await query.get();
     final categories = await _db.select(_db.categories).get();
     final nameMap = {for (final c in categories) c.id: c.name};
     final colorMap = {for (final c in categories) c.id: c.color};

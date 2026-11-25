@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
 import 'package:gastos_app/features/credit_cards/repository/credit_cards_repository.dart';
+import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 
 class CreditCardsNotifier
     extends StateNotifier<AsyncValue<List<CreditCardItem>>> {
@@ -72,6 +73,11 @@ typedef CardWithSpent = ({
   bool isPaid,
 });
 
+typedef CardRangeSpent = ({
+  CreditCardItem card,
+  double spent,
+});
+
 /// Selected card ID in the credit cards dashboard (null means 'Todos os Cartões').
 final creditCardsSelectedFilterProvider = StateProvider<String?>((ref) => null);
 
@@ -137,5 +143,25 @@ final cardsWithSpentProvider =
       isPaid: isPaid,
     ));
   }
+  return results;
+});
+
+/// Total spent on each card within a given calendar date range.
+final cardsRangeSpentProvider = FutureProvider.family<List<CardRangeSpent>,
+    ({DateTime start, DateTime end})>((ref, params) async {
+  ref.watch(monthlyStatsProvider);
+  final cards = ref.watch(creditCardsProvider).valueOrNull ?? [];
+  final repo = ref.watch(creditCardsRepositoryProvider);
+  final totals = await repo.getCardsSpentInRange(
+    startDate: params.start,
+    endDate: params.end,
+  );
+
+  final results = [
+    for (final card in cards)
+      if ((totals[card.id] ?? 0.0) > 0)
+        (card: card, spent: totals[card.id] ?? 0.0),
+  ]..sort((a, b) => b.spent.compareTo(a.spent));
+
   return results;
 });

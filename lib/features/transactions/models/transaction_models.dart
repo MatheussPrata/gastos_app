@@ -158,3 +158,18 @@ class CategoryExpense with _$CategoryExpense {
   factory CategoryExpense.fromJson(Map<String, dynamic> json) =>
       _$CategoryExpenseFromJson(json);
 }
+
+/// Expense breakdown grouped by payment method within a date range.
+///
+/// Not persisted, so it does not need freezed/json code.
+class PaymentMethodExpense {
+  const PaymentMethodExpense({
+    required this.method,
+    required this.total,
+    required this.count,
+  });
+
+  final String method;
+  final double total;
+  final int count;
+}

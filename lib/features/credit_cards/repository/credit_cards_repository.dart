@@ -126,6 +126,27 @@ class CreditCardsRepository {
     return rows.fold<double>(0.0, (sum, t) => sum + t.amount);
   }
 
+  /// Total spent per credit card ID within a calendar date range.
+  Future<Map<String, double>> getCardsSpentInRange({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final rows = await (_db.select(_db.transactions)
+          ..where((t) => t.isExpense.equals(true))
+          ..where((t) => t.creditCardId.isNotNull())
+          ..where((t) => t.date.isBiggerOrEqualValue(startDate))
+          ..where((t) => t.date.isSmallerOrEqualValue(endDate)))
+        .get();
+
+    final totals = <String, double>{};
+    for (final t in rows) {
+      final cardId = t.creditCardId;
+      if (cardId == null || cardId.isEmpty) continue;
+      totals[cardId] = (totals[cardId] ?? 0.0) + t.amount;
+    }
+    return totals;
+  }
+
   /// Transactions for a given card, optionally filtered by invoice month cycle.
   Future<List<db.Transaction>> getCardTransactions(
     String cardId, {
