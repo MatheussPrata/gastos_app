@@ -339,6 +339,9 @@ class SyncService {
       if (failedIds.contains(r.id)) continue;
       await (_db.update(_db.receipts)..where((x) => x.id.equals(r.id)))
           .write(const db.ReceiptsCompanion(isSynced: Value(true)));
+      await (_db.update(_db.receiptItems)
+            ..where((x) => x.receiptId.equals(r.id)))
+          .write(const db.ReceiptItemsCompanion(isSynced: Value(true)));
     }
   }
 
@@ -670,7 +673,35 @@ class SyncService {
               DateTime.now();
       final createdAt =
           DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? issueDate;
+      final updatedAt = _optionalDate(json['updatedAt']) ?? createdAt;
       final transactionId = json['transactionId']?.toString() ?? '';
+      final totalAmount = _toDouble(json['totalAmount']);
+      final discountAmount = _toDouble(json['discountAmount']);
+      final rawItems = json['items'];
+
+      var itemsGrossSum = 0.0;
+      if (rawItems is List) {
+        for (final itemRaw in rawItems) {
+          if (itemRaw is! Map) continue;
+          final gross = _toDouble(itemRaw['grossTotal']);
+          if (gross > 0) {
+            itemsGrossSum += gross;
+          } else {
+            itemsGrossSum +=
+                _toDouble(itemRaw['totalPrice']) + _toDouble(itemRaw['discount']);
+          }
+        }
+      }
+      final rawSubtotal = _toDouble(json['subtotalAmount']);
+      final subtotalAmount = rawSubtotal > 0
+          ? rawSubtotal
+          : (itemsGrossSum > 0 ? itemsGrossSum : totalAmount + discountAmount);
+      final rawTotalDiscount = _toDouble(json['totalDiscount']);
+      final totalDiscount = rawTotalDiscount > 0
+          ? rawTotalDiscount
+          : (subtotalAmount > totalAmount
+              ? subtotalAmount - totalAmount
+              : discountAmount);
 
       await _db.transaction(() async {
         await _db.into(_db.receipts).insertOnConflictUpdate(
@@ -682,12 +713,15 @@ class SyncService {
                 establishmentCnpj:
                     Value(json['establishmentCnpj']?.toString() ?? ''),
                 issueDate: Value(issueDate),
-                totalAmount: Value(_toDouble(json['totalAmount'])),
-                discountAmount: Value(_toDouble(json['discountAmount'])),
+                totalAmount: Value(totalAmount),
+                subtotalAmount: Value(subtotalAmount),
+                totalDiscount: Value(totalDiscount < 0 ? 0.0 : totalDiscount),
+                discountAmount: Value(discountAmount),
                 paymentMethod: Value(json['paymentMethod']?.toString() ?? ''),
                 accessKey: Value(json['accessKey']?.toString()),
                 rawUrl: Value(json['rawUrl']?.toString()),
                 createdAt: Value(createdAt),
+                updatedAt: Value(updatedAt),
                 isSynced: const Value(true),
               ),
             );
@@ -696,13 +730,17 @@ class SyncService {
               ..where((i) => i.receiptId.equals(id)))
             .go();
 
-        final rawItems = json['items'];
         if (rawItems is List) {
           for (var idx = 0; idx < rawItems.length; idx++) {
             final itemRaw = rawItems[idx];
             if (itemRaw is! Map) continue;
             final item = Map<String, dynamic>.from(itemRaw);
             final itemId = item['id']?.toString();
+            final itemNet = _toDouble(item['totalPrice']);
+            final itemDiscount = _toDouble(item['discount']);
+            final rawItemGross = _toDouble(item['grossTotal']);
+            final itemGross =
+                rawItemGross > 0 ? rawItemGross : itemNet + itemDiscount;
             await _db.into(_db.receiptItems).insert(
                   db.ReceiptItemsCompanion(
                     id: Value(
@@ -720,14 +758,18 @@ class SyncService {
                     ),
                     unit: Value(item['unit']?.toString() ?? 'UN'),
                     unitPrice: Value(_toDouble(item['unitPrice'])),
-                    totalPrice: Value(_toDouble(item['totalPrice'])),
-                    discount: Value(_toDouble(item['discount'])),
+                    grossTotal: Value(itemGross),
+                    totalPrice: Value(itemNet),
+                    discount: Value(itemDiscount),
                     category: Value(item['category']?.toString() ?? 'Outros'),
                     sortOrder: Value(
                       (item['sortOrder'] is num)
                           ? (item['sortOrder'] as num).toInt()
                           : idx,
                     ),
+                    createdAt: Value(_optionalDate(item['createdAt']) ?? createdAt),
+                    updatedAt: Value(_optionalDate(item['updatedAt']) ?? updatedAt),
+                    isSynced: const Value(true),
                   ),
                 );
           }
@@ -901,11 +943,14 @@ class SyncService {
         'establishmentCnpj': r.establishmentCnpj,
         'issueDate': r.issueDate.toIso8601String(),
         'totalAmount': r.totalAmount,
+        'subtotalAmount': r.subtotalAmount,
+        'totalDiscount': r.totalDiscount,
         'discountAmount': r.discountAmount,
         'paymentMethod': r.paymentMethod,
         'accessKey': r.accessKey,
         'rawUrl': r.rawUrl,
         'createdAt': r.createdAt.toIso8601String(),
+        'updatedAt': (r.updatedAt ?? r.createdAt).toIso8601String(),
         'items': [
           for (final item in items)
             {
@@ -916,10 +961,13 @@ class SyncService {
               'quantity': item.quantity,
               'unit': item.unit,
               'unitPrice': item.unitPrice,
+              'grossTotal': item.grossTotal,
               'totalPrice': item.totalPrice,
               'discount': item.discount,
               'category': item.category,
               'sortOrder': item.sortOrder,
+              'createdAt': item.createdAt?.toIso8601String(),
+              'updatedAt': item.updatedAt?.toIso8601String(),
             },
         ],
       };

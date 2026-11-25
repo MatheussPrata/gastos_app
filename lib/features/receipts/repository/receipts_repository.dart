@@ -40,18 +40,42 @@ class ReceiptsRepository {
     final receiptId = receipt.id.isNotEmpty ? receipt.id : _uuid.v4();
     final now = DateTime.now();
 
+    final finalGross = receipt.items.fold(
+      0.0,
+      (acc, item) => acc + item.effectiveGrossTotal,
+    );
+    final finalSubtotal = receipt.subtotalAmount > 0.005
+        ? receipt.subtotalAmount
+        : (finalGross > 0.005
+            ? finalGross
+            : receipt.totalAmount + receipt.discountAmount);
+    final finalTotalDiscount = receipt.totalDiscount > 0.005
+        ? receipt.totalDiscount
+        : (finalSubtotal > receipt.totalAmount
+            ? _roundToCents(finalSubtotal - receipt.totalAmount)
+            : receipt.discountAmount);
+
     final finalReceipt = receipt.copyWith(
       id: receiptId,
       transactionId: transactionId,
+      subtotalAmount: finalSubtotal,
+      totalDiscount: finalTotalDiscount < 0.005 ? 0.0 : finalTotalDiscount,
+      updatedAt: now,
+      isSynced: false,
       items: [
         for (var i = 0; i < receipt.items.length; i++)
-          receipt.items[i].copyWith(
-            id: receipt.items[i].id.isNotEmpty
-                ? receipt.items[i].id
-                : _uuid.v4(),
-            receiptId: receiptId,
-            sortOrder: i,
-          ),
+          () {
+            final item = receipt.items[i];
+            return item.copyWith(
+              id: item.id.isNotEmpty ? item.id : _uuid.v4(),
+              receiptId: receiptId,
+              grossTotal: item.effectiveGrossTotal,
+              sortOrder: i,
+              createdAt: item.createdAt ?? now,
+              updatedAt: now,
+              isSynced: false,
+            );
+          }(),
       ],
     );
 
@@ -234,11 +258,14 @@ class ReceiptsRepository {
               establishmentCnpj: Value(finalReceipt.establishmentCnpj),
               issueDate: Value(finalReceipt.issueDate),
               totalAmount: Value(finalReceipt.totalAmount),
+              subtotalAmount: Value(finalReceipt.subtotalAmount),
+              totalDiscount: Value(finalReceipt.totalDiscount),
               discountAmount: Value(finalReceipt.discountAmount),
               paymentMethod: Value(finalReceipt.paymentMethod),
               accessKey: Value(finalReceipt.accessKey),
               rawUrl: Value(finalReceipt.rawUrl),
               createdAt: Value(finalReceipt.createdAt),
+              updatedAt: Value(finalReceipt.updatedAt ?? now),
               isSynced: const Value(false),
             ),
           );
@@ -259,10 +286,14 @@ class ReceiptsRepository {
                 quantity: Value(item.quantity),
                 unit: Value(item.unit),
                 unitPrice: Value(item.unitPrice),
+                grossTotal: Value(item.grossTotal),
                 totalPrice: Value(item.totalPrice),
                 discount: Value(item.discount),
                 category: Value(item.category),
                 sortOrder: Value(item.sortOrder),
+                createdAt: Value(item.createdAt ?? now),
+                updatedAt: Value(item.updatedAt ?? now),
+                isSynced: const Value(false),
               ),
             );
       }
@@ -362,10 +393,14 @@ class ReceiptsRepository {
             quantity: i.quantity,
             unit: i.unit,
             unitPrice: i.unitPrice,
+            grossTotal: i.grossTotal > 0 ? i.grossTotal : i.totalPrice + i.discount,
             totalPrice: i.totalPrice,
             discount: i.discount,
             category: i.category,
             sortOrder: i.sortOrder,
+            createdAt: i.createdAt,
+            updatedAt: i.updatedAt,
+            isSynced: i.isSynced,
           ),
         )
         .toList();
@@ -377,12 +412,16 @@ class ReceiptsRepository {
       establishmentCnpj: receiptRow.establishmentCnpj,
       issueDate: receiptRow.issueDate,
       totalAmount: receiptRow.totalAmount,
+      subtotalAmount: receiptRow.subtotalAmount,
+      totalDiscount: receiptRow.totalDiscount,
       discountAmount: receiptRow.discountAmount,
       paymentMethod: receiptRow.paymentMethod,
       accessKey: receiptRow.accessKey,
       rawUrl: receiptRow.rawUrl,
       items: items,
       createdAt: receiptRow.createdAt,
+      updatedAt: receiptRow.updatedAt,
+      isSynced: receiptRow.isSynced,
     );
   }
 
@@ -410,10 +449,14 @@ class ReceiptsRepository {
             quantity: i.quantity,
             unit: i.unit,
             unitPrice: i.unitPrice,
+            grossTotal: i.grossTotal > 0 ? i.grossTotal : i.totalPrice + i.discount,
             totalPrice: i.totalPrice,
             discount: i.discount,
             category: i.category,
             sortOrder: i.sortOrder,
+            createdAt: i.createdAt,
+            updatedAt: i.updatedAt,
+            isSynced: i.isSynced,
           ),
         )
         .toList();
@@ -425,12 +468,16 @@ class ReceiptsRepository {
       establishmentCnpj: receiptRow.establishmentCnpj,
       issueDate: receiptRow.issueDate,
       totalAmount: receiptRow.totalAmount,
+      subtotalAmount: receiptRow.subtotalAmount,
+      totalDiscount: receiptRow.totalDiscount,
       discountAmount: receiptRow.discountAmount,
       paymentMethod: receiptRow.paymentMethod,
       accessKey: receiptRow.accessKey,
       rawUrl: receiptRow.rawUrl,
       items: items,
       createdAt: receiptRow.createdAt,
+      updatedAt: receiptRow.updatedAt,
+      isSynced: receiptRow.isSynced,
     );
   }
 

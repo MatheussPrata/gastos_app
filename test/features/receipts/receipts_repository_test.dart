@@ -165,7 +165,14 @@ void main() {
 
     // Bruto 105,00 - pago 95,00 = 10,00 de desconto total.
     expect(loaded.itemsGrossTotal, 105.0);
+    expect(loaded.subtotalAmount, 105.0);
+    expect(loaded.totalDiscount, 10.0);
     expect(loaded.discountTotal, 10.0);
+    expect(loaded.items.first.grossTotal, 50.0);
+    expect(loaded.items.first.netTotal, 45.0);
+    expect(loaded.items.first.createdAt, isNotNull);
+    expect(loaded.items.first.updatedAt, isNotNull);
+    expect(loaded.updatedAt, isNotNull);
   });
 
   test('salva cupom parcelado em 3x e vincula todas as parcelas ao cupom', () async {

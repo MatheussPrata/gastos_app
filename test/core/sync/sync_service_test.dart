@@ -463,10 +463,13 @@ void main() {
               establishmentName: 'Supermercado Condor',
               establishmentCnpj: const Value('76.189.406/0001-00'),
               issueDate: DateTime(2026, 11, 20),
-              totalAmount: 78.9,
+              totalAmount: 51.5,
+              subtotalAmount: const Value(57.0),
+              totalDiscount: const Value(5.5),
               discountAmount: const Value(3.5),
               paymentMethod: const Value('PIX'),
               createdAt: DateTime(2026, 11, 20),
+              updatedAt: Value(DateTime(2026, 11, 20)),
               isSynced: const Value(false),
             ),
           );
@@ -479,6 +482,7 @@ void main() {
               quantity: const Value(2),
               unit: const Value('UN'),
               unitPrice: const Value(25.0),
+              grossTotal: const Value(50.0),
               totalPrice: const Value(48.0),
               discount: const Value(2.0),
               category: const Value('Alimentação'),
@@ -505,10 +509,13 @@ void main() {
 
       final sentReceipt = (sent!['receipts'] as List).single as Map;
       expect(sentReceipt['id'], 'rec-1');
+      expect(sentReceipt['subtotalAmount'], 57.0);
+      expect(sentReceipt['totalDiscount'], 5.5);
       expect(sentReceipt['discountAmount'], 3.5);
       final sentItems = sentReceipt['items'] as List;
       expect(sentItems, hasLength(1));
       expect((sentItems.single as Map)['name'], 'Arroz Parboilizado 5kg');
+      expect((sentItems.single as Map)['grossTotal'], 50.0);
 
       final pendingReceipts = await (db.select(db.receipts)
             ..where((r) => r.isSynced.equals(false)))
@@ -588,10 +595,14 @@ void main() {
       final receipts = await db.select(db.receipts).get();
       expect(receipts, hasLength(1));
       expect(receipts.single.establishmentName, 'Farmacia Nissei');
+      expect(receipts.single.subtotalAmount, 50.0);
+      expect(receipts.single.totalDiscount, 5.0);
 
       final items = await db.select(db.receiptItems).get();
       expect(items, hasLength(2));
       expect(items.map((i) => i.name), ['Vitamina C', 'Protetor Solar']);
+      expect(items.first.grossTotal, 30.0);
+      expect(items.first.isSynced, isTrue);
     });
   });
 }

@@ -289,7 +289,36 @@ class SharingRepository {
             DateTime.now();
     final createdAt =
         DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? issueDate;
+    final updatedAt =
+        DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? createdAt;
     final transactionId = json['transactionId']?.toString() ?? '';
+    final totalAmount = _toDouble(json['totalAmount']);
+    final discountAmount = _toDouble(json['discountAmount']);
+    final rawItems = json['items'];
+
+    var itemsGrossSum = 0.0;
+    if (rawItems is List) {
+      for (final itemRaw in rawItems) {
+        if (itemRaw is! Map) continue;
+        final gross = _toDouble(itemRaw['grossTotal']);
+        if (gross > 0) {
+          itemsGrossSum += gross;
+        } else {
+          itemsGrossSum +=
+              _toDouble(itemRaw['totalPrice']) + _toDouble(itemRaw['discount']);
+        }
+      }
+    }
+    final rawSubtotal = _toDouble(json['subtotalAmount']);
+    final subtotalAmount = rawSubtotal > 0
+        ? rawSubtotal
+        : (itemsGrossSum > 0 ? itemsGrossSum : totalAmount + discountAmount);
+    final rawTotalDiscount = _toDouble(json['totalDiscount']);
+    final totalDiscount = rawTotalDiscount > 0
+        ? rawTotalDiscount
+        : (subtotalAmount > totalAmount
+            ? subtotalAmount - totalAmount
+            : discountAmount);
 
     await _db.transaction(() async {
       await _db.into(_db.receipts).insertOnConflictUpdate(
@@ -301,12 +330,15 @@ class SharingRepository {
               establishmentCnpj:
                   Value(json['establishmentCnpj']?.toString() ?? ''),
               issueDate: Value(issueDate),
-              totalAmount: Value(_toDouble(json['totalAmount'])),
-              discountAmount: Value(_toDouble(json['discountAmount'])),
+              totalAmount: Value(totalAmount),
+              subtotalAmount: Value(subtotalAmount),
+              totalDiscount: Value(totalDiscount < 0 ? 0.0 : totalDiscount),
+              discountAmount: Value(discountAmount),
               paymentMethod: Value(json['paymentMethod']?.toString() ?? ''),
               accessKey: Value(json['accessKey']?.toString()),
               rawUrl: Value(json['rawUrl']?.toString()),
               createdAt: Value(createdAt),
+              updatedAt: Value(updatedAt),
               isSynced: const Value(true),
             ),
           );
@@ -315,7 +347,6 @@ class SharingRepository {
             ..where((i) => i.receiptId.equals(id)))
           .go();
 
-      final rawItems = json['items'];
       if (rawItems is List) {
         for (var idx = 0; idx < rawItems.length; idx++) {
           final itemRaw = rawItems[idx];
@@ -323,6 +354,17 @@ class SharingRepository {
           final item = Map<String, dynamic>.from(itemRaw);
           final itemId = item['id']?.toString();
           if (itemId == null || itemId.isEmpty) continue;
+          final itemNet = _toDouble(item['totalPrice']);
+          final itemDiscount = _toDouble(item['discount']);
+          final rawItemGross = _toDouble(item['grossTotal']);
+          final itemGross =
+              rawItemGross > 0 ? rawItemGross : itemNet + itemDiscount;
+          final itemCreatedAt =
+              DateTime.tryParse(item['createdAt']?.toString() ?? '') ??
+                  createdAt;
+          final itemUpdatedAt =
+              DateTime.tryParse(item['updatedAt']?.toString() ?? '') ??
+                  updatedAt;
           await _db.into(_db.receiptItems).insert(
                 db.ReceiptItemsCompanion(
                   id: Value(itemId),
@@ -336,14 +378,18 @@ class SharingRepository {
                   ),
                   unit: Value(item['unit']?.toString() ?? 'UN'),
                   unitPrice: Value(_toDouble(item['unitPrice'])),
-                  totalPrice: Value(_toDouble(item['totalPrice'])),
-                  discount: Value(_toDouble(item['discount'])),
+                  grossTotal: Value(itemGross),
+                  totalPrice: Value(itemNet),
+                  discount: Value(itemDiscount),
                   category: Value(item['category']?.toString() ?? 'Outros'),
                   sortOrder: Value(
                     (item['sortOrder'] is num)
                         ? (item['sortOrder'] as num).toInt()
                         : idx,
                   ),
+                  createdAt: Value(itemCreatedAt),
+                  updatedAt: Value(itemUpdatedAt),
+                  isSynced: const Value(true),
                 ),
               );
         }

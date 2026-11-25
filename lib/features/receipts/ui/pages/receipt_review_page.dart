@@ -94,10 +94,13 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
   }
 
   double get _itemsGrossTotal =>
-      _items.fold(0.0, (acc, item) => acc + item.quantity * item.unitPrice);
+      _items.fold(0.0, (acc, item) => acc + item.effectiveGrossTotal);
 
   double get _itemsNetTotal =>
       _items.fold(0.0, (acc, item) => acc + item.totalPrice);
+
+  double get _itemDiscountsTotal =>
+      _items.fold(0.0, (acc, item) => acc + item.discount);
 
   double get _receiptDiscount => widget.initialReceipt.discountAmount;
 
@@ -129,6 +132,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     final nameController = TextEditingController();
     final qtdController = TextEditingController(text: '1');
     final priceController = TextEditingController();
+    final discountController = TextEditingController();
     var category = ReceiptItemCategorizer.alimentacao;
     var unit = 'UN';
 
@@ -246,7 +250,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                         child: TextField(
                           controller: priceController,
                           decoration: InputDecoration(
-                            labelText: 'Preço Total (R\$)',
+                            labelText: 'Total Bruto (R\$)',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -254,10 +258,24 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: discountController,
+                    decoration: InputDecoration(
+                      labelText: 'Desconto do Item (R\$) — opcional',
+                      prefixIcon: const Icon(Icons.local_offer_outlined, size: 20),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Categoria:',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade700),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -296,21 +314,30 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                     onPressed: () {
                       final name = nameController.text.trim();
                       final qtd = double.tryParse(qtdController.text.replaceAll(',', '.')) ?? 1.0;
-                      final price = double.tryParse(priceController.text.replaceAll(',', '.')) ?? 0.0;
+                      final gross = double.tryParse(priceController.text.replaceAll(',', '.')) ?? 0.0;
+                      var discount = double.tryParse(discountController.text.replaceAll(',', '.')) ?? 0.0;
+                      if (discount < 0) discount = 0;
+                      if (discount > gross) discount = gross;
+                      final net = gross - discount;
 
-                      if (name.isNotEmpty && price > 0) {
+                      if (name.isNotEmpty && gross > 0) {
+                        final now = DateTime.now();
                         setState(() {
                           _items.add(
                             ReceiptItem(
                               id: const Uuid().v4(),
                               receiptId: widget.initialReceipt.id,
                               name: name,
-                              quantity: qtd,
+                              quantity: qtd > 0 ? qtd : 1.0,
                               unit: unit,
-                              unitPrice: (price / qtd),
-                              totalPrice: price,
+                              unitPrice: qtd > 0 ? (gross / qtd) : gross,
+                              grossTotal: gross,
+                              totalPrice: net,
+                              discount: discount,
                               category: category,
                               sortOrder: _items.length,
+                              createdAt: now,
+                              updatedAt: now,
                             ),
                           );
                           _itemsDirty = true;
@@ -340,7 +367,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     );
     // O campo "Total" mostra o valor bruto da linha; o desconto é abatido
     // no momento de salvar.
-    final grossTotal = item.totalPrice + item.discount;
+    final grossTotal = item.effectiveGrossTotal;
     final totalPriceController = TextEditingController(
       text: grossTotal > 0 ? grossTotal.toStringAsFixed(2) : '',
     );
@@ -574,9 +601,11 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                                 quantity: q,
                                 unit: unit,
                                 unitPrice: unitPrice,
+                                grossTotal: gross,
                                 totalPrice: net,
                                 discount: discount,
                                 category: category,
+                                updatedAt: DateTime.now(),
                               );
                               _itemsDirty = true;
                             });
@@ -605,6 +634,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     setState(() => _isSaving = true);
 
     try {
+      final now = DateTime.now();
+      final totalDiscount = _totalDiscount;
+      final extraReceiptDiscount =
+          (totalDiscount - _itemDiscountsTotal).clamp(0.0, double.infinity);
       final updatedReceipt = widget.initialReceipt.copyWith(
         establishmentName: _establishmentController.text.trim().isNotEmpty
             ? _establishmentController.text.trim()
@@ -612,6 +645,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
         issueDate: _selectedDate,
         paymentMethod: _selectedPaymentMethod,
         totalAmount: _totalAmount,
+        subtotalAmount: _itemsGrossTotal,
+        totalDiscount: totalDiscount,
+        discountAmount: extraReceiptDiscount < 0.01 ? 0.0 : extraReceiptDiscount,
+        updatedAt: now,
         items: _items,
       );
 
@@ -829,7 +866,9 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedPaymentMethod,
+                    value: PaymentMethods.all.contains(_selectedPaymentMethod)
+                        ? _selectedPaymentMethod
+                        : PaymentMethods.debitCard,
                     decoration: const InputDecoration(
                       labelText: 'Pagamento',
                       prefixIcon: Icon(Icons.payment, size: 20),
@@ -850,6 +889,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                       DropdownMenuItem(
                         value: PaymentMethods.money,
                         child: Text('Dinheiro'),
+                      ),
+                      DropdownMenuItem(
+                        value: PaymentMethods.boleto,
+                        child: Text('Boleto'),
                       ),
                     ],
                     onChanged: (val) {
@@ -1010,6 +1053,9 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
       );
     }
 
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurface.withOpacity(0.62);
+
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1026,6 +1072,11 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
               : (unit == 'KG'
                   ? item.quantity.toStringAsFixed(3)
                   : item.quantity.toStringAsFixed(2));
+          final hasDiscount = item.discount > 0.005;
+          final badgeLabel = (index + 1).toString().padLeft(2, '0');
+          final unitDetail = item.unitPrice > 0
+              ? '$qtyFormatted $unit × ${CurrencyFormatter.format(item.unitPrice)}'
+              : '$qtyFormatted $unit';
 
           return InkWell(
             onTap: () => _showEditItemDialog(index),
@@ -1034,15 +1085,20 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.grey.shade200,
+                  Container(
+                    width: 24,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                     child: Text(
-                      '${index + 1}',
+                      badgeLabel,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700,
+                        color: scheme.primary,
                       ),
                     ),
                   ),
@@ -1053,56 +1109,68 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                       children: [
                         Text(
                           item.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 13.5,
+                            color: scheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$qtyFormatted $unit ${item.unitPrice > 0 ? "× ${CurrencyFormatter.format(item.unitPrice)}" : ""}',
+                          unitDetail,
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: muted,
                             fontSize: 12,
                           ),
                         ),
-                        if (item.discount > 0.005)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              'Desconto: -${CurrencyFormatter.format(item.discount)}',
-                              style: const TextStyle(
-                                color: AppColors.income,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    CurrencyFormatter.format(item.totalPrice),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13.5,
-                      color: AppColors.expense,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (hasDiscount) ...[
+                        Text(
+                          CurrencyFormatter.format(item.effectiveGrossTotal),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: muted,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        Text(
+                          '- ${CurrencyFormatter.format(item.discount)} desc.',
+                          style: const TextStyle(
+                            color: AppColors.income,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      Text(
+                        CurrencyFormatter.format(item.totalPrice),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
+                          color: hasDiscount ? scheme.onSurface : AppColors.expense,
+                        ),
+                      ),
+                    ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined,
-                            size: 18, color: Colors.blueGrey),
+                        icon: Icon(Icons.edit_outlined,
+                            size: 18, color: muted),
                         tooltip: 'Editar',
                         visualDensity: VisualDensity.compact,
                         onPressed: () => _showEditItemDialog(index),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            size: 18, color: Colors.grey),
+                        icon: Icon(Icons.delete_outline,
+                            size: 18, color: muted),
                         tooltip: 'Remover',
                         visualDensity: VisualDensity.compact,
                         onPressed: () => _removeItem(index),
@@ -1122,30 +1190,53 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     final subtotal = _itemsGrossTotal;
     final discount = _totalDiscount;
     final total = _totalAmount;
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurface.withOpacity(0.68);
+    final hasDiscount = discount > 0.005;
 
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
           children: [
-            _buildTotalRow('Subtotal dos itens', subtotal),
-            if (discount > 0.005) ...[
-              const SizedBox(height: 6),
-              _buildTotalRow(
-                'Descontos',
-                -discount,
-                valueColor: AppColors.income,
-              ),
-            ],
-            const Divider(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Total a pagar',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                Text(
+                  'Qtd. Total de Itens',
+                  style: TextStyle(fontSize: 13, color: muted),
+                ),
+                Text(
+                  '${_items.length}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _buildTotalRow('Subtotal (Valor Bruto)', subtotal),
+            const SizedBox(height: 6),
+            _buildTotalRow(
+              'Descontos',
+              hasDiscount ? -discount : 0.0,
+              valueColor: hasDiscount ? AppColors.income : muted,
+            ),
+            const Divider(height: 22),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'VALOR TOTAL PAGO',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: scheme.onSurface,
+                  ),
                 ),
                 Text(
                   CurrencyFormatter.format(total),
@@ -1168,19 +1259,23 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     double value, {
     Color? valueColor,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurface.withOpacity(0.68);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 13, color: valueColor ?? muted),
         ),
         Text(
-          CurrencyFormatter.format(value),
+          value < 0
+              ? '- ${CurrencyFormatter.format(value.abs())}'
+              : CurrencyFormatter.format(value),
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: valueColor ?? Colors.grey.shade800,
+            color: valueColor ?? scheme.onSurface,
           ),
         ),
       ],

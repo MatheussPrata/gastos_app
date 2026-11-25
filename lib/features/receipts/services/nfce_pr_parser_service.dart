@@ -14,7 +14,7 @@ class NfceParseException implements Exception {
   String toString() => message;
 }
 
-/// Serviço de extração e análise de NFC-e do Paraná (SEFAZ-PR)
+/// Serviço de extração e análise de NFC-e do Paraná (SEFAZ-PR) e layouts compatíveis.
 class NfcePrParserService {
   final Dio _dio;
   final Uuid _uuid;
@@ -91,6 +91,7 @@ class NfcePrParserService {
     String? accessKey,
   }) {
     final document = html_parser.parse(htmlContent);
+    final now = DateTime.now();
 
     // 1. Razão Social / Estabelecimento
     final establishmentName = _extractEstablishmentName(document);
@@ -101,38 +102,50 @@ class NfcePrParserService {
     // 3. Data de Emissão
     final issueDate = _extractIssueDate(document);
 
-    // 4. Valores (subtotal, desconto e total a pagar)
+    // 4. Chave de Acesso (caso não tenha vindo na URL)
+    final resolvedAccessKey =
+        (accessKey != null && accessKey.isNotEmpty)
+            ? accessKey
+            : _extractAccessKey(document);
+
+    // 5. Valores gerais (subtotal bruto, descontos e valor a pagar)
     final totals = _extractTotals(document);
 
-    // 5. Forma de Pagamento
+    // 6. Forma de Pagamento
     final paymentMethod = _extractPaymentMethod(document);
 
-    // 6. Itens / Produtos
+    // 7. Itens / Produtos
     final receiptId = _uuid.v4();
-    final items = _extractItems(document, receiptId);
+    final items = _extractItems(document, receiptId, now);
 
     final itemsGross = items.fold(
       0.0,
-      (acc, item) => acc + item.quantity * item.unitPrice,
+      (acc, item) => acc + item.effectiveGrossTotal,
     );
     final itemsNet = items.fold(0.0, (acc, item) => acc + item.totalPrice);
     final itemDiscounts = items.fold(0.0, (acc, item) => acc + item.discount);
 
-    // O total da nota vem sempre depois dos descontos ("Valor a pagar").
+    // O valor final pago vem de "Valor a pagar".
     // Se a SEFAZ não expôs esse campo, reconstruímos a partir dos itens.
-    var totalAmount = (totals.total ?? 0) > 0 ? totals.total! : 0.0;
+    var totalAmount = (totals.total ?? 0) > 0 ? _round2(totals.total!) : 0.0;
     if (totalAmount <= 0) {
-      totalAmount = itemsNet > 0 ? itemsNet : itemsGross;
+      totalAmount = _round2(itemsNet > 0 ? itemsNet : itemsGross);
       if (totalAmount > 0) {
         final extraDiscount = ((totals.discount ?? 0) - itemDiscounts)
             .clamp(0.0, double.infinity);
-        totalAmount =
-            (totalAmount - extraDiscount).clamp(0.0, double.infinity).toDouble();
+        totalAmount = _round2(
+          (totalAmount - extraDiscount).clamp(0.0, double.infinity).toDouble(),
+        );
       }
     }
 
-    // Se nenhum item foi extraído mas temos total, cria ao menos um item resumo
+    // Fallback apenas quando a SEFAZ não exibiu nenhuma linha de produto.
     if (items.isEmpty && totalAmount > 0) {
+      final grossFallback = (totals.subtotal != null && totals.subtotal! > 0)
+          ? _round2(totals.subtotal!)
+          : totalAmount;
+      final discountFallback =
+          (grossFallback - totalAmount).clamp(0.0, grossFallback).toDouble();
       items.add(
         ReceiptItem(
           id: _uuid.v4(),
@@ -140,28 +153,43 @@ class NfcePrParserService {
           name: 'Compra de Supermercado',
           quantity: 1,
           unit: 'UN',
-          unitPrice: totalAmount,
+          unitPrice: grossFallback,
+          grossTotal: grossFallback,
           totalPrice: totalAmount,
+          discount: _round2(discountFallback),
           category: ReceiptItemCategorizer.outros,
           sortOrder: 0,
+          createdAt: now,
+          updatedAt: now,
         ),
       );
     }
 
-    // Desconto da nota que não está atribuído a nenhum item.
     final finalGross = items.fold(
       0.0,
-      (acc, item) => acc + item.quantity * item.unitPrice,
+      (acc, item) => acc + item.effectiveGrossTotal,
     );
     final finalItemDiscounts =
         items.fold(0.0, (acc, item) => acc + item.discount);
-    var receiptDiscount = 0.0;
-    if (finalGross > 0 && totalAmount > 0) {
-      receiptDiscount = finalGross - totalAmount - finalItemDiscounts;
-      if (receiptDiscount < 0.01) receiptDiscount = 0.0;
-    } else if (totalAmount <= 0 && (totals.discount ?? 0) > 0) {
-      receiptDiscount = totals.discount!;
+
+    final subtotalAmount = finalGross > 0
+        ? _round2(finalGross)
+        : _round2(totals.subtotal ?? totalAmount);
+    final finalAmount = totalAmount > 0 ? totalAmount : _round2(itemsNet);
+
+    var totalDiscount = 0.0;
+    if (subtotalAmount > finalAmount) {
+      totalDiscount = _round2(subtotalAmount - finalAmount);
+      if (totalDiscount < 0.01) totalDiscount = 0.0;
+    } else if ((totals.discount ?? 0) > 0) {
+      totalDiscount = _round2(totals.discount!);
+    } else if (finalItemDiscounts > 0.005) {
+      totalDiscount = _round2(finalItemDiscounts);
     }
+
+    final receiptDiscount = _round2(
+      (totalDiscount - finalItemDiscounts).clamp(0.0, double.infinity),
+    );
 
     return Receipt(
       id: receiptId,
@@ -171,18 +199,20 @@ class NfcePrParserService {
           : 'Supermercado (NFC-e PR)',
       establishmentCnpj: cnpj,
       issueDate: issueDate,
-      totalAmount: totalAmount > 0 ? totalAmount : itemsNet,
-      discountAmount: receiptDiscount,
+      totalAmount: finalAmount,
+      subtotalAmount: subtotalAmount > 0 ? subtotalAmount : finalAmount,
+      totalDiscount: totalDiscount,
+      discountAmount: receiptDiscount < 0.01 ? 0.0 : receiptDiscount,
       paymentMethod: paymentMethod,
-      accessKey: accessKey,
+      accessKey: resolvedAccessKey,
       rawUrl: rawUrl,
-      createdAt: DateTime.now(),
+      createdAt: now,
+      updatedAt: now,
       items: items,
     );
   }
 
   String _extractEstablishmentName(dom.Document doc) {
-    // Padrão SEFAZ PR: .txtTopo, #u20, .txtNome, ou primeiro h4/span no cabeçalho
     final candidateSelectors = [
       '.txtTopo',
       '#u20',
@@ -199,9 +229,9 @@ class NfcePrParserService {
       }
     }
 
-    // Procura por nós de texto que contenham razão social
     final allText = doc.body?.text ?? '';
-    final match = RegExp(r'(?:Razão Social|Emitente):\s*([^\n\r]+)').firstMatch(allText);
+    final match =
+        RegExp(r'(?:Razão Social|Emitente):\s*([^\n\r]+)').firstMatch(allText);
     if (match != null) {
       return _cleanText(match.group(1) ?? '');
     }
@@ -224,35 +254,50 @@ class NfcePrParserService {
     return match?.group(0) ?? '';
   }
 
+  String? _extractAccessKey(dom.Document doc) {
+    final chaveEl = doc.querySelector('.chave') ?? doc.querySelector('#chave');
+    if (chaveEl != null) {
+      final digits = chaveEl.text.replaceAll(RegExp(r'\D'), '');
+      if (digits.length == 44) return digits;
+    }
+    final allText = doc.body?.text ?? '';
+    final match = RegExp(r'(?:\d{4}[\s-]?){11}').firstMatch(allText);
+    if (match != null) {
+      final digits = match.group(0)!.replaceAll(RegExp(r'\D'), '');
+      if (digits.length == 44) return digits;
+    }
+    return null;
+  }
+
   DateTime _extractIssueDate(dom.Document doc) {
     final allText = doc.body?.text ?? '';
-    // Procura por data: dd/MM/yyyy HH:mm:ss ou dd/MM/yyyy
-    final match = RegExp(
-      r'(\d{2}/\d{2}/\d{4})(?:\s+às\s+|\s+)?(\d{2}:\d{2}(?::\d{2})?)?',
+    // Prioriza a data ancorada no campo "Emissão:" para não confundir com a
+    // data/hora da consulta exibida no rodapé da SEFAZ.
+    final anchored = RegExp(
+      r'emiss[ãa]o\s*:?\s*(\d{2}/\d{2}/\d{4})(?:\s+às\s+|\s+)?(\d{2}:\d{2}(?::\d{2})?)?',
+      caseSensitive: false,
     ).firstMatch(allText);
+    final match = anchored ??
+        RegExp(
+          r'(\d{2}/\d{2}/\d{4})(?:\s+às\s+|\s+)?(\d{2}:\d{2}(?::\d{2})?)?',
+        ).firstMatch(allText);
 
     if (match != null) {
       final dateStr = match.group(1)!;
       final timeStr = match.group(2);
       try {
+        final partsDate = dateStr.split('/');
+        final day = int.parse(partsDate[0]);
+        final month = int.parse(partsDate[1]);
+        final year = int.parse(partsDate[2]);
         if (timeStr != null) {
-          final partsDate = dateStr.split('/');
           final partsTime = timeStr.split(':');
-          final day = int.parse(partsDate[0]);
-          final month = int.parse(partsDate[1]);
-          final year = int.parse(partsDate[2]);
           final hour = int.parse(partsTime[0]);
           final minute = int.parse(partsTime[1]);
           final second = partsTime.length > 2 ? int.parse(partsTime[2]) : 0;
           return DateTime(year, month, day, hour, minute, second);
-        } else {
-          final parts = dateStr.split('/');
-          return DateTime(
-            int.parse(parts[2]),
-            int.parse(parts[1]),
-            int.parse(parts[0]),
-          );
         }
+        return DateTime(year, month, day);
       } catch (_) {}
     }
 
@@ -262,19 +307,23 @@ class NfcePrParserService {
   _NfceTotals _extractTotals(dom.Document doc) {
     final result = _NfceTotals();
 
-    // 1) Tabela de totais da SEFAZ-PR ("Qtde. total de itens",
-    //    "Valor total R$", "Desconto R$", "Valor a pagar R$").
-    final totalsTable = doc.querySelector('#totalNota') ??
+    final totalsBox = doc.querySelector('#totalNota') ??
         doc.querySelector('table#totalNota') ??
         doc.querySelector('.totalNota');
 
     void consumeLabel(String label, String value) {
-      final normalized = label.toLowerCase();
+      final normalized = _cleanText(label).toLowerCase();
+      if (normalized.contains('tributo') ||
+          normalized.contains('qtd') ||
+          normalized.contains('qtde')) {
+        return;
+      }
       final parsed = _parseCurrency(value);
       if (parsed <= 0) return;
 
       if (normalized.contains('valor a pagar') ||
-          normalized.contains('total a pagar')) {
+          normalized.contains('total a pagar') ||
+          normalized.contains('valor pago')) {
         result.total = parsed;
       } else if (normalized.contains('desconto')) {
         result.discount = parsed;
@@ -284,16 +333,25 @@ class NfcePrParserService {
       }
     }
 
-    if (totalsTable != null) {
-      for (final row in totalsTable.querySelectorAll('tr')) {
+    if (totalsBox != null) {
+      // Layout div padrão SEFAZ-PR (<div id="linhaTotal"><label>...</label><span class="totalNumb">...</span></div>)
+      for (final line in totalsBox.querySelectorAll('#linhaTotal, .linhaTotal, div')) {
+        final labelEl = line.querySelector('label');
+        final valEl = line.querySelector('.totalNumb, .valor, span');
+        if (labelEl != null && valEl != null && labelEl != valEl) {
+          consumeLabel(labelEl.text, valEl.text);
+        }
+      }
+
+      // Layout tabular alternativo (<table id="totalNota"><tr><th>...</th><td>...</td></tr></table>)
+      for (final row in totalsBox.querySelectorAll('tr')) {
         final cells = row.querySelectorAll('td, th');
         if (cells.length < 2) continue;
         consumeLabel(cells.first.text, cells.last.text);
       }
     }
 
-    // 2) Fallback por texto (fora da tabela de itens, para não confundir
-    //    "Desconto" de uma linha de produto com o desconto da nota).
+    // 2) Fallback por texto (fora da tabela de itens para não confundir desconto de item com desconto da nota).
     var allText = doc.body?.text ?? '';
     final itemsTable = doc.querySelector('table#tabResult') ??
         doc.querySelector('table.tabResult') ??
@@ -305,15 +363,15 @@ class NfcePrParserService {
 
     result.total ??= _matchCurrency(
       flat,
-      r'valor a pagar\s*:?\s*(?:R\$)?\s*([\d.,]+)',
+      r'valor a pagar(?:\s*R\$)?\s*:?\s*(?:R\$)?\s*([\d.,]+)',
     );
     result.discount ??= _matchCurrency(
       flat,
-      r'descontos?\s*:?\s*(?:R\$)?\s*([\d.,]+)',
+      r'descontos?(?:\s*R\$)?\s*:?\s*(?:R\$)?\s*([\d.,]+)',
     );
     result.subtotal ??= _matchCurrency(
       flat,
-      r'valor total\s*:?\s*(?:R\$)?\s*([\d.,]+)',
+      r'valor total(?:\s*R\$)?\s*:?\s*(?:R\$)?\s*([\d.,]+)',
     );
 
     // 3) Fallback por classes conhecidas do layout.
@@ -328,8 +386,6 @@ class NfcePrParserService {
     }
 
     if (result.total == null) {
-      // Em algumas notas o ".txtMax" aparece duas vezes (valor total e valor
-      // a pagar); o último é sempre o valor efetivamente pago.
       final maxElements = doc.querySelectorAll('.txtMax');
       final values = maxElements
           .map((el) => _parseCurrency(el.text))
@@ -339,72 +395,127 @@ class NfcePrParserService {
         result.subtotal ??= values.first;
         result.total = values.last;
       } else if (values.length == 1) {
-        result.subtotal ??= values.first;
+        final el = maxElements.first;
+        final parentText = el.parent?.text.toLowerCase() ?? '';
+        if (parentText.contains('pagar')) {
+          result.total = values.first;
+        } else {
+          result.subtotal ??= values.first;
+        }
       }
     }
 
     if (result.total == null && result.subtotal != null) {
-      result.total = (result.subtotal! - (result.discount ?? 0))
-          .clamp(0.0, double.infinity)
-          .toDouble();
+      result.total = _round2(
+        (result.subtotal! - (result.discount ?? 0)).clamp(0.0, double.infinity),
+      );
     }
 
     if (result.subtotal == null && result.total != null) {
-      result.subtotal = result.total! + (result.discount ?? 0);
+      result.subtotal = _round2(result.total! + (result.discount ?? 0));
     }
 
     return result;
   }
 
   double? _matchCurrency(String text, String pattern) {
-    final match =
-        RegExp(pattern, caseSensitive: false).firstMatch(text);
+    final match = RegExp(pattern, caseSensitive: false).firstMatch(text);
     if (match == null) return null;
     final value = _parseCurrency(match.group(1) ?? '');
     return value > 0 ? value : null;
   }
 
-  String _extractPaymentMethod(dom.Document doc) {
-    final allText = doc.body?.text.toLowerCase() ?? '';
-
-    if (allText.contains('cartao de credito') ||
-        allText.contains('cartão de crédito') ||
-        allText.contains('credito') ||
-        allText.contains('crédito')) {
-      return PaymentMethods.creditCard;
+  String _bodyTextWithoutItems(dom.Document doc) {
+    var allText = doc.body?.text ?? '';
+    final itemsTable = doc.querySelector('table#tabResult') ??
+        doc.querySelector('table.tabResult') ??
+        doc.querySelector('#tabResult');
+    if (itemsTable != null && itemsTable.text.isNotEmpty) {
+      allText = allText.replaceFirst(itemsTable.text, ' ');
     }
-    if (allText.contains('cartao de debito') ||
-        allText.contains('cartão de débito') ||
-        allText.contains('debito') ||
-        allText.contains('débito')) {
-      return PaymentMethods.debitCard;
-    }
-    if (allText.contains('pix')) {
-      return PaymentMethods.pix;
-    }
-    if (allText.contains('dinheiro') || allText.contains('especie')) {
-      return PaymentMethods.money;
-    }
-
-    return PaymentMethods.debitCard; // Forma padrão mais comum em mercado
+    return allText.replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  List<ReceiptItem> _extractItems(dom.Document doc, String receiptId) {
-    // 1) Layout nacional/PR: linhas com classes txtTit/Rqtd/RvlUnit...
-    final fromRows = _extractItemsFromRows(doc, receiptId);
+  String _extractPaymentMethod(dom.Document doc) {
+    final paymentLabels =
+        doc.querySelectorAll('#totalNota label.tx, #totalNota .tx');
+    if (paymentLabels.isNotEmpty) {
+      final found = _classifyPaymentMethodOrNull(
+        paymentLabels.map((e) => e.text).join(' ').toLowerCase(),
+      );
+      if (found != null) return found;
+    }
+
+    final totalNotaText = doc.querySelector('#totalNota')?.text.toLowerCase();
+    if (totalNotaText != null && totalNotaText.isNotEmpty) {
+      final found = _classifyPaymentMethodOrNull(totalNotaText);
+      if (found != null) return found;
+    }
+
+    final fallback = _classifyPaymentMethodOrNull(
+      _bodyTextWithoutItems(doc).toLowerCase(),
+    );
+    return fallback ?? PaymentMethods.debitCard;
+  }
+
+  String? _classifyPaymentMethodOrNull(String text) {
+    if (text.contains('cartao de credito') ||
+        text.contains('cartão de crédito') ||
+        text.contains('credito') ||
+        text.contains('crédito')) {
+      return PaymentMethods.creditCard;
+    }
+    if (text.contains('cartao de debito') ||
+        text.contains('cartão de débito') ||
+        text.contains('debito') ||
+        text.contains('débito')) {
+      return PaymentMethods.debitCard;
+    }
+    if (text.contains('pix')) {
+      return PaymentMethods.pix;
+    }
+    if (text.contains('dinheiro') || text.contains('especie')) {
+      return PaymentMethods.money;
+    }
+    if (text.contains('boleto')) {
+      return PaymentMethods.boleto;
+    }
+    return null;
+  }
+
+  List<ReceiptItem> _extractItems(
+    dom.Document doc,
+    String receiptId,
+    DateTime now,
+  ) {
+    // 1) Layout nacional/PR: linhas de #tabResult com .txtTit2 / .txtTit / .Rqtd / .RvlUnit...
+    final fromRows = _extractItemsFromRows(doc, receiptId, now);
     if (fromRows.isNotEmpty) return fromRows;
 
     // 2) Itens renderizados fora de tabelas (divs de produto).
-    final fromBlocks = _extractItemsFromBlocks(doc, receiptId);
+    final fromBlocks = _extractItemsFromBlocks(doc, receiptId, now);
     if (fromBlocks.isNotEmpty) return fromBlocks;
 
     // 3) Último recurso: qualquer tabela com nome + valor na mesma linha.
-    return _extractItemsFromGenericTables(doc, receiptId);
+    return _extractItemsFromGenericTables(doc, receiptId, now);
+  }
+
+  dom.Element? _findTitleElement(dom.Element row) {
+    return row.querySelector('.txtTit2') ??
+        row.querySelector('.txtTit') ??
+        row.querySelector('span.txtTit2') ??
+        row.querySelector('span.txtTit') ??
+        row.querySelector('.nomeProduto') ??
+        row.querySelector('.descricaoProduto') ??
+        row.querySelector('.descricao') ??
+        row.querySelector('.nome') ??
+        row.querySelector('.titulo');
   }
 
   List<ReceiptItem> _extractItemsFromRows(
     dom.Document doc,
     String receiptId,
+    DateTime now,
   ) {
     final items = <ReceiptItem>[];
 
@@ -414,14 +525,9 @@ class NfcePrParserService {
     final rows = table?.querySelectorAll('tr') ?? doc.querySelectorAll('tr');
 
     var order = 0;
-    for (final row in rows) {
-      final titleEl = row.querySelector('.txtTit') ??
-          row.querySelector('span.txtTit') ??
-          row.querySelector('.nomeProduto') ??
-          row.querySelector('.descricao') ??
-          row.querySelector('.nome') ??
-          row.querySelector('.titulo');
-
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      final titleEl = _findTitleElement(row);
       if (titleEl == null || titleEl.text.trim().isEmpty) continue;
 
       final name = _cleanText(titleEl.text);
@@ -437,7 +543,11 @@ class NfcePrParserService {
 
       final unEl = row.querySelector('.RUN');
       final unit = unEl != null
-          ? unEl.text.replaceAll('UN:', '').replaceAll(':', '').trim()
+          ? _cleanText(unEl.text)
+              .replaceAll(RegExp(r'^UN\s*:?\s*', caseSensitive: false), '')
+              .replaceAll(':', '')
+              .trim()
+              .toUpperCase()
           : 'UN';
 
       final unitValEl = row.querySelector('.RvlUnit');
@@ -449,67 +559,83 @@ class NfcePrParserService {
           row.querySelector('.txtValor');
       final totalVal = totalValEl != null
           ? _parseCurrency(totalValEl.text)
-          : (qtd * unitVal);
+          : _round2(qtd * unitVal);
 
-      // Desconto da linha: pode vir em uma classe própria ou como texto
-      // "Desconto: R$ 1,00" dentro da linha do produto.
-      final discountEl = row.querySelector('.Rdesc') ??
-          row.querySelector('.RvlDesc') ??
-          row.querySelector('.txtDesconto') ??
-          row.querySelector('.desconto');
-      var lineDiscount =
-          discountEl != null ? _parseCurrency(discountEl.text) : 0.0;
-      if (lineDiscount <= 0) {
-        final match = RegExp(
-          r'desconto\s*:?\s*(?:R\$)?\s*([\d.,]+)',
-          caseSensitive: false,
-        ).firstMatch(row.text);
-        if (match != null) {
-          lineDiscount = _parseCurrency(match.group(1) ?? '');
+      // Desconto da linha: pode estar numa classe específica, em texto na
+      // própria linha (ex: "Desconto Clube Amigo: R$ 1,00"), ou em uma linha
+      // irmã de detalhe logo abaixo (<tr class="info-item">).
+      var lineDiscount = _extractRowDiscount(row);
+      if (lineDiscount <= 0 && i + 1 < rows.length) {
+        final nextRow = rows[i + 1];
+        final nextTitle = _findTitleElement(nextRow);
+        final nextIsProduct =
+            nextTitle != null && _looksLikeProductName(_cleanText(nextTitle.text));
+        if (!nextIsProduct) {
+          final siblingDiscount = _extractRowDiscount(nextRow);
+          if (siblingDiscount > 0) {
+            lineDiscount = siblingDiscount;
+            i++;
+          }
         }
       }
 
-      final gross = qtd * unitVal;
-      double netTotal;
+      final normalizedQty = qtd > 0 ? qtd : 1.0;
+      final rawGross = unitVal > 0 ? _round2(normalizedQty * unitVal) : 0.0;
+
+      late double grossTotal;
+      late double netTotal;
+
       if (lineDiscount > 0) {
-        // Se o valor da linha bate com o bruto, o desconto ainda não foi
-        // aplicado nele; caso contrário o valor já é líquido.
-        final totalLooksGross =
-            totalVal > 0 && (totalVal - gross).abs() <= 0.03;
-        netTotal = totalLooksGross || totalVal <= 0
-            ? gross - lineDiscount
-            : totalVal;
+        final totalLooksGross = totalVal <= 0 ||
+            (rawGross > 0 && (totalVal - rawGross).abs() <= 0.03);
+        if (totalLooksGross) {
+          grossTotal = rawGross > 0 ? rawGross : totalVal;
+          netTotal = _round2(
+            (grossTotal - lineDiscount).clamp(0.0, double.infinity),
+          );
+        } else {
+          netTotal = _round2(totalVal);
+          grossTotal = rawGross > 0
+              ? rawGross
+              : _round2(netTotal + lineDiscount);
+        }
       } else {
-        netTotal = totalVal > 0 ? totalVal : gross;
-        if (totalVal > 0 && gross - totalVal > 0.02) {
-          lineDiscount = gross - totalVal;
+        if (totalVal > 0 && rawGross > 0 && (rawGross - totalVal) > 0.02) {
+          lineDiscount = _round2(rawGross - totalVal);
+          grossTotal = rawGross;
+          netTotal = _round2(totalVal);
+        } else {
+          final base = totalVal > 0 ? _round2(totalVal) : rawGross;
+          grossTotal = base;
+          netTotal = base;
         }
       }
 
       if (netTotal < 0) netTotal = 0;
-      if (gross > 0) {
-        lineDiscount = lineDiscount.clamp(0.0, gross);
-      } else {
-        lineDiscount = 0;
-      }
+      lineDiscount = grossTotal > 0
+          ? _round2(lineDiscount.clamp(0.0, grossTotal))
+          : 0.0;
 
       final unitPrice = unitVal > 0
           ? unitVal
-          : (qtd > 0 ? netTotal / qtd : netTotal);
+          : (normalizedQty > 0 ? _round2(grossTotal / normalizedQty) : grossTotal);
 
       items.add(
         ReceiptItem(
           id: _uuid.v4(),
           receiptId: receiptId,
           name: name,
-          code: code,
-          quantity: qtd > 0 ? qtd : 1.0,
+          code: (code != null && code.isNotEmpty) ? code : null,
+          quantity: normalizedQty,
           unit: unit.isNotEmpty ? unit : 'UN',
           unitPrice: unitPrice,
+          grossTotal: grossTotal,
           totalPrice: netTotal,
           discount: lineDiscount,
           category: ReceiptItemCategorizer.categorize(name),
           sortOrder: order++,
+          createdAt: now,
+          updatedAt: now,
         ),
       );
     }
@@ -517,15 +643,36 @@ class NfcePrParserService {
     return items;
   }
 
+  double _extractRowDiscount(dom.Element row) {
+    final discountEl = row.querySelector('.Rdesc') ??
+        row.querySelector('.RvlDesc') ??
+        row.querySelector('.txtDesconto') ??
+        row.querySelector('.desconto');
+    if (discountEl != null) {
+      final parsed = _parseCurrency(discountEl.text);
+      if (parsed > 0) return parsed;
+    }
+
+    final match = RegExp(
+      r'desconto(?:\s+[^:\d\n\r]{0,40})?\s*:?\s*-?\s*(?:R\$)?\s*([\d.,]+)',
+      caseSensitive: false,
+    ).firstMatch(row.text);
+    if (match != null) {
+      return _parseCurrency(match.group(1) ?? '');
+    }
+    return 0.0;
+  }
+
   List<ReceiptItem> _extractItemsFromBlocks(
     dom.Document doc,
     String receiptId,
+    DateTime now,
   ) {
     final items = <ReceiptItem>[];
     final seen = <String>{};
 
     final candidates = doc.querySelectorAll(
-      '.txtTit, .nomeProduto, .descricaoProduto, .descricao, '
+      '.txtTit2, .txtTit, .nomeProduto, .descricaoProduto, .descricao, '
       '.produto .nome, .item .nome, '
       '[class*="produto"] [class*="nome"], '
       '[class*="item"] [class*="nome"], '
@@ -541,6 +688,7 @@ class NfcePrParserService {
         titleEl,
         receiptId,
         items.length,
+        now,
       );
       if (item == null) continue;
 
@@ -554,6 +702,7 @@ class NfcePrParserService {
   List<ReceiptItem> _extractItemsFromGenericTables(
     dom.Document doc,
     String receiptId,
+    DateTime now,
   ) {
     final items = <ReceiptItem>[];
     final seen = <String>{};
@@ -571,6 +720,7 @@ class NfcePrParserService {
           cells.first,
           receiptId,
           items.length,
+          now,
         );
         if (item == null) continue;
 
@@ -606,7 +756,6 @@ class NfcePrParserService {
     final normalized = _cleanText(name).toLowerCase();
     if (normalized.length < 3 || normalized.length > 120) return false;
     if (!RegExp(r'[a-zà-ÿ]').hasMatch(normalized)) return false;
-    // Linhas de quantidade/preço não são nomes de produto.
     if (RegExp(
       r'^(?:(?:qtde|qtd|quantidade|un|valor|total)\b|vl\.?\b|r\$)',
       caseSensitive: false,
@@ -649,15 +798,15 @@ class NfcePrParserService {
     dom.Element titleEl,
     String receiptId,
     int sortOrder,
+    DateTime now,
   ) {
     final name = _cleanText(titleEl.text);
     if (!_looksLikeProductName(name)) return null;
 
     final text = container.text;
 
-    final codeMatch = RegExp(r'c[óo]digo\s*:?\s*(\d+)',
-            caseSensitive: false)
-        .firstMatch(text);
+    final codeMatch =
+        RegExp(r'c[óo]digo\s*:?\s*(\d+)', caseSensitive: false).firstMatch(text);
     final code = codeMatch?.group(1);
 
     final qtyMatch = RegExp(
@@ -682,39 +831,49 @@ class NfcePrParserService {
         : 0.0;
 
     final discountMatch = RegExp(
-      r'desconto\s*:?\s*(?:R\$)?\s*([\d.,]+)',
+      r'desconto(?:\s+[^:\d\n\r]{0,40})?\s*:?\s*-?\s*(?:R\$)?\s*([\d.,]+)',
       caseSensitive: false,
     ).firstMatch(text);
     var discount =
         discountMatch != null ? _parseCurrency(discountMatch.group(1)!) : 0.0;
 
-    // Remove o texto do desconto para o último valor da linha ser o total.
     final totalsText = text.replaceAll(
       RegExp(
-        r'desconto\s*:?\s*(?:R\$)?\s*[\d.,]+',
+        r'desconto(?:\s+[^:\d\n\r]{0,40})?\s*:?\s*-?\s*(?:R\$)?\s*[\d.,]+',
         caseSensitive: false,
       ),
       ' ',
     );
     final values = _currencyValues(totalsText);
 
-    var grossTotal = unitPrice > 0 ? unitPrice * qty : 0.0;
-    var total = values.isNotEmpty ? values.last : 0.0;
+    final normalizedQty = qty > 0 ? qty : 1.0;
+    var grossTotal =
+        unitPrice > 0 ? _round2(unitPrice * normalizedQty) : 0.0;
+    var total = values.isNotEmpty ? _round2(values.last) : 0.0;
 
     if (total <= 0) total = grossTotal;
-    if (grossTotal <= 0) grossTotal = total;
+    if (grossTotal <= 0) {
+      grossTotal = discount > 0 ? _round2(total + discount) : total;
+    }
     if (total <= 0 && grossTotal <= 0) return null;
 
     if (discount > 0) {
-      if ((total - grossTotal).abs() <= 0.03) total = grossTotal - discount;
+      if ((total - grossTotal).abs() <= 0.03) {
+        total = _round2(grossTotal - discount);
+      }
     } else if (grossTotal - total > 0.02) {
-      discount = grossTotal - total;
+      discount = _round2(grossTotal - total);
+    } else {
+      grossTotal = total;
     }
 
     if (total < 0) total = 0;
-    discount = grossTotal > 0 ? discount.clamp(0.0, grossTotal) : 0.0;
+    discount =
+        grossTotal > 0 ? _round2(discount.clamp(0.0, grossTotal)) : 0.0;
     if (unitPrice <= 0) {
-      unitPrice = qty > 0 ? total / qty : total;
+      unitPrice = normalizedQty > 0
+          ? _round2(grossTotal / normalizedQty)
+          : grossTotal;
     }
 
     return ReceiptItem(
@@ -722,13 +881,16 @@ class NfcePrParserService {
       receiptId: receiptId,
       name: name,
       code: code,
-      quantity: qty > 0 ? qty : 1.0,
+      quantity: normalizedQty,
       unit: unit.isNotEmpty ? unit : 'UN',
       unitPrice: unitPrice,
+      grossTotal: grossTotal,
       totalPrice: total,
       discount: discount,
       category: ReceiptItemCategorizer.categorize(name),
       sortOrder: sortOrder,
+      createdAt: now,
+      updatedAt: now,
     );
   }
 
@@ -743,21 +905,27 @@ class NfcePrParserService {
   }
 
   double _parseCurrency(String text) {
-    var clean = text.replaceAll('R\$', '').replaceAll('Vl. Unit.:', '').trim();
+    var clean = text
+        .replaceAll('R\$', '')
+        .replaceAll('Vl. Unit.:', '')
+        .replaceAll('\u00A0', '')
+        .trim();
     clean = clean.replaceAll(' ', '');
-    // Se formato brasileiro: 1.234,56
     if (clean.contains(',') && clean.contains('.')) {
       clean = clean.replaceAll('.', '').replaceAll(',', '.');
     } else if (clean.contains(',')) {
       clean = clean.replaceAll(',', '.');
     }
-    // Remove qualquer caractere que não seja número ou ponto
     clean = clean.replaceAll(RegExp(r'[^\d\.]'), '');
     return double.tryParse(clean) ?? 0.0;
   }
 
   double _parseQuantity(String text) {
-    var clean = text.replaceAll('Qtde.:', '').replaceAll('Qtd.:', '').trim();
+    var clean = text
+        .replaceAll('Qtde.:', '')
+        .replaceAll('Qtd.:', '')
+        .replaceAll('\u00A0', '')
+        .trim();
     if (clean.contains(',')) {
       clean = clean.replaceAll(',', '.');
     }
@@ -766,8 +934,10 @@ class NfcePrParserService {
   }
 
   String _cleanText(String text) {
-    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.replaceAll('\u00A0', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
   }
+
+  double _round2(double value) => (value * 100).roundToDouble() / 100;
 
   /// Retorna um cupom fiscal de demonstração do Paraná para testes imediatos.
   Receipt getDemoReceipt() {
@@ -787,6 +957,7 @@ class NfcePrParserService {
         'qtd': 2.0,
         'un': 'UN',
         'unitPrice': 19.90,
+        'discount': 1.50,
         'category': ReceiptItemCategorizer.acougue,
       },
       {
@@ -859,9 +1030,9 @@ class NfcePrParserService {
     final items = sampleItemsData.map((data) {
       final qtd = (data['qtd'] as num).toDouble();
       final unitPrice = (data['unitPrice'] as num).toDouble();
-      final discount = ((data['discount'] as num?) ?? 0).toDouble();
-      final total =
-          ((qtd * unitPrice - discount) * 100).roundToDouble() / 100;
+      final discount = _round2(((data['discount'] as num?) ?? 0).toDouble());
+      final grossTotal = _round2(qtd * unitPrice);
+      final netTotal = _round2((grossTotal - discount).clamp(0.0, grossTotal));
       return ReceiptItem(
         id: _uuid.v4(),
         receiptId: receiptId,
@@ -870,19 +1041,28 @@ class NfcePrParserService {
         quantity: qtd,
         unit: data['un'] as String,
         unitPrice: unitPrice,
-        totalPrice: total,
+        grossTotal: grossTotal,
+        totalPrice: netTotal,
         discount: discount,
         category: data['category'] as String,
         sortOrder: sort++,
+        createdAt: now,
+        updatedAt: now,
       );
     }).toList();
 
-    final itemsNetAmount =
-        items.fold(0.0, (acc, item) => acc + item.totalPrice);
-    // Desconto aplicado pela nota como um todo (além dos descontos por item).
+    final subtotalAmount = _round2(
+      items.fold(0.0, (acc, item) => acc + item.grossTotal),
+    );
+    final itemsNetAmount = _round2(
+      items.fold(0.0, (acc, item) => acc + item.totalPrice),
+    );
+    final itemDiscounts = _round2(
+      items.fold(0.0, (acc, item) => acc + item.discount),
+    );
     const receiptDiscount = 3.00;
-    final totalAmount =
-        ((itemsNetAmount - receiptDiscount) * 100).roundToDouble() / 100;
+    final totalAmount = _round2(itemsNetAmount - receiptDiscount);
+    final totalDiscount = _round2(itemDiscounts + receiptDiscount);
 
     return Receipt(
       id: receiptId,
@@ -891,12 +1071,15 @@ class NfcePrParserService {
       establishmentCnpj: '76.189.406/0001-40',
       issueDate: now,
       totalAmount: totalAmount,
+      subtotalAmount: subtotalAmount,
+      totalDiscount: totalDiscount,
       discountAmount: receiptDiscount,
       paymentMethod: PaymentMethods.creditCard,
       accessKey: '41261176189406000140650010001234561001234567',
       rawUrl:
           'http://www.fazenda.pr.gov.br/nfce/qrcode?p=41261176189406000140650010001234561001234567|2|1|1|ABCD',
       createdAt: now,
+      updatedAt: now,
       items: items,
     );
   }

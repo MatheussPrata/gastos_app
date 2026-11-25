@@ -271,11 +271,14 @@ class Receipts extends Table {
   TextColumn get establishmentCnpj => text().withDefault(const Constant(''))();
   DateTimeColumn get issueDate => dateTime()();
   RealColumn get totalAmount => real()();
+  RealColumn get subtotalAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get totalDiscount => real().withDefault(const Constant(0.0))();
   RealColumn get discountAmount => real().withDefault(const Constant(0.0))();
   TextColumn get paymentMethod => text().withDefault(const Constant(''))();
   TextColumn get accessKey => text().nullable()();
   TextColumn get rawUrl => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 
   @override
@@ -291,10 +294,14 @@ class ReceiptItems extends Table {
   RealColumn get quantity => real().withDefault(const Constant(1.0))();
   TextColumn get unit => text().withDefault(const Constant('UN'))();
   RealColumn get unitPrice => real().withDefault(const Constant(0.0))();
+  RealColumn get grossTotal => real().withDefault(const Constant(0.0))();
   RealColumn get totalPrice => real().withDefault(const Constant(0.0))();
   RealColumn get discount => real().withDefault(const Constant(0.0))();
   TextColumn get category => text().withDefault(const Constant('Outros'))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -347,7 +354,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -419,6 +426,41 @@ class AppDatabase extends _$AppDatabase {
               ') WHERE (receipt_id IS NULL OR receipt_id = \'\') AND EXISTS ('
               'SELECT 1 FROM receipts r WHERE r.transaction_id = transactions.id'
               ')',
+            );
+          }
+          if (from < 12) {
+            await m.addColumn(receipts, receipts.subtotalAmount);
+            await m.addColumn(receipts, receipts.totalDiscount);
+            await m.addColumn(receipts, receipts.updatedAt);
+            await m.addColumn(receiptItems, receiptItems.grossTotal);
+            await m.addColumn(receiptItems, receiptItems.createdAt);
+            await m.addColumn(receiptItems, receiptItems.updatedAt);
+            await m.addColumn(receiptItems, receiptItems.isSynced);
+
+            await customStatement(
+              'UPDATE receipt_items '
+              'SET gross_total = total_price + discount '
+              'WHERE gross_total <= 0',
+            );
+            await customStatement(
+              'UPDATE receipt_items '
+              'SET created_at = COALESCE(created_at, (SELECT r.created_at FROM receipts r WHERE r.id = receipt_items.receipt_id)), '
+              'updated_at = COALESCE(updated_at, (SELECT r.created_at FROM receipts r WHERE r.id = receipt_items.receipt_id))',
+            );
+            await customStatement(
+              'UPDATE receipts '
+              'SET subtotal_amount = COALESCE(('
+              'SELECT SUM(ri.gross_total) FROM receipt_items ri WHERE ri.receipt_id = receipts.id'
+              '), total_amount + discount_amount), '
+              'updated_at = COALESCE(updated_at, created_at) '
+              'WHERE subtotal_amount <= 0',
+            );
+            await customStatement(
+              'UPDATE receipts '
+              'SET total_discount = CASE '
+              'WHEN subtotal_amount > total_amount THEN (subtotal_amount - total_amount) '
+              'ELSE discount_amount END '
+              'WHERE total_discount <= 0',
             );
           }
         },
