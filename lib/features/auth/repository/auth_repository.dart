@@ -170,6 +170,36 @@ class AuthRepository {
     await _storage.deleteAll();
   }
 
+  /// Exclui definitivamente a conta no servidor (quando autenticada) e limpa
+  /// a sessão local armazenada.
+  Future<ApiResponse<void>> deleteAccount() async {
+    try {
+      final isGuest = await isGuestMode();
+      if (!isGuest) {
+        final response = await _dioClient.dio.delete(ApiEndpoints.authMe);
+        if (response.statusCode != 200) {
+          return const ApiResponse.error(
+            message: 'Não foi possível excluir a conta no servidor.',
+          );
+        }
+      }
+      await _storage.deleteAll();
+      return const ApiResponse.success(
+        data: null,
+        message: 'Conta excluída com sucesso',
+      );
+    } on DioException catch (e) {
+      final msg = e.error?.toString();
+      return ApiResponse.error(
+        message: (msg != null && msg.isNotEmpty)
+            ? msg
+            : 'Erro ao excluir conta no servidor.',
+      );
+    } catch (e) {
+      return ApiResponse.error(message: 'Erro inesperado: $e');
+    }
+  }
+
   Future<ApiResponse<void>> forgotPassword(String email) async {
     return const ApiResponse.success(data: null);
   }

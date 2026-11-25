@@ -6,8 +6,6 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <!-- Reagenda os lembretes depois de reiniciar o aparelho. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <!-- Alarme exato (Android 12+): o lembrete chega na hora escolhida. -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <application
         android:label="Kuanto"
         android:name="${applicationName}"

@@ -144,7 +144,6 @@ class TransactionReminderService {
       await _client.ensureInitialized();
       final android = _client.android;
       await android?.requestNotificationsPermission();
-      await android?.requestExactAlarmsPermission();
     } catch (_) {
       // Versoes antigas do Android nao precisam destas permissoes.
     }
@@ -505,10 +504,9 @@ class TransactionReminderService {
     await _client.ensureTimezone();
     final when = tz.TZDateTime.from(at, tz.local);
 
-    // Alarme exato entrega na hora escolhida, mas o Android 14+ pode negar a
-    // permissao. Nesse caso cai para o modo inexato, que ainda entrega no dia.
+    // Usa modo inexato para entregar os lembretes no dia sem exigir
+    // permissao especial de alarme exato (SCHEDULE_EXACT_ALARM) na Play Store.
     for (final mode in const [
-      AndroidScheduleMode.exactAllowWhileIdle,
       AndroidScheduleMode.inexactAllowWhileIdle,
     ]) {
       try {

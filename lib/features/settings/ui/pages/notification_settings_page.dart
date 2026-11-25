@@ -339,40 +339,6 @@ class _PermissionCard extends ConsumerWidget {
                 ],
               ),
             ),
-          if (granted && !permissions.canScheduleExact)
-            ListTile(
-              leading: const Icon(Icons.schedule, color: Colors.orange),
-              title: const Text('Alarme exato desativado'),
-              subtitle: const Text(
-                'Os avisos ainda chegam no dia, mas podem atrasar alguns '
-                'minutos. Ative "Alarmes e lembretes" nas configurações.',
-              ),
-              trailing: TextButton(
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final result = await NotificationPermissionService.instance
-                      .requestExactAlarms();
-                  onRefresh();
-                  if (result.canScheduleExact) {
-                    unawaited(
-                      TransactionReminderService.instance
-                          .syncAllFromDatabase(db.AppDatabase()),
-                    );
-                  } else {
-                    await NotificationPermissionService.instance
-                        .openSystemSettings(exactAlarms: true);
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Ative "Alarmes e lembretes" para este app.',
-                        ),
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Ativar'),
-              ),
-            ),
         ],
       ),
     );
@@ -380,9 +346,8 @@ class _PermissionCard extends ConsumerWidget {
 
   String _statusText() {
     return switch (permissions.status) {
-      NotificationPermissionStatus.granted => permissions.canScheduleExact
-          ? 'Os lembretes chegam no horário definido.'
-          : 'Os lembretes chegam no dia, com pequena tolerância.',
+      NotificationPermissionStatus.granted =>
+        'Os lembretes chegam no dia, no horário aproximado definido.',
       NotificationPermissionStatus.notRequested =>
         'Toque em "Permitir" para receber os lembretes.',
       NotificationPermissionStatus.denied =>

@@ -86,13 +86,14 @@ class NotificationPermissionService {
       }
 
       final enabled = await android.areNotificationsEnabled() ?? false;
-      final exact = await android.canScheduleExactNotifications() ?? true;
+      const exact = true;
+      const exactSupported = false;
 
       if (enabled) {
-        return NotificationPermissions(
+        return const NotificationPermissions(
           status: NotificationPermissionStatus.granted,
           canScheduleExact: exact,
-          exactAlarmsSupported: true,
+          exactAlarmsSupported: exactSupported,
         );
       }
 
@@ -107,7 +108,7 @@ class NotificationPermissionService {
             ? NotificationPermissionStatus.denied
             : NotificationPermissionStatus.notRequested,
         canScheduleExact: exact,
-        exactAlarmsSupported: true,
+        exactAlarmsSupported: exactSupported,
       );
     } catch (error) {
       debugPrint('Falha ao consultar permissoes: $error');
@@ -138,10 +139,6 @@ class NotificationPermissionService {
       } catch (_) {}
 
       final granted = await android.requestNotificationsPermission();
-
-      if (granted == true) {
-        await android.requestExactAlarmsPermission();
-      }
 
       final permissions = await check();
       if (granted == false &&

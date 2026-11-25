@@ -6,6 +6,7 @@ import 'package:gastos_app/core/app_info.dart';
 import 'package:gastos_app/core/sync/sync_provider.dart';
 import 'package:gastos_app/core/theme/app_theme.dart';
 import 'package:gastos_app/features/auth/provider/auth_provider.dart';
+import 'package:gastos_app/features/auth/repository/auth_repository.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/settings/ui/widgets/theme_color_picker.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
@@ -278,7 +279,7 @@ class SettingsDrawer extends ConsumerWidget {
                         const Icon(Icons.delete_forever, color: Colors.red),
                     title: const Text('Excluir conta',
                         style: TextStyle(color: Colors.red)),
-                    onTap: () {},
+                    onTap: () => _confirmDeleteAccount(context, ref),
                   ),
                   const Divider(height: 1),
                   ListTile(
@@ -314,5 +315,52 @@ class SettingsDrawer extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount(
+      BuildContext context, WidgetRef ref) async {
+    final isGuest =
+        await ref.read(authRepositoryProvider).isGuestMode();
+    if (!context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir conta permanentemente?'),
+        content: Text(
+          'Todos os seus dados locais (transações, cupons, cartões, metas e '
+          'planejamento)${isGuest ? '' : ' e da sua conta no servidor'} serão '
+          'apagados de forma irreversível.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Excluir conta'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await ref.read(authControllerProvider.notifier).deleteAccount();
+    if (!context.mounted) return;
+
+    if (ok) {
+      ref.read(bottomNavIndexProvider.notifier).state = AppTab.home;
+      context.go('/login');
+    } else {
+      final error = ref.read(authControllerProvider).error ??
+          'Não foi possível excluir a conta.';
+      messenger.showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+    }
   }
 }

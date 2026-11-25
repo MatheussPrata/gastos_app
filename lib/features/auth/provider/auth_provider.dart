@@ -176,6 +176,22 @@ class AuthController extends StateNotifier<AuthState> {
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
+  Future<bool> deleteAccount() async {
+    state = state.copyWith(status: AuthStatus.loading, error: null);
+    final result = await _repository.deleteAccount();
+    if (result.isSuccess) {
+      await db.AppDatabase().clearAllData();
+      state = const AuthState(status: AuthStatus.unauthenticated);
+      return true;
+    }
+
+    state = state.copyWith(
+      status: AuthStatus.authenticated,
+      error: result.message ?? 'Não foi possível excluir a conta.',
+    );
+    return false;
+  }
+
   Future<void> forgotPassword(String email) async {
     try {
       await _repository.forgotPassword(email);
