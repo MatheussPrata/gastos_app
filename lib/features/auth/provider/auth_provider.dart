@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/features/auth/models/auth_models.dart';
 import 'package:gastos_app/features/auth/repository/auth_repository.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 
 enum AuthStatus {
   unknown,
@@ -173,6 +176,7 @@ class AuthController extends StateNotifier<AuthState> {
     // Limpa a base local: sem isto, os dados do utilizador anterior seriam
     // enviados para a conta seguinte que entrasse no aparelho.
     await db.AppDatabase().clearAllData();
+    unawaited(HomeWidgetService.instance.clearOnLogout());
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
@@ -181,6 +185,7 @@ class AuthController extends StateNotifier<AuthState> {
     final result = await _repository.deleteAccount();
     if (result.isSuccess) {
       await db.AppDatabase().clearAllData();
+      unawaited(HomeWidgetService.instance.clearOnLogout());
       state = const AuthState(status: AuthStatus.unauthenticated);
       return true;
     }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_quick_add_label">Lançamento Rápido</string>
+    <string name="widget_quick_add_desc">Adicione gastos, entradas ou leia um cupom fiscal NFC-e direto da tela inicial.</string>
+    <string name="widget_summary_label">Resumo do Mês</string>
+    <string name="widget_summary_desc">Acompanhe saldo, entradas, saídas e orçamento do mês com botão de privacidade.</string>
+    <string name="widget_chart_label">Gráfico Financeiro</string>
+    <string name="widget_chart_desc">Escolha o gráfico e o período que deseja acompanhar (categorias, saldo, mensal, pagamentos ou cartões).</string>
+    <string name="widget_bills_label">Próximos Vencimentos</string>
+    <string name="widget_bills_desc">Veja as próximas contas recorrentes, faturas e lembretes a vencer nos próximos 15 dias.</string>
+</resources>

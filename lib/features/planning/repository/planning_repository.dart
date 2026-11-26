@@ -11,6 +11,7 @@ import 'package:gastos_app/core/api/endpoints.dart';
 import 'package:gastos_app/core/storage/secure_storage_config.dart';
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/models/category_models.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/services/notification_service.dart';
 
@@ -370,6 +371,7 @@ class PlanningRepository {
         .insertOnConflictUpdate(_toCompanion(normalized, synced: false));
 
     unawaited(_syncPlan(normalized));
+    HomeWidgetService.instance.scheduleSync();
 
     return normalized;
   }
@@ -389,6 +391,7 @@ class PlanningRepository {
     if (alerts.isNotEmpty) {
       unawaited(_sync.push());
     }
+    HomeWidgetService.instance.scheduleSync();
   }
 
   /// Merges a plan downloaded from the server into the local database.

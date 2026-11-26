@@ -6,6 +6,7 @@ import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/credit_cards/models/credit_card_model.dart';
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 final creditCardsRepositoryProvider = Provider<CreditCardsRepository>((ref) {
@@ -65,6 +66,7 @@ class CreditCardsRepository {
 
     unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
     return card;
   }
 
@@ -86,6 +88,7 @@ class CreditCardsRepository {
 
     unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
     return card;
   }
 
@@ -95,6 +98,7 @@ class CreditCardsRepository {
     await (_db.delete(_db.creditCards)..where((c) => c.id.equals(id))).go();
     await _sync.tombstone('credit_card', id);
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
   }
 
   /// Total spent on a card for a given reference invoice month.
@@ -249,6 +253,7 @@ class CreditCardsRepository {
     }
     unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
   }
 
   /// Returns whether the invoice for [cardId] in [month] is marked as paid.
@@ -282,6 +287,7 @@ class CreditCardsRepository {
     }
     unawaited(TransactionReminderService.instance.syncAllFromDatabase(_db));
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
   }
 
   /// Returns a map of {cardId: isPaid} for the given month.

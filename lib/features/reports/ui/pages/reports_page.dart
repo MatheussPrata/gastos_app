@@ -281,7 +281,6 @@ String formatCompactCurrencyAxis(double value) {
 }
 
 /// Constrói a evolução acumulada dia a dia do saldo dentro de [selectedMonth].
-@visibleForTesting
 List<({int day, double balance})> buildDailyCumulativeBalancePoints(
   List<Transaction> transactions,
   DateTime selectedMonth, {
@@ -328,7 +327,6 @@ List<({int day, double balance})> buildDailyCumulativeBalancePoints(
 /// - 3 meses: 3 meses contínuos encerrando em [selectedMonth]
 /// - Ano: todos os meses do ano de [selectedMonth] (até 12 meses)
 /// - Tudo: até os últimos 12 meses contínuos com histórico
-@visibleForTesting
 List<MonthlyCategoryStats> buildMonthlyComparisonSeries(
   List<MonthlyCategoryStats> stats,
   ReportPeriod period,
@@ -1839,11 +1837,17 @@ const List<Color> _chartPalette = [
 ];
 
 /// Mapeia cada categoria para uma cor única e bem contrastada no gráfico.
+Map<String, Color> resolveCategoryChartColors(
+  List<CategoryExpense> categories,
+) =>
+    _resolveCategoryColors(categories);
+
+/// Mapeia cada categoria para uma cor única e bem contrastada no gráfico.
 @visibleForTesting
 Map<String, Color> resolveCategoryColorsForTesting(
   List<CategoryExpense> categories,
 ) =>
-    _resolveCategoryColors(categories);
+    resolveCategoryChartColors(categories);
 
 Map<String, Color> _resolveCategoryColors(List<CategoryExpense> categories) {
   final result = <String, Color>{};

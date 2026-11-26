@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// App color palette - matching the Kotlin app colors
@@ -397,6 +398,7 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
 
   Future<void> setThemeMode(ThemeMode mode) async {
     state = mode;
+    HomeWidgetService.instance.scheduleSync(themeMode: mode);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKey, mode.name);
@@ -442,6 +444,7 @@ class ThemeColorNotifier extends StateNotifier<Color> {
 
   Future<void> setColor(Color color) async {
     state = color;
+    HomeWidgetService.instance.scheduleSync(primaryColor: color);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_prefsKey, color.value);

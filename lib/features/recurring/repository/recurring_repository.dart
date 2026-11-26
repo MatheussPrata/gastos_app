@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/recurring/models/recurring_models.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
@@ -83,6 +84,7 @@ class RecurringRepository {
 
     unawaited(_scheduleNotification(recurring));
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
     return recurring;
   }
 
@@ -112,6 +114,7 @@ class RecurringRepository {
 
     unawaited(_scheduleNotification(recurring));
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
     return recurring;
   }
 
@@ -121,6 +124,7 @@ class RecurringRepository {
         .go();
     await _sync.tombstone('recurring', id);
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
   }
 
   Future<void> _scheduleNotification(RecurringTransaction recurring) async {

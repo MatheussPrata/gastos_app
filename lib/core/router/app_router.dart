@@ -9,6 +9,7 @@ import 'package:gastos_app/features/auth/ui/pages/reset_password_page.dart';
 import 'package:gastos_app/features/categories/ui/pages/categories_page.dart';
 import 'package:gastos_app/features/categories/ui/pages/category_form_page.dart';
 import 'package:gastos_app/features/goals/ui/pages/goals_page.dart';
+import 'package:gastos_app/features/home_widgets/ui/pages/widgets_settings_page.dart';
 import 'package:gastos_app/features/navigation/ui/pages/main_shell_page.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/receipts/ui/pages/receipt_detail_page.dart';
@@ -39,6 +40,7 @@ class RouteNames {
   static const String sharing = '/sharing';
   static const String notificationSettings = '/settings/notifications';
   static const String backup = '/settings/backup';
+  static const String widgetsSettings = '/settings/widgets';
   static const String receiptScanner = '/receipt/scanner';
   static const String receiptReview = '/receipt/review';
   static const String receiptDetail = '/receipt/detail';
@@ -114,6 +116,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               return TransactionFormPage(
                 transactionId: extra?['id'] as String?,
                 isEditing: extra?['isEditing'] as bool? ?? false,
+                initialIsExpense: extra?['isExpense'] as bool?,
               );
             },
           ),
@@ -168,6 +171,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.backup,
         builder: (context, state) => const BackupPage(),
+      ),
+      GoRoute(
+        path: RouteNames.widgetsSettings,
+        builder: (context, state) => const WidgetsSettingsPage(),
       ),
       GoRoute(
         path: RouteNames.receiptScanner,

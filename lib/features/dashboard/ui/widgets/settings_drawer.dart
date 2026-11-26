@@ -114,6 +114,16 @@ class SettingsDrawer extends ConsumerWidget {
                       builder: (_) => const ThemeColorPickerDialog(),
                     ),
                   ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.widgets_outlined),
+                    title: const Text('Widgets da tela inicial'),
+                    subtitle: const Text(
+                      'Lançamento rápido, gráficos e resumo',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RouteNames.widgetsSettings),
+                  ),
                 ],
               ),
             ),

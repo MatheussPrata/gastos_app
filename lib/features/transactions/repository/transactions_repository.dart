@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 
@@ -216,6 +217,7 @@ class TransactionsRepository {
     }
 
     unawaited(syncPendingTransactions());
+    HomeWidgetService.instance.scheduleSync();
     return created;
   }
 
@@ -227,6 +229,7 @@ class TransactionsRepository {
         .replace(_toCompanion(updated, synced: false));
     unawaited(_scheduleReminder(updated, allowSameDayFallback: true));
     unawaited(syncPendingTransactions());
+    HomeWidgetService.instance.scheduleSync();
     return updated;
   }
 
@@ -279,6 +282,7 @@ class TransactionsRepository {
     }
 
     unawaited(_sync.push());
+    HomeWidgetService.instance.scheduleSync();
   }
 
   // ---------------------------------------------------------------- stats

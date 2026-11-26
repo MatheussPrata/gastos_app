@@ -2,12 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/notifications/notification_permission_service.dart';
 import 'package:gastos_app/core/notifications/notification_permissions_provider.dart';
+import 'package:gastos_app/core/router/app_router.dart';
 import 'package:gastos_app/core/sync/sync_provider.dart';
 import 'package:gastos_app/features/credit_cards/ui/pages/credit_cards_page.dart';
 import 'package:gastos_app/features/dashboard/ui/pages/dashboard_page.dart';
+import 'package:gastos_app/features/home_widgets/models/home_widget_models.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/navigation/provider/navigation_provider.dart';
 import 'package:gastos_app/features/planning/models/planning_models.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
@@ -16,6 +20,7 @@ import 'package:gastos_app/features/planning/ui/pages/planning_page.dart';
 import 'package:gastos_app/features/recurring/services/recurring_generator_service.dart';
 import 'package:gastos_app/features/reports/ui/pages/reports_page.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
+import 'package:gastos_app/features/transactions/provider/transactions_provider.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
 
 /// Main application shell.
@@ -70,16 +75,92 @@ class _LazyIndexedStackState extends State<_LazyIndexedStack> {
 }
 
 class _MainShellPageState extends ConsumerState<MainShellPage> {
+  StreamSubscription<WidgetLaunchAction>? _widgetActionSub;
+
   @override
   void initState() {
     super.initState();
+    _widgetActionSub =
+        HomeWidgetService.instance.actions.listen(_handleWidgetAction);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_consumeInitialWidgetAction());
       // Deixa a UI ler o banco local primeiro (offline-first).
       // As notificacoes e o sync rodam logo depois, sem competir com o 1o frame.
       Future<void>.delayed(const Duration(milliseconds: 900), () {
         if (mounted) _initializeNotificationsAndSync();
       });
     });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_widgetActionSub?.cancel());
+    super.dispose();
+  }
+
+  Future<void> _consumeInitialWidgetAction() async {
+    final action = await HomeWidgetService.instance.consumeInitialAction();
+    if (action != null && mounted) {
+      _handleWidgetAction(action);
+    }
+  }
+
+  void _handleWidgetAction(WidgetLaunchAction action) {
+    if (!mounted) return;
+    switch (action.route) {
+      case 'add_expense':
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.home;
+        context.go(RouteNames.dashboard);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            context.push(
+              RouteNames.transactionForm,
+              extra: {'isEditing': false, 'isExpense': true},
+            ),
+          );
+        });
+      case 'add_income':
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.home;
+        context.go(RouteNames.dashboard);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            context.push(
+              RouteNames.transactionForm,
+              extra: {'isEditing': false, 'isExpense': false},
+            ),
+          );
+        });
+      case 'scan_receipt':
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.home;
+        context.go(RouteNames.dashboard);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(context.push(RouteNames.receiptScanner));
+        });
+      case 'reports':
+        if (action.period != null) {
+          ref.read(reportPeriodProvider.notifier).state =
+              action.period!.toReportPeriod();
+          if (action.period == HomeWidgetPeriod.month) {
+            final now = DateTime.now();
+            ref.read(selectedMonthProvider.notifier).state =
+                DateTime(now.year, now.month, 1);
+          }
+        }
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.reports;
+        context.go(RouteNames.dashboard);
+      case 'planning':
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.planning;
+        context.go(RouteNames.dashboard);
+      case 'cards':
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.cards;
+        context.go(RouteNames.dashboard);
+      default:
+        ref.read(bottomNavIndexProvider.notifier).state = AppTab.home;
+        context.go(RouteNames.dashboard);
+    }
   }
 
   Future<void> _initializeNotificationsAndSync() async {
@@ -126,6 +207,9 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
                 scope: scope,
               );
         }
+      }
+      if (mounted) {
+        HomeWidgetService.instance.scheduleSync();
       }
     } catch (_) {}
   }

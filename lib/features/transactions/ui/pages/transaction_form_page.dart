@@ -45,11 +45,13 @@ const List<int> _newCategoryColors = [
 class TransactionFormPage extends ConsumerStatefulWidget {
   final String? transactionId;
   final bool isEditing;
+  final bool? initialIsExpense;
 
   const TransactionFormPage({
     super.key,
     this.transactionId,
     required this.isEditing,
+    this.initialIsExpense,
   });
 
   @override
@@ -81,6 +83,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     super.initState();
     if (widget.isEditing && widget.transactionId != null) {
       _loadTransaction();
+    } else if (widget.initialIsExpense != null) {
+      _isExpense = widget.initialIsExpense!;
     }
   }
 

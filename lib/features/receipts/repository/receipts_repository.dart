@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:gastos_app/core/database/app_database.dart' as db;
 import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/credit_cards/utils/credit_card_cycle_helper.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/receipts/models/receipt_models.dart';
 import 'package:gastos_app/features/transactions/models/transaction_models.dart';
 import 'package:gastos_app/features/transactions/services/transaction_reminder_service.dart';
@@ -327,6 +328,7 @@ class ReceiptsRepository {
     try {
       unawaited(_sync?.push());
     } catch (_) {}
+    HomeWidgetService.instance.scheduleSync();
 
     return (transaction: firstTxModel, receipt: finalReceipt);
   }

@@ -4,6 +4,7 @@ import 'package:gastos_app/core/sync/sync_service.dart';
 import 'package:gastos_app/features/categories/provider/categories_provider.dart';
 import 'package:gastos_app/features/credit_cards/provider/credit_cards_provider.dart';
 import 'package:gastos_app/features/goals/provider/goals_provider.dart';
+import 'package:gastos_app/features/home_widgets/services/home_widget_service.dart';
 import 'package:gastos_app/features/planning/provider/planning_provider.dart';
 import 'package:gastos_app/features/recurring/provider/recurring_provider.dart';
 import 'package:gastos_app/features/sharing/provider/sharing_provider.dart';
@@ -86,4 +87,5 @@ void invalidateSyncedData(WidgetRef ref) {
     ..invalidate(cardInvoicePaidProvider)
     ..invalidate(cardForecastProvider)
     ..invalidate(allCardsTransactionsProvider);
+  HomeWidgetService.instance.scheduleSync();
 }
